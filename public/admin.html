@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07101f">
+  <meta name="rivo-admin-panel" content="RIVO_ADMIN_PANEL_V25_0">
+  <title>لوحة إدارة Rivo — V25.0</title>
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body data-panel-mode="owner">
+  <main class="admin-shell">
+    <section id="adminLogin" class="admin-login card">
+      <div class="admin-crown large" aria-hidden="true">
+        <svg viewBox="0 0 64 48">
+          <path class="crown-main" d="M8 36 4 11l15 10L32 4l13 17 15-10-4 25H8Z"/>
+          <path class="crown-base" d="M10 36h44l-3 8H13l-3-8Z"/>
+          <circle class="gem ruby" cx="18" cy="31" r="3"/>
+          <circle class="gem sapphire" cx="32" cy="27" r="3.5"/>
+          <circle class="gem emerald" cx="46" cy="31" r="3"/>
+        </svg>
+      </div>
+
+      <h1>لوحة إدارة Rivo</h1>
+      <p>هذه الصفحة خاصة بالمالك فقط. المراقبون يدخلون من الصفحة الرئيسية بواسطة رموزهم الخاصة.</p>
+
+      <form id="adminLoginForm">
+        <input id="adminCode" type="password" autocomplete="current-password"
+               placeholder="رمز المالك" required>
+
+        <select id="adminRole" class="hidden" aria-hidden="true">
+          <option value="owner" selected>الإدارة</option>
+        </select>
+
+        <label class="mode-switch">
+          <input id="adminVisible" type="checkbox" checked>
+          <span></span>
+          <b>إظهاري أول قائمة المستخدمين</b>
+        </label>
+
+        <button id="adminLoginButton" type="submit">فتح لوحة الإدارة والدردشة</button>
+      </form>
+
+      <div id="loginStatus" class="login-status hidden"></div>
+      <small>عند النشر، يتم التحقق من رمز الإدارة في خادم Cloudflare قبل فتح الصفحة.</small>
+    </section>
+
+    <section id="adminDashboard" class="admin-dashboard hidden">
+      <header class="admin-topbar card">
+        <div class="admin-identity">
+          <div class="admin-crown">
+            <svg viewBox="0 0 64 48">
+              <path class="crown-main" d="M8 36 4 11l15 10L32 4l13 17 15-10-4 25H8Z"/>
+              <path class="crown-base" d="M10 36h44l-3 8H13l-3-8Z"/>
+              <circle class="gem ruby" cx="18" cy="31" r="3"/>
+              <circle class="gem sapphire" cx="32" cy="27" r="3.5"/>
+              <circle class="gem emerald" cx="46" cy="31" r="3"/>
+            </svg>
+          </div>
+
+          <div>
+            <strong id="adminRoleLabel">لوحة تحكم الإدارة</strong>
+            <span id="adminConnection">جاري الاتصال بالدردشة</span>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button id="reloadChatButton" type="button">تحديث الدردشة</button>
+          <button id="expandChatButton" class="primary" type="button">تكبير الدردشة</button>
+          <button id="openSeparateChatButton" type="button">فتح منفصلة</button>
+          <button id="adminLogoutButton" class="logout" type="button">خروج</button>
+        </div>
+      </header>
+
+      <section id="adminWorkspace" class="admin-workspace">
+        <article class="chat-frame-card card">
+          <header class="chat-frame-header">
+            <div>
+              <strong>الدردشة الجماعية المباشرة</strong>
+              <span>نفس الدردشة والخاص والمايك وقائمة المستخدمين</span>
+            </div>
+            <i id="chatFrameState">جاري التحميل</i>
+          </header>
+
+          <iframe id="adminChatFrame"
+                  title="دردشة Rivo داخل لوحة الإدارة"
+                  allow="microphone; autoplay; clipboard-write"
+                  referrerpolicy="same-origin"></iframe>
+        </article>
+
+        <aside id="adminControlRail" class="admin-control-rail">
+          <article id="roomControlCard" class="card control-card">
+            <header class="rail-title">
+              <div>
+                <h2>تحكم الغرفة</h2>
+                <p>تطبق الأوامر فوراً على الدردشة المفتوحة أمامك.</p>
+              </div>
+              <button id="hideControlsButton" class="rail-collapse" type="button"
+                      title="إخفاء أدوات التحكم">‹</button>
+            </header>
+
+            <div class="admin-current-room">
+              <span>الغرفة التي تديرها الآن</span>
+              <strong id="adminCurrentRoomName">العامة</strong>
+              <a id="backToMainAdmin" class="hidden" href="./admin.html">العودة إلى الإدارة الرئيسية</a>
+            </div>
+
+            <label class="control-row">
+              <div>
+                <strong>مايك الغرفة</strong>
+                <span>فتح أو إغلاق صعود المستخدمين إلى المايك</span>
+              </div>
+              <input id="publicMicToggle" type="checkbox" checked>
+            </label>
+
+            <label class="control-row">
+              <div>
+                <strong>مايك الخاص</strong>
+                <span>إعداد المكالمات الخاصة عند إضافتها لاحقاً</span>
+              </div>
+              <input id="privateMicToggle" type="checkbox">
+            </label>
+
+            <button id="forceReleaseMic" class="danger wide" type="button">
+              إنزال المتحدث الحالي
+            </button>
+
+            <div class="current-speaker">
+              <span>المتحدث الآن</span>
+              <strong id="currentSpeakerName">لا يوجد</strong>
+            </div>
+          </article>
+
+
+          <article id="staffProfileCard" class="card staff-card">
+            <header class="rail-title">
+              <div>
+                <h2>حساب الإدارة</h2>
+                <p>غيّر الصورة أو اختفِ من قائمة المستخدمين فوراً.</p>
+              </div>
+            </header>
+
+            <div class="staff-name-editor">
+              <label for="staffNameInput">اسمك في الدردشة</label>
+              <div class="staff-name-row">
+                <input id="staffNameInput" class="admin-select" maxlength="24" placeholder="مثال: طلال">
+                <button id="saveStaffNameButton" class="primary small-action" type="button">حفظ الاسم</button>
+              </div>
+              <small>تظهر كلمة «الإدارة» كشارة مستقلة، ولا تصبح جزءاً من اسمك.</small>
+            </div>
+
+            <label class="control-row stealth-control">
+              <div>
+                <strong>وضع التخفي</strong>
+                <span>تختفي الإدارة من القائمة، وتبقى الرسائل مميزة بالتاج.</span>
+              </div>
+              <input id="staffStealthToggle" type="checkbox">
+            </label>
+
+            <strong class="small-section-title">تغيير صورة الإدارة</strong>
+            <div id="staffAvatarGrid" class="staff-avatar-grid"></div>
+          </article>
+
+          <article id="awardCard" class="card award-card">
+            <h2>الهدايا والشارات</h2>
+            <p class="card-hint">تظهر الشارة قرب صورة المستخدم واسمه وفي رسائله.</p>
+
+            <select id="awardUserSelect" class="admin-select">
+              <option value="">اختر المستخدم</option>
+            </select>
+
+            <div id="awardBadgeGrid" class="award-badge-grid" role="radiogroup" aria-label="اختر الهدية"></div>
+            <select id="awardBadgeSelect" class="award-badge-native" aria-label="الهدية المختارة">
+              <option value="star">⭐ نجمة ذهبية</option>
+              <option value="diamond">💎 ماسة زرقاء</option>
+              <option value="ruby">♦️ جوهرة حمراء</option>
+              <option value="heart">❤️ قلب ملكي</option>
+                            <option value="emerald">💚 زمردة خضراء</option>
+            </select>
+            <div id="selectedAwardPreview" class="selected-award-preview" aria-live="polite">
+              <span id="selectedAwardIcon" class="gift-preview-icon badge-star">⭐</span>
+              <div><small>الهدية المختارة</small><strong id="selectedAwardLabel">نجمة ذهبية</strong></div>
+            </div>
+
+            <div class="two-buttons">
+              <button id="giveAwardButton" class="primary small-action" type="button">منح الهدية</button>
+              <button id="removeAwardButton" class="small-action" type="button">إزالة الهدية</button>
+            </div>
+          </article>
+
+          <article id="moderationCard" class="card moderation-card">
+            <h2>الطرد والحظر</h2>
+            <p id="moderationHint" class="card-hint">اختر المستخدم ثم الإجراء ومدة الحظر.</p>
+
+            <select id="moderationUserSelect" class="admin-select">
+              <option value="">اختر المستخدم</option>
+            </select>
+
+            <select id="banDurationSelect" class="admin-select">
+              <option value="5">حظر 5 دقائق</option>
+              <option value="30">حظر 30 دقيقة</option>
+              <option value="60">حظر ساعة</option>
+              <option value="1440">حظر يوم كامل</option>
+              <option value="0">حظر دائم</option>
+            </select>
+
+            <div class="two-buttons">
+              <button id="kickSelectedButton" class="small-action" type="button">طرد الآن</button>
+              <button id="banSelectedButton" class="danger small-action" type="button">حظر المستخدم</button>
+            </div>
+
+            <strong id="bannedUsersTitle" class="small-section-title">المحظورون</strong>
+            <div id="bannedUsersList" class="banned-users-list"></div>
+          </article>
+
+
+          <article id="announcementCard" class="card announcement-card">
+            <h2>التثبيت والإعلانات</h2>
+            <p class="card-hint">تظهر أعلى الدردشة فوراً في جميع المتصفحات.</p>
+            <select id="noticeKindSelect" class="admin-select">
+              <option value="pinned">📌 رسالة مثبتة</option>
+              <option value="announcement">📣 إعلان الإدارة</option>
+            </select>
+            <textarea id="noticeTextInput" class="admin-textarea" maxlength="500"
+                      placeholder="اكتب الرسالة أو الإعلان…"></textarea>
+            <div class="two-buttons">
+              <button id="publishNoticeButton" class="primary small-action" type="button">نشر الآن</button>
+              <button id="clearNoticeButton" class="small-action" type="button">إزالة التثبيت</button>
+            </div>
+            <div id="currentNoticePreview" class="current-notice-preview">لا توجد رسالة مثبتة.</div>
+          </article>
+
+          <article id="reportsCard" class="card reports-card">
+            <header>
+              <div>
+                <h2>بلاغات المستخدمين</h2>
+                <p>تظهر معها الرسائل الأخيرة للمستخدم المُبلّغ عنه.</p>
+              </div>
+              <b id="reportsCount">0</b>
+            </header>
+            <div id="reportsList" class="reports-list"></div>
+          </article>
+
+          <article id="staffAccountsCard" class="card staff-accounts-card owner-only-card">
+            <header class="staff-accounts-header">
+              <div>
+                <h2>رموز واشتراكات المراقبين</h2>
+                <p>أنشئ رمزاً مستقلاً لكل مراقب، وحدد مدته، ثم أوقفه أو جدده بضغط زر.</p>
+              </div>
+              <b id="staffAccountsCount">0</b>
+            </header>
+
+            <label class="admin-field-label">
+              <span>اسم المراقب</span>
+              <input id="newModeratorName" class="admin-input" type="text" maxlength="40"
+                     placeholder="مثلاً: أحمد" autocomplete="off">
+            </label>
+
+            <label class="admin-field-label">
+              <span>مدة الاشتراك</span>
+              <select id="newModeratorDuration" class="admin-select">
+                <option value="7">7 أيام</option>
+                <option value="30" selected>شهر واحد — 30 يوماً</option>
+                <option value="90">3 أشهر — 90 يوماً</option>
+                <option value="180">6 أشهر — 180 يوماً</option>
+                <option value="365">سنة واحدة</option>
+                <option value="0">بدون تاريخ انتهاء</option>
+              </select>
+            </label>
+
+            <button id="createModeratorAccount" class="primary wide" type="button">
+              إنشاء رمز مراقب جديد
+            </button>
+
+            <div id="staffAccountsList" class="staff-accounts-list"></div>
+          </article>
+
+          <article id="moderatorPermissionsCard" class="card permissions-card owner-only-card">
+            <h2>صلاحيات المراقبين</h2>
+            <p class="card-hint">يستطيع المالك تخصيص صلاحيات كل مراقب بصورة منفصلة.</p>
+            <select id="moderatorSelect" class="admin-select">
+              <option value="">اختر المراقب</option>
+            </select>
+            <div class="permission-grid">
+              <label><input id="permMic" type="checkbox"> التحكم بالمايك</label>
+              <label><input id="permPrivate" type="checkbox"> التحكم بالخاص</label>
+              <label><input id="permKick" type="checkbox"> طرد المستخدم</label>
+              <label><input id="permTempBan" type="checkbox"> حظر مؤقت</label>
+              <label><input id="permPermanentBan" type="checkbox"> حظر دائم</label>
+              <label><input id="permGifts" type="checkbox"> منح الهدايا</label>
+              <label><input id="permReports" type="checkbox"> معالجة البلاغات</label>
+              <label><input id="permPin" type="checkbox"> نشر الإعلانات</label>
+            </div>
+            <button id="saveModeratorPermissions" class="primary wide" type="button">
+              حفظ صلاحيات المراقب
+            </button>
+          </article>
+
+          <article id="vipSubscriptionsCard" class="card owner-only-card vip-admin-card">
+            <header class="staff-accounts-header">
+              <div>
+                <h2>طلبات وعضويات VIP 💎</h2>
+                <p>عضوية واحدة بسعر 15 دولار شهرياً. وافق على الطلب ثم فعّل العضوية يدوياً لمدة 30 يوماً إلى حين ربط بوابة الدفع.</p>
+              </div>
+              <b id="vipRequestsCount">0</b>
+            </header>
+            <strong class="small-section-title">طلبات الاشتراك</strong>
+            <div id="vipRequestsList" class="vip-admin-list"></div>
+            <strong class="small-section-title">الأعضاء الحاليون</strong>
+            <div id="vipMembersList" class="vip-admin-list"></div>
+          </article>
+
+          <article id="roomsManagerCard" class="card owner-only-card rooms-manager-card">
+            <header class="staff-accounts-header">
+              <div>
+                <h2>إدارة الغرف</h2>
+                <p>حد المستخدمين العاديين 20 في كل غرفة. الإدارة والمراقبون وVIP يدخلون حتى عند الامتلاء.</p>
+              </div>
+              <b id="roomsCount">0</b>
+            </header>
+            <div class="admin-inline-grid">
+              <label class="admin-field-label"><span>معرّف الغرفة بالإنجليزية</span><input id="newRoomId" class="admin-input" maxlength="32" placeholder="مثال: iraq"></label>
+              <label class="admin-field-label"><span>اسم الغرفة</span><input id="newRoomName" class="admin-input" maxlength="40" placeholder="مثال: العراق"></label>
+            </div>
+            <button id="createRoomButton" class="primary wide" type="button">إضافة غرفة جديدة</button>
+            <div id="roomsManagerList" class="rooms-admin-list"></div>
+          </article>
+
+          <article id="charactersManagerCard" class="card owner-only-card characters-manager-card">
+            <header class="staff-accounts-header">
+              <div>
+                <h2>إدارة الشخصيات المتحركة</h2>
+                <p>أضف شخصية مثل لينا بملف VRM وصورة واجهة. تُحمّل الشخصية المختارة فقط حتى يبقى الموقع خفيفاً.</p>
+              </div>
+              <b id="charactersCount">0</b>
+            </header>
+            <div class="character-form-grid">
+              <label class="admin-field-label"><span>معرّف الشخصية</span><input id="characterId" class="admin-input" maxlength="40" placeholder="مثال: nora"></label>
+              <label class="admin-field-label"><span>اسم الشخصية</span><input id="characterName" class="admin-input" maxlength="40" placeholder="نورا"></label>
+              <label class="admin-field-label"><span>رابط الصورة المصغرة</span><input id="characterThumbnailUrl" class="admin-input" placeholder="/assets/nora.webp"></label>
+              <label class="admin-field-label"><span>رابط ملف VRM</span><input id="characterVrmUrl" class="admin-input" placeholder="/characters/Nora.vrm"></label>
+              <label class="admin-field-label"><span>الصوت</span><input id="characterVoiceId" class="admin-input" maxlength="100" placeholder="اسم الصوت"></label>
+              <label class="admin-field-label"><span>اللهجة</span><input id="characterDialect" class="admin-input" maxlength="80" placeholder="عراقية"></label>
+              <label class="admin-field-label"><span>الترتيب</span><input id="characterOrder" class="admin-input" type="number" min="0" max="999" value="10"></label>
+              <label class="admin-field-label character-wide"><span>الوصف</span><textarea id="characterDescription" class="admin-textarea" maxlength="300" placeholder="وصف قصير للشخصية"></textarea></label>
+            </div>
+            <div class="permission-grid character-flags">
+              <label><input id="characterVipOnly" type="checkbox"> خاصة بأعضاء VIP</label>
+              <label><input id="characterVisible" type="checkbox" checked> ظاهرة في الواجهة</label>
+            </div>
+            <details class="character-upload-details">
+              <summary>رفع الملفات إلى Cloudflare R2 (اختياري)</summary>
+              <div class="character-upload-row">
+                <input id="characterThumbnailFile" type="file" accept="image/png,image/jpeg,image/webp">
+                <button id="uploadCharacterThumbnail" type="button">رفع الصورة</button>
+              </div>
+              <div class="character-upload-row">
+                <input id="characterVrmFile" type="file" accept=".vrm,model/gltf-binary,application/octet-stream">
+                <button id="uploadCharacterVrm" type="button">رفع ملف VRM</button>
+              </div>
+              <small>يعمل الرفع بعد إضافة R2 binding باسم CHARACTER_ASSETS. ويمكنك استعمال روابط جاهزة بدون R2.</small>
+            </details>
+            <div class="two-buttons">
+              <button id="saveCharacterButton" class="primary small-action" type="button">حفظ الشخصية</button>
+              <button id="clearCharacterFormButton" class="small-action" type="button">تفريغ الحقول</button>
+            </div>
+            <div id="charactersManagerList" class="characters-admin-list"></div>
+          </article>
+
+          <article id="usersManagementCard" class="card users-card">
+            <header>
+              <div>
+                <h2>إدارة المستخدمين</h2>
+                <p>تظهر الإدارة والمراقب أولاً.</p>
+              </div>
+              <b id="adminUsersCount">0</b>
+            </header>
+            <div id="adminUsersList" class="admin-users-list"></div>
+          </article>
+
+          <article id="adminLogCard" class="card log-card">
+            <h2>سجل الإجراءات</h2>
+            <div id="adminLog" class="admin-log server-admin-log"></div>
+          </article>
+        </aside>
+
+        <button id="showControlsButton" class="show-controls-button hidden" type="button">
+          أدوات الإدارة
+        </button>
+      </section>
+    </section>
+  </main>
+
+  <div id="adminToast" class="admin-toast hidden"></div>
+
+  <script src="./admin-config.js"></script>
+  <script src="./admin.js"></script>
+</body>
+</html>

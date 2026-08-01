@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#07101f">
+  <meta name="rivo-admin-panel" content="RIVO_ADMIN_PANEL_V25_0">
+  <title>لوحة المراقب — Rivo V25.0</title>
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./admin.css">
+</head>
+<body data-panel-mode="moderator">
+  <main class="admin-shell">
+    <section id="adminLogin" class="admin-login card">
+      <div class="admin-crown large moderator-shield" aria-hidden="true">★</div>
+      <h1>لوحة المراقب</h1>
+      <p>الدخول إلى هذه اللوحة يتم من الصفحة الرئيسية بواسطة رمز المراقب الخاص.</p>
+      <a class="moderator-main-entry-link" href="./index.html">العودة إلى الصفحة الرئيسية</a>
+      <div id="loginStatus" class="login-status hidden"></div>
+      <form id="adminLoginForm" class="hidden">
+        <input id="adminCode" type="password"><select id="adminRole"><option value="moderator">المراقب</option></select>
+        <input id="adminVisible" type="checkbox" checked><button id="adminLoginButton" type="submit">دخول</button>
+      </form>
+    </section>
+
+    <section id="adminDashboard" class="admin-dashboard hidden">
+      <header class="admin-topbar card">
+        <div class="admin-identity">
+          <div class="admin-crown moderator-top-shield" aria-hidden="true">★</div>
+
+          <div>
+            <strong id="adminRoleLabel">لوحة تحكم المراقب</strong>
+            <span id="adminConnection">جاري الاتصال بالدردشة</span>
+          </div>
+        </div>
+
+        <div class="top-actions">
+          <button id="reloadChatButton" type="button">تحديث الدردشة</button>
+          <button id="expandChatButton" class="primary" type="button">تكبير الدردشة</button>
+          <button id="openSeparateChatButton" type="button">فتح منفصلة</button>
+          <button id="adminLogoutButton" class="logout" type="button">خروج</button>
+        </div>
+      </header>
+
+      <section id="adminWorkspace" class="admin-workspace">
+        <article class="chat-frame-card card">
+          <header class="chat-frame-header">
+            <div>
+              <strong>الدردشة الجماعية المباشرة</strong>
+              <span>نفس الدردشة والخاص والمايك وقائمة المستخدمين</span>
+            </div>
+            <i id="chatFrameState">جاري التحميل</i>
+          </header>
+
+          <iframe id="adminChatFrame"
+                  title="دردشة Rivo داخل لوحة الإدارة"
+                  allow="microphone; autoplay; clipboard-write"
+                  referrerpolicy="same-origin"></iframe>
+        </article>
+
+        <aside id="adminControlRail" class="admin-control-rail">
+          <article id="roomControlCard" class="card control-card">
+            <header class="rail-title">
+              <div>
+                <h2>تحكم الغرفة</h2>
+                <p>تطبق الأوامر فوراً على الدردشة المفتوحة أمامك.</p>
+              </div>
+              <button id="hideControlsButton" class="rail-collapse" type="button"
+                      title="إخفاء أدوات التحكم">‹</button>
+            </header>
+
+            <label class="control-row">
+              <div>
+                <strong>مايك العامة</strong>
+                <span>فتح أو إغلاق صعود المستخدمين إلى المايك</span>
+              </div>
+              <input id="publicMicToggle" type="checkbox" checked>
+            </label>
+
+            <label class="control-row">
+              <div>
+                <strong>مايك الخاص</strong>
+                <span>إعداد المكالمات الخاصة عند إضافتها لاحقاً</span>
+              </div>
+              <input id="privateMicToggle" type="checkbox">
+            </label>
+
+            <button id="forceReleaseMic" class="danger wide" type="button">
+              إنزال المتحدث الحالي
+            </button>
+
+            <div class="current-speaker">
+              <span>المتحدث الآن</span>
+              <strong id="currentSpeakerName">لا يوجد</strong>
+            </div>
+          </article>
+
+
+          <article id="staffProfileCard" class="card staff-card">
+            <header class="rail-title">
+              <div>
+                <h2>حساب المراقب</h2>
+                <p>غيّر صورتك أو اختفِ من قائمة المستخدمين فوراً.</p>
+              </div>
+            </header>
+
+            <label class="control-row stealth-control">
+              <div>
+                <strong>وضع التخفي</strong>
+                <span>تختفي من القائمة، وتبقى رسائلك مميزة بنجمة المراقب.</span>
+              </div>
+              <input id="staffStealthToggle" type="checkbox">
+            </label>
+
+            <strong class="small-section-title">تغيير صورة المراقب</strong>
+            <div id="staffAvatarGrid" class="staff-avatar-grid"></div>
+          </article>
+
+          <article id="awardCard" class="card award-card">
+            <h2>الهدايا والشارات</h2>
+            <p class="card-hint">تظهر الشارة قرب صورة المستخدم واسمه وفي رسائله.</p>
+
+            <select id="awardUserSelect" class="admin-select">
+              <option value="">اختر المستخدم</option>
+            </select>
+
+            <div id="awardBadgeGrid" class="award-badge-grid" role="radiogroup" aria-label="اختر الهدية"></div>
+            <select id="awardBadgeSelect" class="award-badge-native" aria-label="الهدية المختارة">
+              <option value="star">⭐ نجمة ذهبية</option>
+              <option value="diamond">💎 ماسة زرقاء</option>
+              <option value="ruby">♦️ جوهرة حمراء</option>
+              <option value="heart">❤️ قلب ملكي</option>
+                            <option value="emerald">💚 زمردة خضراء</option>
+            </select>
+            <div id="selectedAwardPreview" class="selected-award-preview" aria-live="polite">
+              <span id="selectedAwardIcon" class="gift-preview-icon badge-star">⭐</span>
+              <div><small>الهدية المختارة</small><strong id="selectedAwardLabel">نجمة ذهبية</strong></div>
+            </div>
+
+            <div class="two-buttons">
+              <button id="giveAwardButton" class="primary small-action" type="button">منح الهدية</button>
+              <button id="removeAwardButton" class="small-action" type="button">إزالة الهدية</button>
+            </div>
+          </article>
+
+          <article id="moderationCard" class="card moderation-card">
+            <h2>الطرد والحظر</h2>
+            <p id="moderationHint" class="card-hint">اختر المستخدم ثم الإجراء ومدة الحظر.</p>
+
+            <select id="moderationUserSelect" class="admin-select">
+              <option value="">اختر المستخدم</option>
+            </select>
+
+            <select id="banDurationSelect" class="admin-select">
+              <option value="5">حظر 5 دقائق</option>
+              <option value="30">حظر 30 دقيقة</option>
+              <option value="60">حظر ساعة</option>
+              <option value="1440">حظر يوم كامل</option>
+            </select>
+
+            <div class="two-buttons">
+              <button id="kickSelectedButton" class="small-action" type="button">طرد الآن</button>
+              <button id="banSelectedButton" class="danger small-action" type="button">حظر المستخدم</button>
+            </div>
+
+            <strong id="bannedUsersTitle" class="small-section-title">المحظورون</strong>
+            <div id="bannedUsersList" class="banned-users-list"></div>
+          </article>
+
+
+          <article id="announcementCard" class="card announcement-card">
+            <h2>التثبيت والإعلانات</h2>
+            <p class="card-hint">تظهر أعلى الدردشة فوراً في جميع المتصفحات.</p>
+            <select id="noticeKindSelect" class="admin-select">
+              <option value="pinned">📌 رسالة مثبتة</option>
+              <option value="announcement">📣 إعلان الإدارة</option>
+            </select>
+            <textarea id="noticeTextInput" class="admin-textarea" maxlength="500"
+                      placeholder="اكتب الرسالة أو الإعلان…"></textarea>
+            <div class="two-buttons">
+              <button id="publishNoticeButton" class="primary small-action" type="button">نشر الآن</button>
+              <button id="clearNoticeButton" class="small-action" type="button">إزالة التثبيت</button>
+            </div>
+            <div id="currentNoticePreview" class="current-notice-preview">لا توجد رسالة مثبتة.</div>
+          </article>
+
+          <article id="reportsCard" class="card reports-card">
+            <header>
+              <div>
+                <h2>بلاغات المستخدمين</h2>
+                <p>تظهر معها الرسائل الأخيرة للمستخدم المُبلّغ عنه.</p>
+              </div>
+              <b id="reportsCount">0</b>
+            </header>
+            <div id="reportsList" class="reports-list"></div>
+          </article>
+
+          <article id="staffAccountsCard" class="card staff-accounts-card owner-only-card">
+            <header class="staff-accounts-header">
+              <div>
+                <h2>رموز واشتراكات المراقبين</h2>
+                <p>أنشئ رمزاً مستقلاً لكل مراقب، وحدد مدته، ثم أوقفه أو جدده بضغط زر.</p>
+              </div>
+              <b id="staffAccountsCount">0</b>
+            </header>
+
+            <label class="admin-field-label">
+              <span>اسم المراقب</span>
+              <input id="newModeratorName" class="admin-input" type="text" maxlength="40"
+                     placeholder="مثلاً: أحمد" autocomplete="off">
+            </label>
+
+            <label class="admin-field-label">
+              <span>مدة الاشتراك</span>
+              <select id="newModeratorDuration" class="admin-select">
+                <option value="7">7 أيام</option>
+                <option value="30" selected>شهر واحد — 30 يوماً</option>
+                <option value="90">3 أشهر — 90 يوماً</option>
+                <option value="180">6 أشهر — 180 يوماً</option>
+                <option value="365">سنة واحدة</option>
+                <option value="0">بدون تاريخ انتهاء</option>
+              </select>
+            </label>
+
+            <button id="createModeratorAccount" class="primary wide" type="button">
+              إنشاء رمز مراقب جديد
+            </button>
+
+            <div id="staffAccountsList" class="staff-accounts-list"></div>
+          </article>
+
+          <article id="moderatorPermissionsCard" class="card permissions-card owner-only-card">
+            <h2>صلاحيات المراقبين</h2>
+            <p class="card-hint">يستطيع المالك تخصيص صلاحيات كل مراقب بصورة منفصلة.</p>
+            <select id="moderatorSelect" class="admin-select">
+              <option value="">اختر المراقب</option>
+            </select>
+            <div class="permission-grid">
+              <label><input id="permMic" type="checkbox"> التحكم بالمايك</label>
+              <label><input id="permPrivate" type="checkbox"> التحكم بالخاص</label>
+              <label><input id="permKick" type="checkbox"> طرد المستخدم</label>
+              <label><input id="permTempBan" type="checkbox"> حظر مؤقت</label>
+              <label><input id="permPermanentBan" type="checkbox"> حظر دائم</label>
+              <label><input id="permGifts" type="checkbox"> منح الهدايا</label>
+              <label><input id="permReports" type="checkbox"> معالجة البلاغات</label>
+              <label><input id="permPin" type="checkbox"> نشر الإعلانات</label>
+            </div>
+            <button id="saveModeratorPermissions" class="primary wide" type="button">
+              حفظ صلاحيات المراقب
+            </button>
+          </article>
+
+          <article id="usersManagementCard" class="card users-card">
+            <header>
+              <div>
+                <h2>إدارة المستخدمين</h2>
+                <p>تظهر الإدارة والمراقب أولاً.</p>
+              </div>
+              <b id="adminUsersCount">0</b>
+            </header>
+            <div id="adminUsersList" class="admin-users-list"></div>
+          </article>
+
+          <article id="adminLogCard" class="card log-card">
+            <h2>سجل الإجراءات</h2>
+            <div id="adminLog" class="admin-log server-admin-log"></div>
+          </article>
+        </aside>
+
+        <button id="showControlsButton" class="show-controls-button hidden" type="button">
+          أدوات الإدارة
+        </button>
+      </section>
+    </section>
+  </main>
+
+  <div id="adminToast" class="admin-toast hidden"></div>
+
+  <script src="./admin-config.js"></script>
+  <script src="./admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,636 @@
+
+:root{
+  color-scheme:dark;
+  --bg:#07101f;
+  --panel:rgba(14,24,45,.95);
+  --line:rgba(255,255,255,.09);
+  --text:#f1f4ff;
+  --muted:#8d99b7;
+  --accent:#7d88ff;
+  --danger:#ff5f79;
+}
+*{box-sizing:border-box}
+html,body{min-height:100%}
+body{
+  margin:0;
+  min-height:100vh;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 15% 10%,rgba(122,89,255,.18),transparent 32%),
+    radial-gradient(circle at 90% 90%,rgba(31,177,218,.13),transparent 35%),
+    var(--bg);
+  color:var(--text);
+  font-family:Tahoma,Arial,sans-serif
+}
+button,input,select{font:inherit}
+button{user-select:none}
+.hidden{display:none!important}
+.card{
+  border:1px solid var(--line);
+  border-radius:22px;
+  background:var(--panel);
+  box-shadow:0 24px 70px rgba(0,0,0,.35);
+  backdrop-filter:blur(18px)
+}
+.admin-shell{
+  width:100%;
+  height:100vh;
+  padding:10px;
+}
+.admin-login{
+  width:min(470px,calc(100% - 24px));
+  margin:7vh auto;
+  padding:34px;
+  text-align:center
+}
+.admin-login h1{margin:14px 0 8px;font-size:25px}
+.admin-login p,.admin-login small{color:var(--muted);line-height:1.7}
+.admin-login form{display:grid;gap:12px;margin:24px 0}
+.admin-login input,.admin-login select{
+  width:100%;
+  height:49px;
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:0 14px;
+  background:rgba(255,255,255,.055);
+  color:#fff;
+  outline:none
+}
+.admin-login input:focus,.admin-login select:focus{
+  border-color:rgba(125,136,255,.45);
+  box-shadow:0 0 0 4px rgba(125,136,255,.09)
+}
+.admin-login button,.primary{
+  border:0;
+  border-radius:15px;
+  padding:13px 18px;
+  background:linear-gradient(135deg,#7180ff,#9b6cf2);
+  color:#fff;
+  font-weight:800;
+  cursor:pointer
+}
+.admin-login button:disabled{opacity:.55;cursor:wait}
+.login-status{
+  margin:12px 0;
+  padding:10px 12px;
+  border:1px solid rgba(255,110,134,.25);
+  border-radius:12px;
+  background:rgba(255,85,112,.09);
+  color:#ffb6c2;
+  font-size:11px;
+  line-height:1.6
+}
+.mode-switch{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  text-align:right;
+  color:#cbd2ea;
+  font-size:12px
+}
+.mode-switch input{width:18px;height:18px}
+.admin-crown{width:50px;height:40px;display:grid;place-items:center}
+.admin-crown.large{width:92px;height:70px;margin:auto}
+.admin-crown svg{
+  width:100%;height:100%;overflow:visible;
+  filter:drop-shadow(0 7px 12px rgba(255,190,31,.28))
+}
+.crown-main{fill:#f2c24b;stroke:#fff0a2;stroke-width:1.2}
+.crown-base{fill:#ba7519;stroke:#ffd96a;stroke-width:1}
+.gem{stroke:#fff8d9;stroke-width:1}
+.ruby{fill:#ff4f72}.sapphire{fill:#51a8ff}.emerald{fill:#51e3ad}
+
+.admin-dashboard{
+  height:calc(100vh - 20px);
+  display:flex;
+  flex-direction:column;
+  gap:10px
+}
+.admin-topbar{
+  min-height:66px;
+  padding:10px 14px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:15px;
+  flex:none
+}
+.admin-identity,.top-actions{display:flex;align-items:center;gap:10px}
+.admin-identity>div:last-child{display:flex;flex-direction:column;gap:4px}
+.admin-identity span{color:var(--muted);font-size:10px}
+.top-actions{flex-wrap:wrap;justify-content:flex-end}
+.top-actions button{
+  border:1px solid var(--line);
+  border-radius:11px;
+  padding:9px 12px;
+  background:rgba(255,255,255,.055);
+  color:#fff;
+  font-size:10px;
+  cursor:pointer
+}
+.top-actions .primary{border:0}
+.top-actions .logout{
+  color:#ffb3c0;
+  border-color:rgba(255,95,121,.24);
+  background:rgba(255,95,121,.08)
+}
+
+.admin-workspace{
+  min-height:0;
+  flex:1;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 350px;
+  gap:10px;
+  position:relative
+}
+.admin-workspace.chat-expanded{
+  grid-template-columns:minmax(0,1fr)
+}
+.admin-workspace.chat-expanded .admin-control-rail{
+  display:none
+}
+.chat-frame-card{
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column
+}
+.chat-frame-header{
+  min-height:48px;
+  padding:8px 13px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex:none
+}
+.chat-frame-header>div{display:flex;flex-direction:column;gap:4px}
+.chat-frame-header strong{font-size:12px}
+.chat-frame-header span{color:var(--muted);font-size:9px}
+.chat-frame-header i{
+  padding:6px 9px;
+  border-radius:10px;
+  background:rgba(125,136,255,.11);
+  color:#bdc6ff;
+  font-style:normal;
+  font-size:9px
+}
+#adminChatFrame{
+  width:100%;
+  min-height:0;
+  flex:1;
+  border:0;
+  background:#080d1a
+}
+
+.admin-control-rail{
+  min-height:0;
+  overflow:auto;
+  padding-inline-start:1px;
+  display:flex;
+  flex-direction:column;
+  gap:10px
+}
+.control-card,.users-card,.log-card{padding:14px}
+.rail-title{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px
+}
+.rail-title h2,.users-card h2,.log-card h2{margin:0;font-size:15px}
+.rail-title p,.users-card p{
+  margin:5px 0 0;
+  color:var(--muted);
+  font-size:9px;
+  line-height:1.55
+}
+.rail-collapse{
+  width:30px;
+  height:30px;
+  border:1px solid var(--line);
+  border-radius:10px;
+  background:rgba(255,255,255,.05);
+  color:#d9deff;
+  cursor:pointer
+}
+.control-row{
+  min-height:66px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:10px 0;
+  border-bottom:1px solid var(--line)
+}
+.control-row div{display:flex;flex-direction:column;gap:5px}
+.control-row strong{font-size:11px}
+.control-row span{color:var(--muted);font-size:8px;line-height:1.5}
+.control-row input{width:21px;height:21px}
+.wide{width:100%;margin-top:13px}
+.danger{
+  border:1px solid rgba(255,95,121,.3);
+  border-radius:12px;
+  padding:11px;
+  background:rgba(255,95,121,.12);
+  color:#ffafbd;
+  cursor:pointer
+}
+.current-speaker{
+  margin-top:12px;
+  padding:11px;
+  border-radius:13px;
+  background:rgba(255,255,255,.045);
+  display:flex;
+  flex-direction:column;
+  gap:6px
+}
+.current-speaker span{color:var(--muted);font-size:9px}
+.current-speaker strong{font-size:11px}
+.users-card>header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px
+}
+.users-card>header>b{
+  min-width:32px;
+  height:32px;
+  border-radius:11px;
+  display:grid;
+  place-items:center;
+  background:rgba(125,136,255,.14);
+  color:#cdd3ff;
+  font-size:11px
+}
+.admin-users-list{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  margin-top:12px;
+  max-height:38vh;
+  overflow:auto
+}
+.admin-user{
+  display:grid;
+  grid-template-columns:38px minmax(0,1fr) auto;
+  align-items:center;
+  gap:8px;
+  padding:7px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:rgba(255,255,255,.035)
+}
+.admin-user img{
+  width:38px;height:38px;border-radius:12px;
+  object-fit:cover;background:#e9ebf3
+}
+.admin-user-info{min-width:0;display:flex;flex-direction:column;gap:4px}
+.admin-user-info strong{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px
+}
+.admin-user-info span{color:var(--muted);font-size:8px}
+.admin-user-actions{display:flex;flex-direction:column;gap:4px}
+.admin-user-actions button{
+  border:1px solid var(--line);
+  border-radius:8px;
+  padding:5px 7px;
+  background:rgba(255,255,255,.05);
+  color:#dbe0ff;
+  font-size:8px;
+  cursor:pointer
+}
+.admin-user-actions button.danger{color:#ffafbd}
+.role-owner,.role-moderator{border-color:rgba(242,194,75,.28)}
+.role-badge{color:#ffd76d!important}
+.admin-log{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  max-height:150px;
+  overflow:auto
+}
+.admin-log div{
+  padding:8px 9px;
+  border-radius:10px;
+  background:rgba(255,255,255,.035);
+  color:#b7c0dc;
+  font-size:8px;
+  line-height:1.5
+}
+.show-controls-button{
+  position:absolute;
+  left:12px;
+  top:12px;
+  z-index:4;
+  border:1px solid rgba(145,160,255,.28);
+  border-radius:12px;
+  padding:9px 12px;
+  background:rgba(14,24,45,.94);
+  color:#dce1ff;
+  box-shadow:0 12px 30px rgba(0,0,0,.3);
+  cursor:pointer
+}
+.admin-toast{
+  position:fixed;
+  left:18px;
+  bottom:18px;
+  z-index:30;
+  max-width:360px;
+  padding:11px 14px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  background:#111c32;
+  color:#fff;
+  box-shadow:0 16px 45px rgba(0,0,0,.38);
+  font-size:10px
+}
+@media(max-width:980px){
+  body{overflow:auto}
+  .admin-shell{height:auto;min-height:100vh}
+  .admin-dashboard{height:auto;min-height:calc(100vh - 20px)}
+  .admin-topbar{align-items:flex-start;flex-direction:column}
+  .top-actions{width:100%;justify-content:stretch}
+  .top-actions button{flex:1}
+  .admin-workspace{grid-template-columns:1fr}
+  .chat-frame-card{height:78vh}
+  .admin-control-rail{overflow:visible}
+  .admin-users-list{max-height:420px}
+}
+@media(max-width:600px){
+  .admin-shell{padding:5px}
+  .admin-dashboard{min-height:calc(100vh - 10px)}
+  .admin-topbar{border-radius:16px}
+  .top-actions{display:grid;grid-template-columns:1fr 1fr}
+  .chat-frame-card{height:82vh;border-radius:16px}
+  .chat-frame-header span{display:none}
+  .admin-control-rail .card{border-radius:16px}
+}
+
+
+/* Rivo v22 — staff controls, awards and bans */
+.staff-card,.award-card,.moderation-card{padding:14px}
+.staff-card h2,.award-card h2,.moderation-card h2{margin:0;font-size:15px}
+.card-hint{margin:6px 0 12px;color:var(--muted);font-size:9px;line-height:1.55}
+.small-section-title{display:block;margin:13px 0 8px;font-size:10px;color:#dce2ff}
+.staff-avatar-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:7px
+}
+.staff-avatar-option{
+  aspect-ratio:1;
+  padding:3px;
+  border:1px solid var(--line);
+  border-radius:13px;
+  overflow:hidden;
+  background:rgba(255,255,255,.045);
+  cursor:pointer
+}
+.staff-avatar-option.selected{
+  border-color:#ffd461;
+  box-shadow:0 0 0 3px rgba(255,202,67,.11)
+}
+.staff-avatar-option img{
+  width:100%;height:100%;object-fit:cover;border-radius:9px;background:#e9ebf3
+}
+.admin-select{
+  width:100%;height:39px;margin-bottom:8px;padding:0 10px;
+  border:1px solid var(--line);border-radius:11px;
+  background:#111b31;color:#eef1ff;outline:none;font-size:9px
+}
+.two-buttons{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.small-action{
+  min-height:38px;border:1px solid var(--line);border-radius:11px;
+  background:rgba(255,255,255,.055);color:#eef1ff;font-size:9px;cursor:pointer
+}
+.small-action.primary{border:0;background:linear-gradient(135deg,#7180ff,#9b6cf2)}
+.banned-users-list{display:flex;flex-direction:column;gap:6px}
+.banned-users-list>small{color:var(--muted);font-size:8px}
+.banned-user-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px;
+  padding:7px;border:1px solid var(--line);border-radius:10px;background:rgba(255,255,255,.035)
+}
+.banned-user-row span{font-size:8px;color:#cbd3ec;line-height:1.5}
+.banned-user-row button{
+  border:1px solid rgba(95,218,165,.24);border-radius:8px;padding:6px 7px;
+  background:rgba(67,210,147,.08);color:#8ff0c4;font-size:8px;cursor:pointer
+}
+.stealth-control{border-bottom:0}
+
+
+/* Rivo v24 — professional moderation */
+.admin-textarea{
+  width:100%;min-height:88px;box-sizing:border-box;margin-bottom:8px;padding:10px;
+  border:1px solid var(--line);border-radius:11px;background:#111b31;color:#eef1ff;
+  outline:none;resize:vertical;font-family:inherit;font-size:9px
+}
+.current-notice-preview{
+  margin-top:9px;padding:8px;border:1px dashed rgba(255,255,255,.13);
+  border-radius:10px;color:#bfc7df;font-size:8px;line-height:1.55
+}
+.reports-card header{display:flex;justify-content:space-between;align-items:start}
+.reports-card header h2{margin:0}
+.reports-card header p{margin:4px 0 0;color:var(--muted);font-size:8px}
+.reports-card header>b{
+  min-width:25px;height:25px;display:grid;place-items:center;border-radius:9px;
+  background:rgba(255,91,123,.13);color:#ffafbd
+}
+.reports-list{display:flex;flex-direction:column;gap:8px;margin-top:11px}
+.report-admin-card{
+  padding:10px;border:1px solid var(--line);border-radius:12px;
+  background:rgba(255,255,255,.035)
+}
+.report-admin-card header{display:flex;justify-content:space-between;gap:7px}
+.report-admin-card header strong{font-size:10px}
+.report-admin-card time{font-size:7px;color:var(--muted)}
+.report-admin-card p{margin:6px 0;font-size:8px;line-height:1.55;color:#cbd3e9}
+.report-admin-card details{font-size:8px;color:#aeb8d3}
+.report-admin-card ul{padding-inline-start:16px;line-height:1.6}
+.report-admin-actions{display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;margin-top:8px}
+.report-admin-actions button{
+  min-height:31px;border:1px solid var(--line);border-radius:9px;
+  background:rgba(255,255,255,.055);color:#eef1ff;font-size:7px;cursor:pointer
+}
+.report-admin-actions .danger{color:#ffb1c0;border-color:rgba(255,84,119,.25)}
+.permission-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:9px 0 11px
+}
+.permission-grid label{
+  display:flex;align-items:center;gap:7px;padding:8px;border:1px solid var(--line);
+  border-radius:10px;background:rgba(255,255,255,.03);font-size:8px;color:#cad2e7
+}
+.permission-grid input{accent-color:#7b86ff}
+.empty-admin-state{
+  padding:11px;border:1px dashed var(--line);border-radius:11px;
+  color:var(--muted);font-size:8px;text-align:center
+}
+.server-admin-log>div{
+  display:grid;grid-template-columns:auto 1fr;gap:3px 7px;
+  padding:7px 0;border-bottom:1px solid rgba(255,255,255,.055)
+}
+.server-admin-log strong{font-size:8px;color:#93a0ff}
+.server-admin-log span{font-size:8px;color:#eef1ff}
+.server-admin-log small{grid-column:1/-1;font-size:7px;color:var(--muted)}
+@media(max-width:900px){
+  .permission-grid{grid-template-columns:1fr}
+  .report-admin-actions{grid-template-columns:1fr}
+}
+
+
+/* Rivo v24.2 — moderator subscriptions */
+.staff-accounts-card{padding:14px}
+.staff-accounts-header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.staff-accounts-header h2{margin:0;font-size:15px}
+.staff-accounts-header p{margin:5px 0 0;color:var(--muted);font-size:8px;line-height:1.6}
+.staff-accounts-header>b{min-width:28px;height:28px;display:grid;place-items:center;border-radius:9px;background:rgba(111,128,255,.14);color:#aeb9ff}
+.admin-field-label{display:block;margin-bottom:9px}
+.admin-field-label>span{display:block;margin-bottom:6px;font-size:9px;color:#dce2f5}
+.admin-input{width:100%;height:40px;box-sizing:border-box;padding:0 11px;border:1px solid var(--line);border-radius:11px;background:#111b31;color:#eef1ff;outline:none;font-size:10px}
+.staff-accounts-list{display:flex;flex-direction:column;gap:9px;margin-top:13px}
+.staff-account-row{padding:10px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.035)}
+.staff-account-row.disabled{opacity:.72;border-color:rgba(255,91,123,.22)}
+.staff-account-row.expired{border-color:rgba(255,169,72,.28)}
+.staff-account-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+.staff-account-head strong{font-size:10px}
+.staff-account-status{padding:4px 7px;border-radius:999px;background:rgba(71,210,149,.11);color:#87efc1;font-size:7px;white-space:nowrap}
+.staff-account-status.off{background:rgba(255,86,119,.11);color:#ffadbd}
+.staff-account-status.expired{background:rgba(255,170,69,.12);color:#ffd09a}
+.staff-account-meta{display:grid;gap:4px;margin:8px 0;color:#aeb8d3;font-size:8px}
+.staff-code-box{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px;border-radius:10px;background:#091125;border:1px solid rgba(255,255,255,.07);direction:ltr}
+.staff-code-box code{font-size:9px;color:#dce4ff;overflow-wrap:anywhere}
+.staff-code-box button{border:0;border-radius:8px;padding:6px 8px;background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-size:8px}
+.staff-account-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:8px}
+.staff-account-actions button{min-height:34px;border:1px solid var(--line);border-radius:9px;background:rgba(255,255,255,.05);color:#eef1ff;font-size:8px;cursor:pointer}
+.staff-account-actions .danger{color:#ffb2c0;border-color:rgba(255,82,115,.24)}
+.staff-account-actions .success{color:#91efc5;border-color:rgba(67,210,147,.24)}
+.moderator-main-entry-link{display:block;padding:12px 15px;border-radius:13px;background:linear-gradient(135deg,#6e7eff,#a25eea);color:#fff;text-decoration:none;font-weight:800}
+.moderator-shield{font-size:46px;display:grid;place-items:center}
+body[data-panel-mode="moderator"] .owner-only-card{display:none!important}
+@media(max-width:600px){.staff-account-actions{grid-template-columns:1fr}.staff-code-box{align-items:stretch;flex-direction:column}.staff-code-box button{width:100%}}
+
+.moderator-top-shield{display:grid;place-items:center;font-size:25px;line-height:1}
+
+/* Rivo v24.4 — large, unmistakable gift picker */
+.award-badge-native{
+  position:absolute!important;
+  width:1px!important;
+  height:1px!important;
+  padding:0!important;
+  margin:-1px!important;
+  overflow:hidden!important;
+  clip:rect(0,0,0,0)!important;
+  white-space:nowrap!important;
+  border:0!important
+}
+.award-badge-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:9px;
+  margin:10px 0 12px
+}
+.award-badge-option{
+  min-height:86px;
+  padding:10px 8px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:15px;
+  background:linear-gradient(145deg,rgba(255,255,255,.065),rgba(255,255,255,.025));
+  color:#fff;
+  cursor:pointer;
+  transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease
+}
+.award-badge-option:hover{transform:translateY(-2px);border-color:rgba(162,176,255,.45)}
+.award-badge-option.selected{
+  border-color:#ffe074;
+  box-shadow:0 0 0 3px rgba(255,208,73,.15),0 10px 24px rgba(0,0,0,.22);
+  background:linear-gradient(145deg,rgba(116,93,224,.25),rgba(255,203,70,.08))
+}
+.award-badge-option:disabled{opacity:.42;cursor:not-allowed;transform:none}
+.award-card-icon,
+.gift-preview-icon{
+  display:grid;
+  place-items:center;
+  border:0;
+  background:transparent!important;
+  font-weight:900;
+  line-height:1;
+  text-shadow:none;
+  box-shadow:none;
+  filter:drop-shadow(0 5px 8px rgba(0,0,0,.35))
+}
+.award-card-icon{width:54px;height:54px;border-radius:0;font-size:38px}
+.award-badge-option>span:last-child{display:flex;flex-direction:column;align-items:center;gap:3px;text-align:center}
+.award-badge-option strong{font-size:10px;color:#f6f7ff}
+.award-badge-option small{font-size:7px;color:#9fa9c8}
+.selected-award-preview{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-height:66px;
+  margin:0 0 10px;
+  padding:9px 11px;
+  border:1px solid rgba(255,224,116,.22);
+  border-radius:14px;
+  background:rgba(255,219,93,.055)
+}
+.gift-preview-icon{width:64px;height:64px;border-radius:0;font-size:46px;flex:none}
+.selected-award-preview>div{display:flex;flex-direction:column;gap:4px}
+.selected-award-preview small{font-size:8px;color:#aeb8d3}
+.selected-award-preview strong{font-size:12px;color:#fff7cc}
+.badge-star{color:#ffd84d;background:transparent!important}
+.badge-diamond{color:#67dcff;background:transparent!important}
+.badge-ruby{color:#ff5a73;background:transparent!important}
+.badge-heart{color:#ff6b9d;background:transparent!important}
+.badge-silverCrown{color:#f4f7ff;background:transparent!important}
+.badge-emerald{color:#48e3a1;background:transparent!important}
+@media(max-width:600px){
+  .award-badge-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .award-badge-option{min-height:92px}
+  .award-card-icon{width:48px;height:48px;font-size:30px}
+}
+
+/* Rivo v24.4 — permission-driven moderator panel */
+.permission-hidden{display:none!important}
+
+/* Rivo v141 — separate display name from administrative role */
+.staff-name-editor{margin:0 0 14px;padding:12px;border:1px solid rgba(132,148,255,.18);border-radius:14px;background:rgba(255,255,255,.025)}
+.staff-name-editor>label{display:block;margin-bottom:8px;font-weight:800;color:#edf1ff}
+.staff-name-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.staff-name-row .admin-select{margin:0;min-width:0}
+.staff-name-editor small{display:block;margin-top:7px;color:#9ea9c8;line-height:1.55}
+@media(max-width:520px){.staff-name-row{grid-template-columns:1fr}.staff-name-row button{width:100%}}
+
+/* Rivo v25 — VIP, rooms and dynamic characters */
+.vip-admin-card,.rooms-manager-card,.characters-manager-card{border-color:rgba(75,190,255,.32)}
+.vip-admin-list,.rooms-admin-list,.characters-admin-list{display:grid;gap:10px;margin-top:10px}
+.vip-request-row,.vip-member-row,.room-admin-row,.character-admin-row{display:grid;gap:10px;padding:12px;border:1px solid rgba(148,163,184,.2);border-radius:16px;background:rgba(5,12,25,.7)}
+.vip-request-row,.vip-member-row{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.vip-member-row.active{box-shadow:inset 0 0 0 1px rgba(63,213,255,.22)}
+.vip-row-info,.character-admin-info{display:grid;gap:4px;min-width:0}
+.vip-row-info strong{font-size:15px}.vip-row-info span,.character-admin-info span{font-size:12px;color:#aebbd0}
+.vip-row-actions,.room-admin-actions,.character-admin-actions{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.vip-row-actions button,.room-admin-actions button,.character-admin-actions button,.character-upload-row button{min-height:36px;border:0;border-radius:11px;padding:7px 11px;cursor:pointer;background:#263750;color:#fff;font-weight:800}
+.vip-row-actions button.primary,.room-admin-actions button.primary{background:linear-gradient(135deg,#2578ff,#7554ff)}
+.vip-row-actions button.success,.room-admin-actions button.success{background:#137c5a}.vip-row-actions button.danger,.room-admin-actions button.danger,.character-admin-actions button.danger{background:#9a3247}
+.admin-inline-grid,.character-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:10px}
+.character-wide{grid-column:1/-1}
+.room-admin-row{grid-template-columns:180px minmax(0,1fr) auto;align-items:center}
+.room-admin-row.disabled,.character-admin-row.disabled{opacity:.58}
+.room-admin-id{font-size:13px;color:#ddecff;overflow:hidden;text-overflow:ellipsis}
+.room-admin-fields{display:grid;grid-template-columns:minmax(120px,1fr) 72px auto;gap:8px;align-items:center}
+.room-order-input{max-width:72px}.room-live-count{font-size:12px;color:#7fdbff;white-space:nowrap}
+.character-admin-row{grid-template-columns:64px minmax(0,1fr) auto;align-items:center}
+.character-admin-row img{width:58px;height:58px;object-fit:cover;border-radius:16px;background:rgba(255,255,255,.06)}
+.character-flags{margin:10px 0}.character-upload-details{margin:10px 0;padding:10px;border:1px dashed rgba(125,211,252,.28);border-radius:14px}
+.character-upload-details summary{cursor:pointer;font-weight:800;color:#dff7ff}.character-upload-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-top:9px}.character-upload-row input{color:#d9e7fa}
+.admin-user.is-vip{box-shadow:inset 0 0 0 1px rgba(65,208,255,.28),0 0 18px rgba(35,151,255,.08)}
+@media(max-width:800px){.vip-request-row,.vip-member-row,.room-admin-row,.character-admin-row{grid-template-columns:1fr}.admin-inline-grid,.character-form-grid{grid-template-columns:1fr}.character-wide{grid-column:auto}.room-admin-fields{grid-template-columns:1fr 82px}.room-live-count{grid-column:1/-1}.vip-row-actions,.room-admin-actions,.character-admin-actions{justify-content:stretch}.vip-row-actions button,.room-admin-actions button,.character-admin-actions button{flex:1}}
+.admin-current-room{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:10px 0 12px;padding:11px 12px;border-radius:14px;background:rgba(55,122,255,.1);border:1px solid rgba(91,166,255,.25)}
+.admin-current-room span{font-size:12px;color:#a9bbd4}.admin-current-room strong{color:#8ee8ff}.admin-current-room a{margin-inline-start:auto;color:#fff;text-decoration:none;padding:6px 9px;border-radius:9px;background:rgba(255,255,255,.09);font-size:12px;font-weight:800}

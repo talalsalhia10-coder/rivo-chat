@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin.html
+Disallow: /moderator.html
+Disallow: /OPEN_ADMIN.html
+Disallow: /__test_staff.html
+
+Sitemap: https://chat.rivolove.com/sitemap.xml
