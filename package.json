@@ -1,0 +1,14 @@
+{
+  "name": "rivo-chat-cloudflare",
+  "version": "142.0.0",
+  "private": true,
+  "description": "Rivo Chat standalone Worker for chat.rivolove.com",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "node scripts/check.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "latest"
+  }
+}
