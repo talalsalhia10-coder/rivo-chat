@@ -1,5 +1,5 @@
-const CORE_CACHE = "rivo-group-chat-core-v141";
-const MODEL_CACHE = "rivo-group-chat-model-v141";
+const CORE_CACHE = "rivo-group-chat-core-v1423";
+const MODEL_CACHE = "rivo-group-chat-model-v1423";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -78,6 +78,19 @@ self.addEventListener("fetch", (event) => {
           return response;
         })
         .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html")))
+    );
+    return;
+  }
+
+  const isCoreUiFile = /\.(?:css|js)$/.test(url.pathname);
+  if (isCoreUiFile) {
+    event.respondWith(
+      fetch(event.request, { cache: "no-store" })
+        .then((response) => {
+          if (response.ok) caches.open(CORE_CACHE).then((cache) => cache.put(event.request, response.clone()));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
     return;
   }

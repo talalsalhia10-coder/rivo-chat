@@ -7,7 +7,7 @@
   <meta name="description" content="دردشة Rivo الجماعية المجانية للتعارف والمحادثة بالصوت والكتابة، مع رسائل خاصة بالموافقة وإدارة آمنة للمجتمع.">
   <meta name="keywords" content="دردشة جماعية مجانية, دردشة صوتية, شات عربي, Rivo Chat, دردشة ريفو">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
-  <meta name="rivo-version" content="141.0">
+  <meta name="rivo-version" content="142.3">
   <link rel="canonical" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="ar" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="x-default" href="https://chat.rivolove.com/">
@@ -24,7 +24,7 @@
   <title>دردشة Rivo الجماعية المجانية | صوت وكتابة</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="./styles.css?v=142.3">
 
   <script type="application/ld+json">
   {
@@ -170,6 +170,21 @@
             <small>الدردشة الرئيسية</small>
           </span>
           <i id="onlineBadge">0</i>
+        </button>
+      </nav>
+
+      <nav class="mobile-tools mobile-only" aria-label="أدوات الدردشة على الهاتف">
+        <a class="mobile-tool-item" href="https://rivolove.com/chat/?id=lina">
+          <span>👧</span><b>تكلم مع لينا</b>
+        </a>
+        <button id="mobileRoomsButton" class="mobile-tool-item" type="button">
+          <span>▦</span><b>الغرف</b>
+        </button>
+        <button id="mobileVipButton" class="mobile-tool-item" type="button">
+          <span>💎</span><b>VIP</b>
+        </button>
+        <button id="mobileInstallButton" class="mobile-tool-item hidden" type="button">
+          <span>⬇</span><b>تثبيت التطبيق</b>
         </button>
       </nav>
 
@@ -514,7 +529,7 @@
   <div id="vipModal" class="professional-modal hidden" aria-hidden="true">
     <div class="professional-modal-backdrop" data-close-vip="1"></div>
     <section class="professional-sheet vip-sheet" role="dialog" aria-modal="true" aria-labelledby="vipModalTitle">
-      <button id="vipModalClose" class="professional-close" type="button" aria-label="إغلاق">✕</button>
+      <button id="vipModalClose" class="professional-close" type="button" aria-label="إغلاق نافذة VIP" title="إغلاق">✕</button>
       <div class="vip-hero-gem">💎</div>
       <h2 id="vipModalTitle">عضوية VIP</h2>
       <div class="vip-price"><strong>15$</strong><span>شهرياً — عضوية واحدة واضحة</span></div>
@@ -566,7 +581,7 @@
       }
     }
   </script>
-  <script src="./app.js"></script>
+  <script src="./app.js?v=142.3"></script>
   <script src="./professional-features.js"></script>
   <script type="module" src="./avatar-stage.js"></script>
 

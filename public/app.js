@@ -88,6 +88,9 @@
     closeSidebar: $("closeSidebar"),
     sidebarBackdrop: $("sidebarBackdrop"),
     installButton: $("installButton"),
+    mobileRoomsButton: $("mobileRoomsButton"),
+    mobileVipButton: $("mobileVipButton"),
+    mobileInstallButton: $("mobileInstallButton"),
     avatarLivePanel: $("avatarLivePanel"),
     closeAvatarStage: $("closeAvatarStage"),
     avatarStage: $("avatarStage"),
@@ -297,8 +300,12 @@
   }
 
   async function openVipModal() {
-    els.vipModal?.classList.remove("hidden");
-    els.vipModal?.setAttribute("aria-hidden", "false");
+    if (!els.vipModal) return;
+    // A previous mobile close may set an inline display value. Always clear it before opening.
+    els.vipModal.style.removeProperty("display");
+    els.vipModal.classList.remove("hidden");
+    els.vipModal.setAttribute("aria-hidden", "false");
+    document.body.classList.add("modal-open");
     if (!googleSession?.sessionToken && !profile?.googleSessionToken && googleRequired()) {
       setVipStatus("سجّل الدخول بحساب Google أولاً، ثم أرسل طلب العضوية.");
       if (els.vipRequestButton) els.vipRequestButton.disabled = true;
@@ -307,9 +314,41 @@
     await refreshVipStatus();
   }
 
-  function closeVipModal() {
-    els.vipModal?.classList.add("hidden");
-    els.vipModal?.setAttribute("aria-hidden", "true");
+  function closeVipModal(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.stopImmediatePropagation?.();
+    if (!els.vipModal) return;
+    els.vipModal.classList.add("hidden");
+    els.vipModal.setAttribute("aria-hidden", "true");
+    // Inline display is a final safety net for mobile browsers with stale modal CSS.
+    els.vipModal.style.display = "none";
+    document.body.classList.remove("modal-open");
+  }
+
+  function bindReliableModalClose(target, handler) {
+    if (!target) return;
+    const close = (event) => handler(event);
+    target.addEventListener("pointerdown", close, { capture: true });
+    target.addEventListener("click", close, { capture: true });
+    target.addEventListener("pointerup", close, { capture: true });
+    target.addEventListener("touchstart", close, { capture: true, passive: false });
+    target.addEventListener("touchend", close, { capture: true, passive: false });
+  }
+
+  function installVipCloseSafetyNet() {
+    const closeFromDelegation = (event) => {
+      const target = event.target?.closest?.("#vipModalClose, [data-close-vip='1']");
+      if (!target || !els.vipModal?.contains(target)) return;
+      closeVipModal(event);
+    };
+    // Delegation keeps the X working even if the modal is re-rendered or the browser restores stale nodes.
+    document.addEventListener("pointerdown", closeFromDelegation, true);
+    document.addEventListener("click", closeFromDelegation, true);
+    document.addEventListener("touchstart", closeFromDelegation, { capture: true, passive: false });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !els.vipModal?.classList.contains("hidden")) closeVipModal(event);
+    });
   }
 
   async function requestVipMembership() {
@@ -4221,9 +4260,19 @@
 
     els.vipJoinOpen?.addEventListener("click", openVipModal);
     els.vipHeaderButton?.addEventListener("click", openVipModal);
-    els.vipModalClose?.addEventListener("click", closeVipModal);
-    els.vipModal?.querySelector("[data-close-vip]")?.addEventListener("click", closeVipModal);
+    bindReliableModalClose(els.vipModalClose, closeVipModal);
+    bindReliableModalClose(els.vipModal?.querySelector("[data-close-vip]"), closeVipModal);
+    installVipCloseSafetyNet();
     els.vipRequestButton?.addEventListener("click", requestVipMembership);
+
+    els.mobileRoomsButton?.addEventListener("click", () => {
+      closeSidebar();
+      openRoomsMenu();
+    });
+    els.mobileVipButton?.addEventListener("click", () => {
+      closeSidebar();
+      openVipModal();
+    });
     els.vipStealthButton?.addEventListener("click", () => {
       if (!profile?.isVip || !transport?.isReady?.()) return;
       const enabled = !profile.vipStealth;
@@ -4439,18 +4488,26 @@
       transport?.close();
     });
 
-    window.addEventListener("beforeinstallprompt", (event) => {
-      event.preventDefault();
-      deferredInstallPrompt = event;
-      els.installButton.classList.remove("hidden");
-    });
-
-    els.installButton.addEventListener("click", async () => {
+    const promptInstallApp = async () => {
       if (!deferredInstallPrompt) return;
       deferredInstallPrompt.prompt();
       await deferredInstallPrompt.userChoice;
       deferredInstallPrompt = null;
-      els.installButton.classList.add("hidden");
+      els.installButton?.classList.add("hidden");
+      els.mobileInstallButton?.classList.add("hidden");
+    };
+
+    window.addEventListener("beforeinstallprompt", (event) => {
+      event.preventDefault();
+      deferredInstallPrompt = event;
+      els.installButton?.classList.remove("hidden");
+      els.mobileInstallButton?.classList.remove("hidden");
+    });
+
+    els.installButton?.addEventListener("click", promptInstallApp);
+    els.mobileInstallButton?.addEventListener("click", async () => {
+      closeSidebar();
+      await promptInstallApp();
     });
   }
 
