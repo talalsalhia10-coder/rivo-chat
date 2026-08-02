@@ -1,2 +1,2 @@
-Rivo Chat v142.4
-Mobile voice unlock and selected character persistence fix
+Rivo Chat v142.5
+WebSocket Opus audio relay + visible animated VRM avatar

@@ -2076,3 +2076,19 @@ body.modal-open{overflow:hidden;touch-action:none}
 .avatar-fallback img{object-fit:contain;max-width:100%;max-height:100%}
 #vrmCanvas{z-index:1}
 .model-loading{z-index:4}
+
+/* ==========================================================
+   Rivo Chat v142.5 — real 3D avatar visibility and clean voice UI
+   ========================================================== */
+#vrmCanvas{
+  z-index:4!important;
+  opacity:1!important;
+  visibility:visible!important;
+}
+.avatar-fallback{z-index:2!important}
+.avatar-fallback.hidden{display:none!important}
+.model-loading{z-index:6!important}
+.voice-meter{display:none!important}
+.avatar-stage.talking #vrmCanvas{
+  filter:drop-shadow(0 16px 28px rgba(0,0,0,.28));
+}

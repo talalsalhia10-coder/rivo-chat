@@ -13,6 +13,7 @@ let currentVrm = null;
 let currentCharacterId = "";
 let loadingToken = 0;
 let voiceLevel = 0;
+let targetVoiceLevel = 0;
 let laughActive = false;
 let stageVisible = false;
 let blinkValue = 0;
@@ -319,7 +320,10 @@ function animate() {
   updateBlink(now, delta);
 
   if (currentVrm) {
-    const mouth = THREE.MathUtils.smoothstep(voiceLevel, 0.012, 0.48);
+    const response = targetVoiceLevel > voiceLevel ? 0.42 : 0.20;
+    voiceLevel = THREE.MathUtils.lerp(voiceLevel, targetVoiceLevel, response);
+    if (targetVoiceLevel < 0.008 && voiceLevel < 0.009) voiceLevel = 0;
+    const mouth = THREE.MathUtils.clamp(Math.pow(voiceLevel * 3.15, 0.62), 0, 1);
     const vowels = ["aa", "ih", "ou", "ee", "oh"];
     const vowelPhase = Math.floor(now / 105) % vowels.length;
 
@@ -330,14 +334,14 @@ function animate() {
     setExpression("happy", laughActive ? 0.96 : Math.min(0.16, mouth * 0.1));
 
     if (headBone && headBase) {
-      headBone.rotation.x = headBase.x - mouth * 0.025 + Math.sin(now * 0.00072) * 0.012;
-      headBone.rotation.y = headBase.y + Math.sin(now * 0.00043) * 0.035;
+      headBone.rotation.x = headBase.x - mouth * 0.075 + Math.sin(now * 0.00072) * 0.018;
+      headBone.rotation.y = headBase.y + Math.sin(now * 0.00043) * 0.055;
       headBone.rotation.z = headBase.z + (laughActive ? Math.sin(now * 0.019) * 0.028 : 0);
     }
 
     if (neckBone && neckBase) {
-      neckBone.rotation.x = neckBase.x + Math.sin(now * 0.0005) * 0.012;
-      neckBone.rotation.y = neckBase.y + Math.sin(now * 0.00031) * 0.018;
+      neckBone.rotation.x = neckBase.x + Math.sin(now * 0.0005) * 0.020;
+      neckBone.rotation.y = neckBase.y + Math.sin(now * 0.00031) * 0.030;
       neckBone.rotation.z = neckBase.z + Math.sin(now * 0.00039) * 0.01;
     }
 
@@ -379,7 +383,7 @@ window.addEventListener("rivo:character-selected", (event) => {
 });
 
 window.addEventListener("rivo:avatar-level", (event) => {
-  voiceLevel = Number(event.detail?.level || 0);
+  targetVoiceLevel = Number(event.detail?.level || 0);
   laughActive = Boolean(event.detail?.laugh);
 });
 

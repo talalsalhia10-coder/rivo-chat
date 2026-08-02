@@ -168,6 +168,7 @@
   let remoteSpeakerId = "";
   let lastVoiceBroadcastAt = 0;
   let voiceRoom = null;
+  let relayAudio = null;
   let currentUsers = [];
   const presenceFirstSeen = new Map();
   let currentMicHolderId = "";
@@ -202,6 +203,7 @@
   let vipRefreshTimer = null;
   let vipGiftTarget = null;
   let remoteStreamCount = 0;
+  let relayRemoteCount = 0;
   let audioUnlockInstalled = false;
 
   function isStaffMode() {
@@ -847,8 +849,26 @@
     });
   }
 
+  function createRelayAudio() {
+    if (!window.RivoRelayAudio) {
+      console.error("RivoRelayAudio was not loaded");
+      return null;
+    }
+
+    return new window.RivoRelayAudio({
+      getProfile: () => profile,
+      getTransport: () => transport,
+      onRemoteCount: (count) => {
+        relayRemoteCount = Math.max(0, Number(count || 0));
+        syncRoomAudioCount();
+      },
+      onError: (message) => showError(message, 7000)
+    });
+  }
+
   async function unlockRoomAudio() {
     const results = await Promise.all([
+      relayAudio?.unlock?.().catch(() => false),
       voiceRoom?.unlockPlayback?.().catch(() => false),
       localPcmRelay?.unlock?.().catch(() => false)
     ]);
@@ -861,7 +881,7 @@
       currentMicHolderId &&
       currentMicHolderId !== profile?.clientId
     );
-    const visibleCount = Math.max(remoteStreamCount, remoteMicActive ? 1 : 0);
+    const visibleCount = Math.max(remoteStreamCount, relayRemoteCount, remoteMicActive ? 1 : 0);
 
     if (els.remoteAudioCount) els.remoteAudioCount.textContent = String(visibleCount);
     if (els.roomSoundButton) {
@@ -873,8 +893,16 @@
   }
 
   function syncRoomSoundButton() {
-    const muted = voiceRoom?.isPlaybackMuted?.() || false;
-    const unlocked = voiceRoom?.isPlaybackUnlocked?.() || false;
+    const muted = Boolean(
+      relayAudio?.isMuted?.() ||
+      voiceRoom?.isPlaybackMuted?.() ||
+      localPcmRelay?.isMuted?.()
+    );
+    const unlocked = Boolean(
+      relayAudio?.isUnlocked?.() ||
+      voiceRoom?.isPlaybackUnlocked?.() ||
+      localPcmRelay?.isUnlocked?.()
+    );
     els.roomSoundButton.classList.toggle("active", unlocked && !muted);
     els.roomSoundButton.classList.toggle("needs-unlock", !unlocked);
     els.roomSoundIcon.textContent = !unlocked ? "🔈" : (muted ? "🔇" : "🔊");
@@ -889,6 +917,7 @@
     const unlockOnce = async () => {
       const unlocked = await unlockRoomAudio();
       if (!unlocked) return;
+      relayAudio?.setMuted?.(false);
       voiceRoom?.setPlaybackMuted?.(false);
       localPcmRelay?.setMuted?.(false);
       syncRoomSoundButton();
@@ -1810,7 +1839,9 @@
     hideCharacterStage();
 
     const oldVoiceRoom = voiceRoom;
+    const oldRelayAudio = relayAudio;
     oldVoiceRoom?.destroy().catch(() => {});
+    oldRelayAudio?.destroy().catch(() => {});
 
     transport?.close();
     transport = null;
@@ -1832,6 +1863,7 @@
     profile = null;
 
     voiceRoom = createVoiceRoom();
+    relayAudio = createRelayAudio();
     localPcmRelay = new LocalPcmRelay();
     installProfessionalBridge();
     syncRoomSoundButton();
@@ -2172,6 +2204,10 @@
 
     if (event.type === "mic-denied") {
       handleMicDenied(event);
+      return;
+    }
+
+    if (relayAudio?.handleEvent(event)) {
       return;
     }
 
@@ -2848,6 +2884,8 @@
 
       if (isSharedLocalServer()) {
         await localPcmRelay.startCapture(micStream);
+      } else if (relayAudio?.isCaptureSupported?.()) {
+        await relayAudio.startCapture(micStream);
       } else {
         await voiceRoom?.startLocalAudio(micStream);
       }
@@ -2895,6 +2933,7 @@
     } catch (error) {
       console.error("Microphone start failed", error);
 
+      relayAudio?.stopCapture?.().catch(() => {});
       voiceRoom?.stopLocalAudio().catch(() => {});
       localPcmRelay?.stopCapture().catch(() => {});
 
@@ -2930,6 +2969,9 @@
         console.warn("Could not stop local PCM capture", error);
       });
     } else {
+      relayAudio?.stopCapture?.().catch((error) => {
+        console.warn("Could not stop relayed room audio cleanly", error);
+      });
       voiceRoom?.stopLocalAudio().catch((error) => {
         console.warn("Could not stop room audio cleanly", error);
       });
@@ -4465,6 +4507,7 @@
 
     els.roomSoundButton.addEventListener("click", async () => {
       const wasUnlocked = Boolean(
+        relayAudio?.isUnlocked?.() ||
         voiceRoom?.isPlaybackUnlocked?.() ||
         (isSharedLocalServer() && localPcmRelay?.isUnlocked?.())
       );
@@ -4477,6 +4520,7 @@
 
       // The first tap must enable playback, not immediately mute it.
       if (!wasUnlocked) {
+        relayAudio?.setMuted?.(false);
         voiceRoom?.setPlaybackMuted?.(false);
         localPcmRelay?.setMuted?.(false);
         syncRoomSoundButton();
@@ -4484,9 +4528,15 @@
         return;
       }
 
-      const nextMuted = !voiceRoom.isPlaybackMuted();
-      voiceRoom.setPlaybackMuted(nextMuted);
-      localPcmRelay?.setMuted(nextMuted);
+      const currentlyMuted = Boolean(
+        relayAudio?.isMuted?.() ||
+        voiceRoom?.isPlaybackMuted?.() ||
+        localPcmRelay?.isMuted?.()
+      );
+      const nextMuted = !currentlyMuted;
+      relayAudio?.setMuted?.(nextMuted);
+      voiceRoom?.setPlaybackMuted?.(nextMuted);
+      localPcmRelay?.setMuted?.(nextMuted);
       syncRoomSoundButton();
     });
 
@@ -4575,6 +4625,7 @@
       if (micActive) sendVoiceState(false, 0, false);
       releaseMicClaim();
       voiceRoom?.destroy();
+      relayAudio?.destroy();
       localPcmRelay?.destroy();
       transport?.close();
     });
@@ -4641,6 +4692,7 @@
     }
 
     voiceRoom = createVoiceRoom();
+    relayAudio = createRelayAudio();
     localPcmRelay?.destroy().catch(() => {});
     localPcmRelay = new LocalPcmRelay();
     syncRoomSoundButton();

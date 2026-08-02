@@ -1,5 +1,5 @@
-const CORE_CACHE = "rivo-group-chat-core-v1424";
-const MODEL_CACHE = "rivo-group-chat-model-v1424";
+const CORE_CACHE = "rivo-group-chat-core-v1425";
+const MODEL_CACHE = "rivo-group-chat-model-v1425";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -16,6 +16,7 @@ const CORE_ASSETS = [
   "./local-data.js",
   "./voice-config.js",
   "./voice-room.js",
+  "./relay-audio.js",
   "./characters.js",
   "./avatar-stage.js",
   "./manifest.webmanifest",
