@@ -1,4 +1,4 @@
-const RELEASE = "1450-room-radio-youtube-audio";
+const RELEASE = "1452-admin-radio-fix";
 const CORE_CACHE = `rivo-group-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-group-chat-model-${RELEASE}`;
 

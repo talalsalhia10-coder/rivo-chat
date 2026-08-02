@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const RELEASE = "1451-room-radio-socket-bridge";
+  const RELEASE = "1452-admin-radio-bridge";
   if (window.__RIVO_ROOM_RADIO__ === RELEASE) return;
   window.__RIVO_ROOM_RADIO__ = RELEASE;
 
@@ -9,6 +9,9 @@
   const VOLUME_KEY = "rivo_room_radio_volume_v1";
 
   let roomSocket = null;
+  let staffControlSocket = null;
+  let staffControlConnecting = null;
+  const staffPendingPayloads = [];
   let self = { clientId: "", nickname: "", role: "user", isVip: false };
   let radioState = null;
   let serverClockOffset = 0;
@@ -45,14 +48,10 @@
           roomSocket = socket;
           socket.addEventListener("open", () => {
             roomSocket = socket;
-            window.__RIVO_ACTIVE_ROOM_SOCKET__ = socket;
             setTimeout(requestState, 350);
           });
           socket.addEventListener("close", () => {
             if (roomSocket === socket) roomSocket = null;
-            if (window.__RIVO_ACTIVE_ROOM_SOCKET__ === socket) {
-              window.__RIVO_ACTIVE_ROOM_SOCKET__ = null;
-            }
             stopLocalPlayback(false);
           });
         }
@@ -64,27 +63,179 @@
     window.WebSocket = proxy;
   }
 
-  function getActiveRoomSocket() {
-    const shared = window.__RIVO_ACTIVE_ROOM_SOCKET__;
-    if (shared && shared.readyState === WebSocket.OPEN) {
-      roomSocket = shared;
-      return shared;
+  function activeRoomId() {
+    const params = new URLSearchParams(location.search);
+    return clean(
+      params.get("room") ||
+      sessionStorage.getItem("rivo_active_room_v1") ||
+      "lobby",
+      80
+    ) || "lobby";
+  }
+
+  function loadStaffControlIdentity() {
+    const params = new URLSearchParams(location.search);
+    const requestedRole = params.get("staffRole") === "owner"
+      ? "owner"
+      : params.get("staffRole") === "moderator"
+        ? "moderator"
+        : (self.role === "owner" || self.role === "moderator" ? self.role : "");
+
+    if (!requestedRole) return null;
+
+    const key = requestedRole === "owner"
+      ? "rivo_staff_identity_owner_v1"
+      : "rivo_staff_identity_moderator_v1";
+
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || "null");
+      if (!saved || saved.role !== requestedRole) return null;
+      if (!saved.staffSessionToken) return null;
+      if (Number(saved.staffExpiresAt || 0) <= Date.now() + 10_000) return null;
+      return saved;
+    } catch {
+      return null;
     }
-    if (roomSocket && roomSocket.readyState === WebSocket.OPEN) return roomSocket;
+  }
+
+  function staffCommandPayload(payload) {
+    if (payload?.type === "room-radio-state-request") {
+      return {
+        type: "admin-command",
+        action: "room-radio-state-request",
+        at: Date.now()
+      };
+    }
+
+    if (payload?.type === "room-radio-play") {
+      const { type, ...rest } = payload;
+      return {
+        type: "admin-command",
+        action: "room-radio-play",
+        ...rest,
+        at: Date.now()
+      };
+    }
+
+    if (payload?.type === "room-radio-action") {
+      return {
+        type: "admin-command",
+        action: "room-radio-action",
+        radioAction: payload.action,
+        stateId: payload.stateId || "",
+        positionSeconds: Number(payload.positionSeconds || 0),
+        at: Date.now()
+      };
+    }
+
     return null;
+  }
+
+  function flushStaffPayloads() {
+    if (!staffControlSocket || staffControlSocket.readyState !== WebSocket.OPEN) return;
+    while (staffPendingPayloads.length) {
+      const payload = staffPendingPayloads.shift();
+      try {
+        staffControlSocket.send(JSON.stringify(payload));
+      } catch {
+        staffPendingPayloads.unshift(payload);
+        break;
+      }
+    }
+  }
+
+  function ensureStaffControlSocket() {
+    if (staffControlSocket?.readyState === WebSocket.OPEN) {
+      return Promise.resolve(staffControlSocket);
+    }
+    if (staffControlConnecting) return staffControlConnecting;
+
+    const identity = loadStaffControlIdentity();
+    if (!identity) {
+      return Promise.reject(new Error("تعذر قراءة جلسة الإدارة أو المراقب."));
+    }
+
+    staffControlConnecting = new Promise((resolve, reject) => {
+      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+      const params = new URLSearchParams({
+        staffSessionToken: String(identity.staffSessionToken || ""),
+        role: String(identity.role || ""),
+        visible: "0",
+        staffClientId: String(identity.clientId || "")
+      });
+
+      const socket = new WebSocket(
+        `${protocol}//${location.host}/api/rooms/${encodeURIComponent(activeRoomId())}/admin-ws?${params}`
+      );
+
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try { socket.close(4000, "Radio control timeout"); } catch {}
+        reject(new Error("انتهت مهلة اتصال إذاعة الغرفة."));
+      }, 12000);
+
+      socket.addEventListener("open", () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        staffControlSocket = socket;
+        staffControlConnecting = null;
+        flushStaffPayloads();
+        resolve(socket);
+      });
+
+      socket.addEventListener("message", (event) => {
+        try {
+          handleServerEvent(JSON.parse(event.data));
+        } catch {}
+      });
+
+      socket.addEventListener("close", () => {
+        clearTimeout(timeout);
+        if (staffControlSocket === socket) staffControlSocket = null;
+        staffControlConnecting = null;
+        if (!settled) {
+          settled = true;
+          reject(new Error("رفض الخادم اتصال إذاعة الغرفة."));
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timeout);
+          staffControlConnecting = null;
+          reject(new Error("تعذر فتح اتصال تحكم إذاعة الغرفة."));
+        }
+      });
+    });
+
+    return staffControlConnecting;
   }
 
   function send(payload) {
     try {
-      const socket = getActiveRoomSocket();
-      if (socket) {
-        socket.send(JSON.stringify(payload));
+      if (roomSocket?.readyState === WebSocket.OPEN) {
+        roomSocket.send(JSON.stringify(payload));
         return true;
       }
-    } catch (error) {
-      console.warn("Rivo room radio send failed:", error);
+    } catch {}
+
+    const staffPayload = staffCommandPayload(payload);
+    if (staffPayload && (self.role === "owner" || self.role === "moderator")) {
+      staffPendingPayloads.push(staffPayload);
+      ensureStaffControlSocket()
+        .then(flushStaffPayloads)
+        .catch((error) => {
+          staffPendingPayloads.length = 0;
+          toast(error.message || "تعذر ربط إذاعة الغرفة بلوحة الإدارة.");
+        });
+      return true;
     }
-    toast("تعذر ربط زر الإذاعة باتصال الغرفة. أغلق الدردشة وافتحها مرة واحدة.");
+
+    toast("اتصال الدردشة غير جاهز الآن. أغلق الصفحة وافتحها مرة واحدة.");
     return false;
   }
 
@@ -654,13 +805,6 @@
   }
 
   installSocketCapture();
-  window.addEventListener("rivo:room-socket-ready", (event) => {
-    const socket = event.detail?.socket;
-    if (socket) {
-      roomSocket = socket;
-      setTimeout(requestState, 150);
-    }
-  });
   window.addEventListener("rivo:server-event", (event) => handleServerEvent(event.detail));
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", createUi, { once: true });
   else createUi();
