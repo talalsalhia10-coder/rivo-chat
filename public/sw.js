@@ -1,4 +1,4 @@
-const RELEASE = "1440-12-gifts-connection-safe";
+const RELEASE = "1450-room-radio-youtube-audio";
 const CORE_CACHE = `rivo-group-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-group-chat-model-${RELEASE}`;
 
@@ -10,6 +10,7 @@ const CORE_ASSETS = [
   "./connection-fix.js",
   "./gifts-upgrade.js",
   "./admin-gifts-upgrade.js",
+  "./room-radio.js",
   "./professional-features.js",
   "./google-config.js",
   "./google-auth.js",
@@ -78,12 +79,9 @@ async function cacheCurrentModel(request) {
 
 function injectBeforeApp(html) {
   const tags = [];
-  if (!html.includes("gifts-upgrade.js")) {
-    tags.push(`<script src="./gifts-upgrade.js?v=${RELEASE}"></script>`);
-  }
-  if (!html.includes("connection-fix.js")) {
-    tags.push(`<script src="./connection-fix.js?v=${RELEASE}"></script>`);
-  }
+  if (!html.includes("gifts-upgrade.js")) tags.push(`<script src="./gifts-upgrade.js?v=${RELEASE}"></script>`);
+  if (!html.includes("connection-fix.js")) tags.push(`<script src="./connection-fix.js?v=${RELEASE}"></script>`);
+  if (!html.includes("room-radio.js")) tags.push(`<script src="./room-radio.js?v=${RELEASE}"></script>`);
   if (!tags.length) return html;
   const block = tags.join("\n  ");
   const appPattern = /<script\s+src=["']\.\/app\.js[^"']*["']><\/script>/i;

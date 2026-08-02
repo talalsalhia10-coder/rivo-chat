@@ -270,3 +270,17 @@
 
   showSessionResetNotice();
 })();
+
+(() => {
+  "use strict";
+  if (window.__RIVO_ROOM_RADIO__ || document.querySelector('script[src*="room-radio.js"]')) return;
+  const src = "./room-radio.js?v=1450";
+  if (document.readyState === "loading") {
+    document.write(`<script src="${src}"><\/script>`);
+  } else {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = false;
+    document.head.appendChild(script);
+  }
+})();
