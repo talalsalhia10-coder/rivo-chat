@@ -6,6 +6,11 @@ const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const DIRECT_AUDIO_EXT_RE = /\.(?:mp3|m4a|aac|ogg|opus|wav)(?:$|[?#])/i;
 const MAX_POSITION_SECONDS = 24 * 60 * 60;
 
+const PRESENCE_LEAVE_DELAY_MS = 30 * 1000;
+const PRESENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const PRESENCE_HISTORY_LIMIT = 50;
+const PRESENCE_PENDING_TABLE = "presence_pending_leaves_v1";
+
 function cleanText(value, maxLength) {
   return String(value ?? "")
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
@@ -55,6 +60,248 @@ function safeHttpsUrl(value) {
 export default originalWorker;
 
 export class ChatRoom extends GiftChatRoom {
+  constructor(ctx, env) {
+    super(ctx, env);
+
+    // سجل مؤقت للخروج: ننتظر 30 ثانية حتى لا يظهر «خرج/دخل» عند التحديث السريع.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS ${PRESENCE_PENDING_TABLE} (
+        client_id TEXT PRIMARY KEY,
+        nickname TEXT NOT NULL,
+        avatar TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        is_vip INTEGER NOT NULL DEFAULT 0,
+        due_at INTEGER NOT NULL
+      )
+    `);
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    const isChatSocket = /\/api\/rooms\/[^/]+\/ws$/.test(url.pathname);
+
+    if (!isChatSocket) {
+      return super.fetch(request);
+    }
+
+    const before = new Map();
+    for (const socket of this.ctx.getWebSockets()) {
+      const session = socket.deserializeAttachment?.();
+      if (session?.sessionId) before.set(session.sessionId, session);
+    }
+
+    const response = await super.fetch(request);
+
+    // إذا نجح اتصال الدردشة، نلتقط الجلسة الجديدة بعد أن ينشئها الخادم الأصلي.
+    let joinedSocket = null;
+    let joinedSession = null;
+    for (const socket of this.ctx.getWebSockets()) {
+      const session = socket.deserializeAttachment?.();
+      if (
+        session?.kind === "chat" &&
+        session.sessionId &&
+        !before.has(session.sessionId)
+      ) {
+        joinedSocket = socket;
+        joinedSession = session;
+        break;
+      }
+    }
+
+    if (joinedSocket && joinedSession && this.shouldShowPresenceEvent(joinedSession)) {
+      const pending = this.getPendingPresenceLeave(joinedSession.clientId);
+      const alreadyConnected = [...before.values()].some((session) =>
+        session?.kind === "chat" &&
+        session.clientId === joinedSession.clientId &&
+        this.shouldShowPresenceEvent(session)
+      );
+
+      // العودة خلال مهلة الخروج أو فتح تبويب ثانٍ لا تُنشئ رسالة دخول جديدة.
+      this.deletePendingPresenceLeave(joinedSession.clientId);
+      if (!pending && !alreadyConnected) {
+        this.persistPresenceMessage(joinedSession, "join");
+      }
+      await this.scheduleNextPresenceAlarm();
+    }
+
+    return response;
+  }
+
+  shouldShowPresenceEvent(session) {
+    if (!session || session.kind !== "chat" || !session.clientId) return false;
+
+    // الإدارة والمراقب في وضع التخفي لا يظهر دخولهما أو خروجهما.
+    if (
+      (session.role === "owner" || session.role === "moderator") &&
+      session.adminVisible === false
+    ) return false;
+
+    // عضو VIP المتخفي لا يظهر دخوله أو خروجه.
+    if (session.isVip && session.vipStealth) return false;
+
+    return true;
+  }
+
+  hasAnotherVisibleConnection(clientId, excludedSocket = null) {
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === excludedSocket || socket.readyState !== WebSocket.OPEN) continue;
+      const session = socket.deserializeAttachment?.();
+      if (
+        session?.kind === "chat" &&
+        session.clientId === clientId &&
+        this.shouldShowPresenceEvent(session)
+      ) return true;
+    }
+    return false;
+  }
+
+  getPendingPresenceLeave(clientId) {
+    if (!clientId) return null;
+    return this.sql.exec(
+      `SELECT client_id, nickname, avatar, role, is_vip, due_at
+       FROM ${PRESENCE_PENDING_TABLE}
+       WHERE client_id = ?
+       LIMIT 1`,
+      clientId
+    ).toArray()[0] || null;
+  }
+
+  deletePendingPresenceLeave(clientId) {
+    if (!clientId) return;
+    this.sql.exec(
+      `DELETE FROM ${PRESENCE_PENDING_TABLE} WHERE client_id = ?`,
+      clientId
+    );
+  }
+
+  queuePresenceLeave(session) {
+    if (!this.shouldShowPresenceEvent(session)) return;
+    if (this.hasAnotherVisibleConnection(session.clientId)) return;
+
+    const dueAt = Date.now() + PRESENCE_LEAVE_DELAY_MS;
+    this.sql.exec(
+      `INSERT INTO ${PRESENCE_PENDING_TABLE}
+       (client_id, nickname, avatar, role, is_vip, due_at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(client_id) DO UPDATE SET
+         nickname = excluded.nickname,
+         avatar = excluded.avatar,
+         role = excluded.role,
+         is_vip = excluded.is_vip,
+         due_at = excluded.due_at`,
+      session.clientId,
+      cleanText(session.nickname || "مستخدم", 24),
+      cleanText(session.avatar || "lina", 40),
+      cleanText(session.role || "user", 20),
+      session.isVip ? 1 : 0,
+      dueAt
+    );
+
+    this.scheduleNextPresenceAlarm().catch(() => {});
+  }
+
+  async scheduleNextPresenceAlarm() {
+    const next = this.sql.exec(
+      `SELECT due_at
+       FROM ${PRESENCE_PENDING_TABLE}
+       ORDER BY due_at ASC
+       LIMIT 1`
+    ).toArray()[0];
+
+    if (!next?.due_at) {
+      try { await this.ctx.storage.deleteAlarm(); } catch {}
+      return;
+    }
+
+    const alarmAt = Math.max(Date.now() + 250, Number(next.due_at));
+    await this.ctx.storage.setAlarm(alarmAt);
+  }
+
+  async alarm() {
+    const now = Date.now();
+    const dueRows = this.sql.exec(
+      `SELECT client_id, nickname, avatar, role, is_vip, due_at
+       FROM ${PRESENCE_PENDING_TABLE}
+       WHERE due_at <= ?
+       ORDER BY due_at ASC`,
+      now
+    ).toArray();
+
+    for (const row of dueRows) {
+      this.deletePendingPresenceLeave(row.client_id);
+
+      // إذا عاد المستخدم قبل تنفيذ المنبه، نلغي رسالة الخروج.
+      if (this.hasAnotherVisibleConnection(row.client_id)) continue;
+
+      this.persistPresenceMessage({
+        clientId: row.client_id,
+        nickname: row.nickname,
+        avatar: row.avatar,
+        role: row.role || "user",
+        isVip: Boolean(row.is_vip)
+      }, "leave");
+    }
+
+    await this.scheduleNextPresenceAlarm();
+  }
+
+  persistPresenceMessage(session, action) {
+    if (!session?.clientId) return;
+
+    const now = Date.now();
+    const nickname = cleanText(session.nickname || "مستخدم", 24) || "مستخدم";
+    const isJoin = action === "join";
+    const message = {
+      id: crypto.randomUUID(),
+      clientId: cleanText(session.clientId, 80),
+      nickname,
+      avatar: cleanText(session.avatar || "lina", 40) || "lina",
+      role: cleanText(session.role || "user", 20) || "user",
+      isVip: Boolean(session.isVip),
+      badge: "",
+      body: isJoin
+        ? `🟢 دخل ${nickname} إلى الدردشة`
+        : `⚪ غادر ${nickname} الدردشة`,
+      createdAt: now,
+      presenceEvent: isJoin ? "join" : "leave"
+    };
+
+    try {
+      this.sql.exec(
+        `INSERT INTO messages
+         (id, client_id, nickname, avatar, role, is_vip, body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        message.id,
+        message.clientId,
+        message.nickname,
+        message.avatar,
+        message.role,
+        message.isVip ? 1 : 0,
+        message.body,
+        message.createdAt
+      );
+
+      this.sql.exec(
+        `DELETE FROM messages WHERE created_at < ?`,
+        now - PRESENCE_RETENTION_MS
+      );
+
+      this.sql.exec(
+        `DELETE FROM messages
+         WHERE id IN (
+           SELECT id FROM messages
+           ORDER BY created_at DESC
+           LIMIT -1 OFFSET ?
+         )`,
+        PRESENCE_HISTORY_LIMIT
+      );
+
+      this.broadcast({ type: "message", message });
+    } catch (error) {
+      console.error("Failed to persist presence event", error);
+    }
+  }
+
   async webSocketMessage(ws, rawMessage) {
     if (typeof rawMessage === "string" && rawMessage.length <= MAX_SOCKET_MESSAGE_LENGTH) {
       let data = null;
@@ -295,4 +542,30 @@ export class ChatRoom extends GiftChatRoom {
     this.broadcast(payload);
     this.safeSend(ws, payload);
   }
+  webSocketClose(ws) {
+    const session = ws.deserializeAttachment?.();
+    super.webSocketClose(ws);
+
+    if (
+      session?.kind === "chat" &&
+      this.shouldShowPresenceEvent(session) &&
+      !this.hasAnotherVisibleConnection(session.clientId, ws)
+    ) {
+      this.queuePresenceLeave(session);
+    }
+  }
+
+  webSocketError(ws) {
+    const session = ws.deserializeAttachment?.();
+    super.webSocketError(ws);
+
+    if (
+      session?.kind === "chat" &&
+      this.shouldShowPresenceEvent(session) &&
+      !this.hasAnotherVisibleConnection(session.clientId, ws)
+    ) {
+      this.queuePresenceLeave(session);
+    }
+  }
+
 }
