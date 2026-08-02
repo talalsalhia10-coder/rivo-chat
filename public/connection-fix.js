@@ -13,7 +13,7 @@
 (() => {
   "use strict";
 
-  const RELEASE = "1434-connection-stability";
+  const RELEASE = "1435-connection-radio-bridge";
   const SESSION_KEY = "rivo_google_session_v1";
   const RESET_NOTICE_KEY = "rivo_connection_reset_notice_v1";
   const RELOAD_GUARD_KEY = "rivo_connection_reload_guard_v1";
@@ -89,6 +89,10 @@
       this.onerror = null;
       this.onclose = null;
 
+      if (isRivoRoomSocket(this.url)) {
+        window.__RIVO_ACTIVE_ROOM_SOCKET__ = this;
+      }
+
       this._start(protocols);
     }
 
@@ -142,6 +146,12 @@
         this.protocol = socket.protocol;
         this.extensions = socket.extensions;
         this.bufferedAmount = socket.bufferedAmount;
+        if (isRivoRoomSocket(this.url)) {
+          window.__RIVO_ACTIVE_ROOM_SOCKET__ = this;
+          window.dispatchEvent(new CustomEvent("rivo:room-socket-ready", {
+            detail: { socket: this }
+          }));
+        }
         const event = new Event("open");
         this.dispatchEvent(event);
         if (typeof this.onopen === "function") this.onopen.call(this, event);
@@ -172,6 +182,9 @@
         clearTimeout(this._connectTimer);
         this.readyState = NativeWebSocket.CLOSED;
         this.bufferedAmount = socket.bufferedAmount;
+        if (window.__RIVO_ACTIVE_ROOM_SOCKET__ === this) {
+          window.__RIVO_ACTIVE_ROOM_SOCKET__ = null;
+        }
         const event = new CloseEvent("close", {
           code: nativeEvent.code,
           reason: nativeEvent.reason,
@@ -183,6 +196,9 @@
     }
 
     send(data) {
+      if (isRivoRoomSocket(this.url)) {
+        window.__RIVO_ACTIVE_ROOM_SOCKET__ = this;
+      }
       if (!this._native || this._native.readyState !== NativeWebSocket.OPEN) {
         throw new DOMException("WebSocket is not open", "InvalidStateError");
       }
@@ -274,7 +290,7 @@
 (() => {
   "use strict";
   if (window.__RIVO_ROOM_RADIO__ || document.querySelector('script[src*="room-radio.js"]')) return;
-  const src = "./room-radio.js?v=1450";
+  const src = "./room-radio.js?v=1451";
   if (document.readyState === "loading") {
     document.write(`<script src="${src}"><\/script>`);
   } else {

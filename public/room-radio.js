@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const RELEASE = "1450-room-radio";
+  const RELEASE = "1451-room-radio-socket-bridge";
   if (window.__RIVO_ROOM_RADIO__ === RELEASE) return;
   window.__RIVO_ROOM_RADIO__ = RELEASE;
 
@@ -45,10 +45,14 @@
           roomSocket = socket;
           socket.addEventListener("open", () => {
             roomSocket = socket;
+            window.__RIVO_ACTIVE_ROOM_SOCKET__ = socket;
             setTimeout(requestState, 350);
           });
           socket.addEventListener("close", () => {
             if (roomSocket === socket) roomSocket = null;
+            if (window.__RIVO_ACTIVE_ROOM_SOCKET__ === socket) {
+              window.__RIVO_ACTIVE_ROOM_SOCKET__ = null;
+            }
             stopLocalPlayback(false);
           });
         }
@@ -60,14 +64,27 @@
     window.WebSocket = proxy;
   }
 
+  function getActiveRoomSocket() {
+    const shared = window.__RIVO_ACTIVE_ROOM_SOCKET__;
+    if (shared && shared.readyState === WebSocket.OPEN) {
+      roomSocket = shared;
+      return shared;
+    }
+    if (roomSocket && roomSocket.readyState === WebSocket.OPEN) return roomSocket;
+    return null;
+  }
+
   function send(payload) {
     try {
-      if (roomSocket?.readyState === WebSocket.OPEN) {
-        roomSocket.send(JSON.stringify(payload));
+      const socket = getActiveRoomSocket();
+      if (socket) {
+        socket.send(JSON.stringify(payload));
         return true;
       }
-    } catch {}
-    toast("الاتصال بالغرفة غير جاهز الآن.");
+    } catch (error) {
+      console.warn("Rivo room radio send failed:", error);
+    }
+    toast("تعذر ربط زر الإذاعة باتصال الغرفة. أغلق الدردشة وافتحها مرة واحدة.");
     return false;
   }
 
@@ -637,6 +654,13 @@
   }
 
   installSocketCapture();
+  window.addEventListener("rivo:room-socket-ready", (event) => {
+    const socket = event.detail?.socket;
+    if (socket) {
+      roomSocket = socket;
+      setTimeout(requestState, 150);
+    }
+  });
   window.addEventListener("rivo:server-event", (event) => handleServerEvent(event.detail));
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", createUi, { once: true });
   else createUi();
