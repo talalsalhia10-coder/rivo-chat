@@ -1,2 +1,2 @@
-Rivo Chat v142.8
-Smooth speech, strict silent mouth, gentle laughter and natural blinking
+Rivo Chat v142.9
+Clear room chooser, home/profile return, and general-room first entry

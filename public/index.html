@@ -7,7 +7,7 @@
   <meta name="description" content="دردشة Rivo الجماعية المجانية للتعارف والمحادثة بالصوت والكتابة، مع رسائل خاصة بالموافقة وإدارة آمنة للمجتمع.">
   <meta name="keywords" content="دردشة جماعية مجانية, دردشة صوتية, شات عربي, Rivo Chat, دردشة ريفو">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
-  <meta name="rivo-version" content="142.8">
+  <meta name="rivo-version" content="142.9">
   <link rel="canonical" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="ar" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="x-default" href="https://chat.rivolove.com/">
@@ -24,7 +24,7 @@
   <title>دردشة Rivo الجماعية المجانية | صوت وكتابة</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=142.8">
+  <link rel="stylesheet" href="./styles.css?v=142.9">
 
   <script type="application/ld+json">
   {
@@ -229,7 +229,9 @@
             <path class="privacy-lock-closed" d="M8 10V7.4a4 4 0 1 1 8 0V10h.8a2 2 0 0 1 2 2v6.2a2 2 0 0 1-2 2H7.2a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2H8Zm1.8 0h4.4V7.4a2.2 2.2 0 1 0-4.4 0V10Zm-2.6 1.8a.2.2 0 0 0-.2.2v6.2c0 .1.1.2.2.2h9.6a.2.2 0 0 0 .2-.2V12a.2.2 0 0 0-.2-.2H7.2Z"/>
           </svg>
         </button>
-        <button id="changeProfileButton" class="icon-button" type="button" title="تغيير الحساب">↪</button>
+        <button id="changeProfileButton" class="icon-button" type="button"
+                title="الصفحة الرئيسية — تغيير الاسم أو الصورة"
+                aria-label="الصفحة الرئيسية وتغيير الاسم أو الصورة">⌂</button>
       </footer>
     </aside>
 
@@ -253,7 +255,7 @@
           </a>
           <button id="roomsMenuButton" class="soft-button rooms-menu-button" type="button"
                   title="عرض الغرف" aria-label="عرض الغرف">
-            <span>▦</span><b>الغرف</b>
+            <span>▦</span><b>اختيار غرفة</b>
           </button>
           <button id="vipHeaderButton" class="soft-button vip-header-button" type="button"
                   title="عضوية VIP" aria-label="عضوية VIP">
@@ -277,6 +279,25 @@
           <button id="installButton" class="soft-button hidden" type="button">تثبيت التطبيق</button>
         </div>
       </header>
+
+      <nav class="chat-primary-actions" aria-label="التنقل الرئيسي داخل الدردشة">
+        <button id="primaryRoomsButton" class="chat-primary-action room-primary-action" type="button">
+          <span class="chat-primary-icon" aria-hidden="true">▦</span>
+          <span class="chat-primary-copy">
+            <strong>اختيار غرفة</strong>
+            <small>الغرفة الحالية: <b id="quickCurrentRoomName">العامة</b></small>
+          </span>
+          <span class="chat-primary-arrow" aria-hidden="true">‹</span>
+        </button>
+        <button id="profileHomeButton" class="chat-primary-action home-primary-action" type="button">
+          <span class="chat-primary-icon" aria-hidden="true">⌂</span>
+          <span class="chat-primary-copy">
+            <strong>الصفحة الرئيسية</strong>
+            <small>تغيير الاسم أو الصورة</small>
+          </span>
+          <span class="chat-primary-arrow" aria-hidden="true">‹</span>
+        </button>
+      </nav>
 
       <section id="presenceStrip" class="presence-strip" aria-label="المتصلون في العامة">
         <div class="presence-strip-heading">
@@ -515,8 +536,8 @@
       <div class="rooms-sheet-title">
         <span>▦</span>
         <div>
-          <h2 id="roomsModalTitle">الغرف</h2>
-          <p>اختر الغرفة التي تريد الدخول إليها.</p>
+          <h2 id="roomsModalTitle">اختيار غرفة</h2>
+          <p>اختر غرفة واضحة، ويمكنك العودة إلى العامة في أي وقت.</p>
         </div>
       </div>
       <div class="rooms-capacity-note">كل غرفة تستقبل 20 مستخدماً عادياً. الإدارة والمراقبون وأعضاء VIP يستطيعون الدخول عند الامتلاء.</div>
@@ -570,9 +591,9 @@
   <script src="./google-auth.js"></script>
   <script src="./local-data.js"></script>
   <script src="./voice-config.js"></script>
-  <script src="./voice-room.js?v=142.8"></script>
-  <script src="./relay-audio.js?v=142.8"></script>
-  <script src="./characters.js?v=142.8"></script>
+  <script src="./voice-room.js?v=142.9"></script>
+  <script src="./relay-audio.js?v=142.9"></script>
+  <script src="./characters.js?v=142.9"></script>
   <script type="importmap">
     {
       "imports": {
@@ -582,9 +603,9 @@
       }
     }
   </script>
-  <script src="./app.js?v=142.8"></script>
+  <script src="./app.js?v=142.9"></script>
   <script src="./professional-features.js"></script>
-  <script type="module" src="./avatar-stage.js?v=142.8"></script>
+  <script type="module" src="./avatar-stage.js?v=142.9"></script>
 
 </body>
 </html>

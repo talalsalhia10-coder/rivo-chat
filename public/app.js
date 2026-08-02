@@ -60,6 +60,9 @@
     presenceAvatars: $("presenceAvatars"),
     presenceCount: $("presenceCount"),
     roomsMenuButton: $("roomsMenuButton"),
+    primaryRoomsButton: $("primaryRoomsButton"),
+    profileHomeButton: $("profileHomeButton"),
+    quickCurrentRoomName: $("quickCurrentRoomName"),
     roomsModal: $("roomsModal"),
     closeRoomsModal: $("closeRoomsModal"),
     roomsList: $("roomsList"),
@@ -676,6 +679,7 @@
     const room = roomCatalog.find((item) => item.id === activeRoomId);
     activeRoomName = room?.name || activeRoomName || "العامة";
     if (els.currentRoomName) els.currentRoomName.textContent = activeRoomName;
+    if (els.quickCurrentRoomName) els.quickCurrentRoomName.textContent = activeRoomName;
     if (conversationMode === "public") {
       els.conversationTitle.textContent = activeRoomName;
       els.messageInput.placeholder = `اكتب رسالة إلى ${activeRoomName}…`;
@@ -712,7 +716,8 @@
     }
   }
 
-  async function loadRooms({ assign = false } = {}) {
+  async function loadRooms({ assign = false, preferGeneral = false } = {}) {
+    let serverAssignedRoom = "";
     try {
       if (isLocalDemo()) {
         roomCatalog = roomFallbackCatalog();
@@ -721,16 +726,31 @@
         if (!response.ok) throw new Error(`rooms ${response.status}`);
         const data = await response.json();
         roomCatalog = Array.isArray(data.rooms) && data.rooms.length ? data.rooms : roomFallbackCatalog();
-        if (assign && !activeRoomId) activeRoomId = (typeof data.assignedRoom === "string" ? data.assignedRoom : data.assignedRoom?.id) || roomCatalog.find((room) => !room.full)?.id || DEFAULT_ROOM;
+        serverAssignedRoom = (typeof data.assignedRoom === "string" ? data.assignedRoom : data.assignedRoom?.id) || "";
       }
     } catch (error) {
       console.warn("Room list unavailable", error);
       roomCatalog = roomFallbackCatalog();
     }
-    if (!activeRoomId) activeRoomId = roomCatalog.find((room) => !room.full)?.id || DEFAULT_ROOM;
+
+    const enabledRooms = roomCatalog.filter((room) => room.enabled !== false);
+    const generalRoom = enabledRooms.find((room) => room.id === DEFAULT_ROOM);
+    const firstAvailableRoom = enabledRooms.find((room) => !room.full) || enabledRooms[0];
+
+    // Every normal entry starts in العامة when it is available.
+    // Only an explicit ?room= link, staff entry, or a room chosen after entry overrides it.
+    if (preferGeneral) {
+      activeRoomId = generalRoom && !generalRoom.full
+        ? DEFAULT_ROOM
+        : (firstAvailableRoom?.id || DEFAULT_ROOM);
+    } else if (assign && !activeRoomId) {
+      activeRoomId = serverAssignedRoom || firstAvailableRoom?.id || DEFAULT_ROOM;
+    }
+
+    if (!activeRoomId) activeRoomId = firstAvailableRoom?.id || DEFAULT_ROOM;
     const current = roomCatalog.find((room) => room.id === activeRoomId);
     if (!current || (current.full && !canBypassRoomCapacity())) {
-      activeRoomId = roomCatalog.find((room) => !room.full)?.id || DEFAULT_ROOM;
+      activeRoomId = firstAvailableRoom?.id || DEFAULT_ROOM;
     }
     sessionStorage.setItem(ROOM_KEY, activeRoomId);
     updateRoomUi();
@@ -756,6 +776,7 @@
   }
 
   async function openRoomsMenu() {
+    closeSidebar();
     els.roomsModal?.classList.remove("hidden");
     els.roomsModal?.setAttribute("aria-hidden", "false");
     renderRoomsMenu();
@@ -1900,6 +1921,10 @@
     privateMessagesByUser.clear();
     privateUnreadByUser.clear();
     profile = null;
+    activeRoomId = DEFAULT_ROOM;
+    activeRoomName = "العامة";
+    sessionStorage.removeItem(ROOM_KEY);
+    updateRoomUi();
 
     voiceRoom = createVoiceRoom();
     relayAudio = createRelayAudio();
@@ -4501,8 +4526,10 @@
 
       els.joinButton.disabled = true;
       const originalText = els.joinButton.querySelector("span")?.textContent || "دخول الدردشة";
-      if (els.joinButton.querySelector("span")) els.joinButton.querySelector("span").textContent = "جاري اختيار غرفة متاحة…";
-      await loadRooms({ assign: true });
+      if (els.joinButton.querySelector("span")) els.joinButton.querySelector("span").textContent = "جاري الدخول إلى العامة…";
+      activeRoomId = "";
+      sessionStorage.removeItem(ROOM_KEY);
+      await loadRooms({ assign: true, preferGeneral: true });
       enterChat({
         clientId: googleSession?.googleUid ? `google:${googleSession.googleUid}` : getClientId(),
         nickname,
@@ -4569,6 +4596,8 @@
     });
 
     els.roomsMenuButton?.addEventListener("click", openRoomsMenu);
+    els.primaryRoomsButton?.addEventListener("click", openRoomsMenu);
+    els.profileHomeButton?.addEventListener("click", leaveChat);
     els.closeRoomsModal?.addEventListener("click", closeRoomsMenu);
     els.roomsModal?.querySelector("[data-close-rooms]")?.addEventListener("click", closeRoomsMenu);
     document.addEventListener("keydown", (event) => {
@@ -4753,11 +4782,16 @@
   async function init() {
     const params = new URLSearchParams(location.search);
     const requestedRoom = String(params.get("room") || "").trim();
+    const adminAutoName = String(params.get("adminAutoName") || "").trim();
+    const preferGeneralOnEntry = !requestedRoom && !adminAutoName;
     if (requestedRoom) {
       activeRoomId = requestedRoom;
       sessionStorage.setItem(ROOM_KEY, activeRoomId);
+    } else if (preferGeneralOnEntry) {
+      // Do not restore an old room from the phone/browser. Start in العامة.
+      activeRoomId = "";
+      sessionStorage.removeItem(ROOM_KEY);
     }
-    const adminAutoName = String(params.get("adminAutoName") || "").trim();
 
     if (adminAutoName && !els.nicknameInput.value) {
       els.nicknameInput.value = adminAutoName;
@@ -4779,7 +4813,7 @@
     selectedAvatar = getCharacter(pendingAvatar || saved?.avatar || selectedAvatar).id;
     buildAvatarGrid();
     installFirstGestureAudioUnlock();
-    await loadRooms({ assign: true });
+    await loadRooms({ assign: true, preferGeneral: preferGeneralOnEntry });
 
     if (adminAutoName) {
       const adminProfile = {
