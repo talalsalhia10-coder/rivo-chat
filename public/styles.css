@@ -1928,7 +1928,7 @@ body.modal-open{overflow:hidden;touch-action:none}
   .room-info p{font-size:9px;margin-top:2px}
   .current-room-badge{display:none}
   .header-actions{gap:5px;flex:none}
-  .header-lina-entry,.rooms-menu-button,.vip-header-button,#installButton{display:none!important}
+  .header-lina-entry,.rooms-menu-button,.vip-header-button{display:none!important}
   .room-sound-button{width:42px;height:42px;padding:0;display:grid;place-items:center}
   .room-sound-button i{position:absolute;transform:translate(14px,-14px);min-width:16px;padding:1px 4px;border-radius:999px;background:#17223d;font-size:8px}
   .connection-status{width:42px;height:42px;padding:0;display:grid;place-items:center}
@@ -2242,4 +2242,74 @@ body.modal-open{overflow:hidden;touch-action:none}
   .conversation-header .chat-primary-icon{width:32px!important;height:32px!important;font-size:19px!important}
   .conversation-header .chat-primary-copy strong{font-size:11px!important}
   .conversation-header .chat-primary-copy small{display:none!important}
+}
+
+
+/* ==========================================================
+   Rivo Chat v143.1 — visible PWA install control.
+   The button stays in the chat toolbar until installation and
+   falls back to clear add-to-home-screen instructions.
+   ========================================================== */
+.install-app-button{
+  display:inline-flex!important;align-items:center;justify-content:center;gap:7px;
+  min-height:42px;padding:0 13px!important;border-color:rgba(74,224,176,.42)!important;
+  background:linear-gradient(145deg,rgba(28,151,116,.32),rgba(31,48,85,.90))!important;
+  color:#edfff8!important;white-space:nowrap;box-shadow:0 0 0 3px rgba(47,211,164,.05)
+}
+.install-app-button span{font-size:19px;line-height:1;color:#66efc5}
+.install-app-button b{font-size:11px;font-weight:900}
+.install-app-button:hover{border-color:rgba(91,239,195,.72)!important;transform:translateY(-1px)}
+.install-mobile-tool{border-color:rgba(74,224,176,.34)!important;background:linear-gradient(145deg,rgba(30,151,117,.22),rgba(255,255,255,.045))!important}
+.rivo-app-installed #installButton,.rivo-app-installed #mobileInstallButton{display:none!important}
+.install-help-sheet{max-width:470px;text-align:center;padding-top:58px}
+.install-help-icon{width:72px;height:72px;margin:0 auto 10px;border-radius:22px;display:grid;place-items:center;font-size:38px;background:linear-gradient(145deg,#35c998,#5b63ec);box-shadow:0 16px 36px rgba(34,183,146,.25)}
+.install-help-sheet h2{margin:6px 0 5px;font-size:24px}
+.install-help-sheet>p{margin:0 auto 14px;color:#aebbd3;line-height:1.7;font-size:13px;max-width:370px}
+.install-help-steps{display:grid;gap:8px;text-align:right;margin:14px 0}
+.install-help-steps>div{display:grid;grid-template-columns:34px minmax(0,1fr);align-items:center;gap:9px;padding:10px 11px;border:1px solid rgba(117,151,211,.18);border-radius:13px;background:rgba(18,31,57,.72)}
+.install-help-steps b{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:rgba(91,101,236,.24);color:#dfe2ff;font-size:13px}
+.install-help-steps span{color:#e3ebf8;font-size:12px;line-height:1.55}
+.install-help-ok{width:100%;border:0;border-radius:14px;padding:12px;background:linear-gradient(145deg,#25b98d,#5d5be8);color:#fff;font-weight:900;cursor:pointer}
+
+@media(max-width:830px){
+  #installButton{
+    display:inline-flex!important;min-width:76px!important;height:47px!important;
+    padding:0 9px!important;border-radius:14px!important;gap:5px!important
+  }
+  #installButton span{font-size:18px!important}
+  #installButton b{font-size:9px!important;line-height:1.15!important;max-width:42px;white-space:normal}
+  #mobileInstallButton{display:flex!important}
+  .rivo-app-installed #installButton,.rivo-app-installed #mobileInstallButton{display:none!important}
+}
+
+@media(max-width:390px){
+  #installButton{min-width:54px!important;width:54px!important;padding:0!important}
+  #installButton b{display:none!important}
+  #installButton span{font-size:21px!important}
+}
+
+
+/* Rivo v143.3 — admin crown only + reliable mobile profile close */
+.profile-owner-crown {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(0 4px 12px rgba(255, 201, 73, .38));
+}
+#closeUserProfile.professional-close {
+  z-index: 30;
+  pointer-events: auto !important;
+  touch-action: manipulation;
+  min-width: 56px;
+  min-height: 56px;
+}
+#userProfileModal .professional-modal-backdrop {
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+#userProfileModal[aria-hidden="true"] {
+  display: none !important;
 }

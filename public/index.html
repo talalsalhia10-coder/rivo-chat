@@ -7,7 +7,7 @@
   <meta name="description" content="دردشة Rivo الجماعية المجانية للتعارف والمحادثة بالصوت والكتابة، مع رسائل خاصة بالموافقة وإدارة آمنة للمجتمع.">
   <meta name="keywords" content="دردشة جماعية مجانية, دردشة صوتية, شات عربي, Rivo Chat, دردشة ريفو">
   <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
-  <meta name="rivo-version" content="143.0">
+  <meta name="rivo-version" content="143.3">
   <link rel="canonical" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="ar" href="https://chat.rivolove.com/">
   <link rel="alternate" hreflang="x-default" href="https://chat.rivolove.com/">
@@ -24,7 +24,7 @@
   <title>دردشة Rivo الجماعية المجانية | صوت وكتابة</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="icon" href="./icons/icon-192.png">
-  <link rel="stylesheet" href="./styles.css?v=143.0">
+  <link rel="stylesheet" href="./styles.css?v=143.3">
 
   <script type="application/ld+json">
   {
@@ -183,7 +183,8 @@
         <button id="mobileVipButton" class="mobile-tool-item" type="button">
           <span>💎</span><b>VIP</b>
         </button>
-        <button id="mobileInstallButton" class="mobile-tool-item hidden" type="button">
+        <button id="mobileInstallButton" class="mobile-tool-item install-mobile-tool" type="button"
+                title="تثبيت Rivo Chat على الهاتف">
           <span>⬇</span><b>تثبيت التطبيق</b>
         </button>
       </nav>
@@ -294,7 +295,10 @@
             <i></i>
             <span>جاري الاتصال</span>
           </div>
-          <button id="installButton" class="soft-button hidden" type="button">تثبيت التطبيق</button>
+          <button id="installButton" class="soft-button install-app-button" type="button"
+                  title="تثبيت Rivo Chat على الجهاز" aria-label="تثبيت تطبيق Rivo Chat">
+            <span aria-hidden="true">⬇</span><b>تثبيت التطبيق</b>
+          </button>
         </div>
       </header>
 
@@ -591,9 +595,9 @@
   <script src="./google-auth.js"></script>
   <script src="./local-data.js"></script>
   <script src="./voice-config.js"></script>
-  <script src="./voice-room.js?v=143.0"></script>
-  <script src="./relay-audio.js?v=143.0"></script>
-  <script src="./characters.js?v=143.0"></script>
+  <script src="./voice-room.js?v=143.3"></script>
+  <script src="./relay-audio.js?v=143.3"></script>
+  <script src="./characters.js?v=143.3"></script>
   <script type="importmap">
     {
       "imports": {
@@ -603,9 +607,9 @@
       }
     }
   </script>
-  <script src="./app.js?v=143.0"></script>
-  <script src="./professional-features.js"></script>
-  <script type="module" src="./avatar-stage.js?v=143.0"></script>
+  <script src="./app.js?v=143.3"></script>
+  <script src="./professional-features.js?v=143.3"></script>
+  <script type="module" src="./avatar-stage.js?v=143.3"></script>
 
 </body>
 </html>

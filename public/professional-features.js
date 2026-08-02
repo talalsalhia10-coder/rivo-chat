@@ -105,21 +105,38 @@
     els.profileOnline.textContent = "● متصل الآن";
     els.profilePrivate.textContent = user.privateBusy ? "مشغول" : (user.privateOpen === false ? "مغلق" : "متاح");
     els.profileMic.textContent = user.micBlocked ? "ممنوع" : "متاح";
-    els.profileAward.textContent = BADGES[user.badge]?.label || "لا توجد";
-    els.profileBadge.innerHTML = badgeHtml(user.badge);
-    els.profilePrivateButton.disabled = user.privateOpen === false || Boolean(user.privateBusy);
-    els.profilePrivateButton.textContent = user.privateBusy ? "مشغول في الخاص" : "طلب محادثة خاصة";
+
+    const isOwnerProfile = user.role === "owner";
+    const viewerIsOwner = own?.role === "owner";
+    const awardFact = els.profileAward?.closest?.("div");
+    if (awardFact) awardFact.hidden = isOwnerProfile;
+    els.profileAward.textContent = isOwnerProfile ? "" : (BADGES[user.badge]?.label || "لا توجد");
+    els.profileBadge.innerHTML = isOwnerProfile
+      ? '<span class="profile-owner-crown" title="الإدارة" aria-label="تاج الإدارة">👑</span>'
+      : badgeHtml(user.badge);
+
+    els.profilePrivateButton.disabled = Boolean(user.privateBusy) || (!viewerIsOwner && user.privateOpen === false);
+    els.profilePrivateButton.textContent = user.privateBusy
+      ? "مشغول في الخاص"
+      : viewerIsOwner
+        ? "فتح خاص مباشر"
+        : "طلب محادثة خاصة";
     els.profileMuteButton.textContent = mutedUsers.has(user.clientId)
       ? "إلغاء الكتم عندي"
       : "كتمه عندي";
 
+    els.profileModal.style.removeProperty("display");
     els.profileModal.classList.remove("hidden");
     els.profileModal.setAttribute("aria-hidden", "false");
   }
 
-  function closeProfile() {
+  function closeProfile(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    event?.stopImmediatePropagation?.();
     els.profileModal.classList.add("hidden");
     els.profileModal.setAttribute("aria-hidden", "true");
+    els.profileModal.style.display = "none";
     activeProfileUser = null;
   }
 
@@ -311,11 +328,29 @@
     openReport(target);
   });
 
-  els.closeProfile?.addEventListener("click", closeProfile);
+  const profileCloseSelector = "#closeUserProfile, [data-close-profile='1']";
+  const handleProfileClose = (event) => {
+    const target = event.target?.closest?.(profileCloseSelector);
+    if (!target || !els.profileModal?.contains(target)) return;
+    closeProfile(event);
+  };
+
+  ["pointerdown", "pointerup", "click"].forEach((type) => {
+    document.addEventListener(type, handleProfileClose, true);
+  });
+  document.addEventListener("touchend", handleProfileClose, { capture: true, passive: false });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !els.profileModal?.classList.contains("hidden")) closeProfile(event);
+  });
+
+  window.addEventListener("popstate", () => {
+    if (!els.profileModal?.classList.contains("hidden")) closeProfile();
+  });
+
   els.closeReport?.addEventListener("click", closeReport);
 
   document.addEventListener("click", (event) => {
-    if (event.target.matches("[data-close-profile]")) closeProfile();
     if (event.target.matches("[data-close-report]")) closeReport();
   });
 

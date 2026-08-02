@@ -1431,6 +1431,7 @@
 
   function requestPrivateChat(user) {
     if (!user || user.clientId === profile?.clientId || !transport?.isReady?.()) return;
+    const ownerOverride = profile?.role === "owner";
     if (privateSessionPeerId) {
       showError("أنت مشغول في محادثة خاصة حالياً. أنهِها أولاً.");
       return;
@@ -1443,7 +1444,7 @@
       showError("لديك طلب خاص بانتظار الرد.");
       return;
     }
-    if (user.privateOpen === false || user.privateBlocked === true) {
+    if (!ownerOverride && (user.privateOpen === false || user.privateBlocked === true)) {
       showError(`${user.nickname} أغلق الرسائل الخاصة.`);
       return;
     }
@@ -1462,7 +1463,9 @@
       showError("انتهت مهلة طلب المحادثة الخاصة. يمكنك المحاولة من جديد.", 3500);
     }, 46000);
     renderUsers(currentUsers);
-    showError(`تم إرسال طلب خاص إلى ${user.nickname}. بانتظار الموافقة…`, 4000);
+    showError(ownerOverride
+      ? `جاري فتح محادثة خاصة مباشرة مع ${user.nickname}…`
+      : `تم إرسال طلب خاص إلى ${user.nickname}. بانتظار الموافقة…`, 4000);
   }
 
   function openPrivateChat(user) {
@@ -1638,7 +1641,13 @@
     const peer = event.peer || currentUsers.find((user) => user.clientId === event.with);
     if (!peer) return;
     startPrivateSession(peer);
-    showError(`بدأت محادثة خاصة مع ${peer.nickname}.`, 2500);
+    if (event.adminOverride) {
+      showError(profile?.role === "owner"
+        ? `تم فتح الخاص مباشرة مع ${peer.nickname}.`
+        : "فتحت الإدارة محادثة خاصة معك.", 3200);
+    } else {
+      showError(`بدأت محادثة خاصة مع ${peer.nickname}.`, 2500);
+    }
   }
 
   function handlePrivateEnded(event) {
@@ -2316,13 +2325,16 @@
     avatar.alt = "";
     avatarWrap.appendChild(avatar);
 
-    const messageBadge = message.badge || badgeForClient(message.clientId);
+    const messageRole = message.role || userRoleById(message.clientId);
+    const messageBadge = messageRole === "owner"
+      ? ""
+      : (message.badge || badgeForClient(message.clientId));
     if (messageBadge) {
       const badge = document.createElement("span");
       badge.innerHTML = badgeMarkup(messageBadge, "message-avatar-badge");
       avatarWrap.appendChild(badge.firstElementChild);
     }
-    if (message.isVip) {
+    if (message.isVip && messageRole !== "owner") {
       const gem = document.createElement("span");
       gem.className = "presence-vip-gem";
       gem.textContent = "💎";
@@ -2343,8 +2355,6 @@
     name.textContent = message.clientId === profile.clientId
       ? firstName(profile.nickname)
       : firstName(message.nickname);
-
-    const messageRole = message.role || userRoleById(message.clientId);
 
     if (messageRole === "owner") {
       const crown = document.createElement("span");
@@ -2454,7 +2464,7 @@
   }
 
   function appendVipUserActions(row, user) {
-    if (!profile?.isVip || user.clientId === profile.clientId) return;
+    if (!profile?.isVip || user.clientId === profile.clientId || user.role === "owner") return;
     const actions = document.createElement("div");
     actions.className = "vip-user-actions";
 
@@ -2511,7 +2521,7 @@
       const dot = document.createElement("i");
       avatarWrap.append(img, dot);
 
-      if (user.badge) {
+      if (user.badge && user.role !== "owner") {
         const award = document.createElement("span");
         award.innerHTML = badgeMarkup(user.badge, "user-avatar-award");
         avatarWrap.appendChild(award.firstElementChild);
@@ -2557,7 +2567,7 @@
         nameWrap.appendChild(gem.firstElementChild);
       }
 
-      if (user.badge) {
+      if (user.badge && user.role !== "owner") {
         const award = document.createElement("span");
         award.innerHTML = badgeMarkup(user.badge, "user-name-award");
         nameWrap.appendChild(award.firstElementChild);
@@ -2583,7 +2593,8 @@
         privateButton.className = "user-private-button";
         const busy = Boolean(user.privateBusy);
         const requesting = outgoingPrivateRequestTo === user.clientId;
-        privateButton.disabled = user.privateOpen === false || user.privateBlocked === true || busy || Boolean(privateSessionPeerId) || Boolean(pendingPrivateRequest) || requesting;
+        const ownerOverride = profile?.role === "owner";
+        privateButton.disabled = (!ownerOverride && (user.privateOpen === false || user.privateBlocked === true)) || busy || Boolean(privateSessionPeerId) || Boolean(pendingPrivateRequest) || requesting;
         privateButton.classList.toggle("busy", busy);
         privateButton.classList.toggle("requesting", requesting);
         privateButton.title = busy
@@ -2592,7 +2603,9 @@
             ? "بانتظار موافقته"
             : privateButton.disabled
               ? "الخاص غير متاح"
-              : `طلب محادثة خاصة مع ${user.nickname}`;
+              : ownerOverride
+                ? `فتح خاص مباشر مع ${user.nickname}`
+                : `طلب محادثة خاصة مع ${user.nickname}`;
         privateButton.setAttribute("aria-label", privateButton.title);
 
         privateButton.innerHTML = busy
@@ -4731,21 +4744,134 @@
       transport?.close();
     });
 
+    const INSTALL_MARKER_KEY = "rivo_pwa_installed_v1";
+
+    const isStandaloneApp = () => {
+      return window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
+        window.navigator.standalone === true;
+    };
+
+    const setInstallButtonsHidden = (hidden) => {
+      els.installButton?.classList.toggle("hidden", hidden);
+      els.mobileInstallButton?.classList.toggle("hidden", hidden);
+      document.body.classList.toggle("rivo-app-installed", hidden);
+    };
+
+    const syncInstallButtons = () => {
+      const installed = isStandaloneApp() || localStorage.getItem(INSTALL_MARKER_KEY) === "1";
+      setInstallButtonsHidden(installed);
+    };
+
+    const ensureInstallHelpModal = () => {
+      let modal = document.getElementById("installHelpModal");
+      if (modal) return modal;
+
+      modal = document.createElement("div");
+      modal.id = "installHelpModal";
+      modal.className = "professional-modal install-help-modal hidden";
+      modal.setAttribute("aria-hidden", "true");
+      modal.innerHTML = `
+        <div class="professional-modal-backdrop" data-close-install-help="1"></div>
+        <section class="professional-sheet install-help-sheet" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+          <button class="professional-close" type="button" data-close-install-help="1" aria-label="إغلاق">✕</button>
+          <div class="install-help-icon" aria-hidden="true">⬇</div>
+          <h2 id="installHelpTitle">تثبيت Rivo Chat</h2>
+          <p id="installHelpIntro">يمكنك إضافة Rivo Chat إلى شاشة الهاتف وفتحه مثل التطبيق.</p>
+          <div class="install-help-steps" id="installHelpSteps"></div>
+          <button class="install-help-ok" type="button" data-close-install-help="1">فهمت</button>
+        </section>`;
+      document.body.appendChild(modal);
+
+      modal.addEventListener("click", (event) => {
+        if (event.target.closest("[data-close-install-help='1']")) {
+          modal.classList.add("hidden");
+          modal.setAttribute("aria-hidden", "true");
+          document.body.classList.remove("modal-open");
+        }
+      });
+      return modal;
+    };
+
+    const showInstallHelp = () => {
+      const modal = ensureInstallHelpModal();
+      const steps = modal.querySelector("#installHelpSteps");
+      const intro = modal.querySelector("#installHelpIntro");
+      const ua = navigator.userAgent || "";
+      const isIos = /iPad|iPhone|iPod/i.test(ua);
+      const isAndroid = /Android/i.test(ua);
+
+      if (isIos) {
+        intro.textContent = "في iPhone أو iPad استخدم Safari لإضافة Rivo Chat إلى الشاشة الرئيسية.";
+        steps.innerHTML = `
+          <div><b>1</b><span>افتح الموقع في Safari.</span></div>
+          <div><b>2</b><span>اضغط زر المشاركة.</span></div>
+          <div><b>3</b><span>اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».</span></div>`;
+      } else if (isAndroid) {
+        intro.textContent = "إذا لم تظهر نافذة التثبيت التلقائية، ثبّت Rivo Chat من قائمة المتصفح.";
+        steps.innerHTML = `
+          <div><b>1</b><span>افتح قائمة المتصفح ⋮.</span></div>
+          <div><b>2</b><span>اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</span></div>
+          <div><b>3</b><span>وافق على التثبيت، ثم افتح أيقونة Rivo Chat.</span></div>`;
+      } else {
+        intro.textContent = "إذا لم تظهر نافذة التثبيت، استخدم قائمة المتصفح لتثبيت Rivo Chat.";
+        steps.innerHTML = `
+          <div><b>1</b><span>افتح قائمة المتصفح.</span></div>
+          <div><b>2</b><span>اختر «تثبيت التطبيق» أو «إنشاء اختصار».</span></div>
+          <div><b>3</b><span>وافق على إضافة Rivo Chat إلى جهازك.</span></div>`;
+      }
+
+      modal.classList.remove("hidden");
+      modal.setAttribute("aria-hidden", "false");
+      document.body.classList.add("modal-open");
+    };
+
     const promptInstallApp = async () => {
-      if (!deferredInstallPrompt) return;
-      deferredInstallPrompt.prompt();
-      await deferredInstallPrompt.userChoice;
-      deferredInstallPrompt = null;
-      els.installButton?.classList.add("hidden");
-      els.mobileInstallButton?.classList.add("hidden");
+      if (isStandaloneApp()) {
+        localStorage.setItem(INSTALL_MARKER_KEY, "1");
+        syncInstallButtons();
+        return;
+      }
+
+      if (!deferredInstallPrompt) {
+        showInstallHelp();
+        return;
+      }
+
+      try {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice?.outcome === "accepted") {
+          localStorage.setItem(INSTALL_MARKER_KEY, "1");
+          setInstallButtonsHidden(true);
+        }
+      } catch (_) {
+        showInstallHelp();
+      } finally {
+        deferredInstallPrompt = null;
+      }
     };
 
     window.addEventListener("beforeinstallprompt", (event) => {
       event.preventDefault();
       deferredInstallPrompt = event;
-      els.installButton?.classList.remove("hidden");
-      els.mobileInstallButton?.classList.remove("hidden");
+      if (!isStandaloneApp() && localStorage.getItem(INSTALL_MARKER_KEY) !== "1") {
+        setInstallButtonsHidden(false);
+      }
     });
+
+    window.addEventListener("appinstalled", () => {
+      deferredInstallPrompt = null;
+      localStorage.setItem(INSTALL_MARKER_KEY, "1");
+      setInstallButtonsHidden(true);
+      const modal = document.getElementById("installHelpModal");
+      modal?.classList.add("hidden");
+      modal?.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("modal-open");
+    });
+
+    const displayModeQuery = window.matchMedia?.("(display-mode: standalone)");
+    displayModeQuery?.addEventListener?.("change", syncInstallButtons);
+    syncInstallButtons();
 
     els.installButton?.addEventListener("click", promptInstallApp);
     els.mobileInstallButton?.addEventListener("click", async () => {
