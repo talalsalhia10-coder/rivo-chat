@@ -862,6 +862,37 @@
         relayRemoteCount = Math.max(0, Number(count || 0));
         syncRoomAudioCount();
       },
+      onRemoteStart: (event) => {
+        if (micActive || !event) return;
+        const speaker = currentUsers.find((user) => user.clientId === event.from);
+        const character = getCharacter(event.avatar || speaker?.avatar || currentMicHolderAvatar);
+        if (stageMode !== "remote" || remoteSpeakerId !== event.from || els.avatarLivePanel.classList.contains("hidden")) {
+          remoteSpeakerId = event.from || currentMicHolderId || "";
+          showCharacterStage(
+            character,
+            `${event.nickname || speaker?.nickname || currentMicHolderName || "مستخدم"} على المايك`,
+            "يتكلم الآن",
+            "remote"
+          );
+        }
+      },
+      onRemoteLevel: (level) => {
+        if (micActive || stageMode !== "remote") return;
+        const normalized = Math.max(0, Math.min(1, Number(level || 0)));
+        window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
+          detail: { level: normalized, laugh: false, active: normalized > 0 }
+        }));
+        if (normalized > 0.02 && els.liveMicStatus) {
+          els.liveMicStatus.textContent = "يتكلم الآن";
+        }
+      },
+      onRemoteStop: () => {
+        if (stageMode === "remote") {
+          window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
+            detail: { level: 0, laugh: false, active: false }
+          }));
+        }
+      },
       onError: (message) => showError(message, 7000)
     });
   }
@@ -2837,6 +2868,20 @@
   async function startLiveMic() {
     if (micActive) return;
 
+    // Create/resume the analyser while the click is still a direct user gesture.
+    // Mobile browsers may refuse a new AudioContext after later awaits.
+    if (!isSharedLocalServer() && !audioContext) {
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioContextClass) {
+        try {
+          audioContext = new AudioContextClass({ latencyHint: "interactive" });
+          if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
+        } catch {
+          audioContext = null;
+        }
+      }
+    }
+
     if (roomPublicMicEnabled === false) {
       showError("الإدارة أغلقت مايك العامة.");
       return;
@@ -2908,7 +2953,7 @@
           const AudioContextClass = window.AudioContext || window.webkitAudioContext;
 
           if (AudioContextClass) {
-            audioContext = new AudioContextClass({ latencyHint: "interactive" });
+            audioContext = audioContext || new AudioContextClass({ latencyHint: "interactive" });
 
             try {
               if (audioContext.state === "suspended") {

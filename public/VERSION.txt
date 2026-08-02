@@ -1,2 +1,2 @@
-Rivo Chat v142.5
-WebSocket Opus audio relay + visible animated VRM avatar
+Rivo Chat v142.6
+Actual-audio lip sync + stronger VRM mouth, blink and idle motion

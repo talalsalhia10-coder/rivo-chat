@@ -29,6 +29,9 @@
       this.getProfile = options.getProfile || (() => null);
       this.getTransport = options.getTransport || (() => null);
       this.onRemoteCount = options.onRemoteCount || (() => {});
+      this.onRemoteLevel = options.onRemoteLevel || (() => {});
+      this.onRemoteStart = options.onRemoteStart || (() => {});
+      this.onRemoteStop = options.onRemoteStop || (() => {});
       this.onError = options.onError || (() => {});
 
       this.recorder = null;
@@ -60,6 +63,17 @@
       this.queue = [];
       this.ending = false;
       this.remoteActive = false;
+
+      // Analyse the audio that is actually heard by the receiving browser.
+      // This keeps the VRM mouth synchronized even when the sender browser
+      // cannot create a microphone AudioContext (common on mobile browsers).
+      this.playbackContext = null;
+      this.playbackSource = null;
+      this.playbackAnalyser = null;
+      this.playbackData = null;
+      this.playbackFrame = 0;
+      this.remoteLevel = 0;
+      this.lastRemoteLevelAt = 0;
     }
 
     localId() {
@@ -88,9 +102,86 @@
       }) || "";
     }
 
+    async ensurePlaybackAnalyser() {
+      if (this.playbackAnalyser) {
+        try {
+          if (this.playbackContext?.state === "suspended") await this.playbackContext.resume();
+        } catch {}
+        return true;
+      }
+
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextClass) return false;
+
+      try {
+        this.playbackContext = this.playbackContext || new AudioContextClass({ latencyHint: "interactive" });
+        if (this.playbackContext.state === "suspended") {
+          try { await this.playbackContext.resume(); } catch {}
+        }
+
+        this.playbackSource = this.playbackSource || this.playbackContext.createMediaElementSource(this.audio);
+        this.playbackAnalyser = this.playbackContext.createAnalyser();
+        this.playbackAnalyser.fftSize = 512;
+        this.playbackAnalyser.smoothingTimeConstant = 0.42;
+        this.playbackData = new Float32Array(this.playbackAnalyser.fftSize);
+        this.playbackSource.connect(this.playbackAnalyser);
+        this.playbackAnalyser.connect(this.playbackContext.destination);
+        return true;
+      } catch (error) {
+        console.warn("Remote audio analyser unavailable", error);
+        this.playbackAnalyser = null;
+        this.playbackData = null;
+        return false;
+      }
+    }
+
+    startRemoteAnalysis() {
+      if (this.playbackFrame || !this.remoteActive) return;
+
+      const tick = () => {
+        this.playbackFrame = 0;
+        if (!this.remoteActive) {
+          this.remoteLevel = 0;
+          this.onRemoteLevel(0);
+          return;
+        }
+
+        let target = 0;
+        if (this.playbackAnalyser && this.playbackData) {
+          try {
+            this.playbackAnalyser.getFloatTimeDomainData(this.playbackData);
+            let sum = 0;
+            for (let i = 0; i < this.playbackData.length; i++) {
+              const sample = this.playbackData[i];
+              sum += sample * sample;
+            }
+            const rms = Math.sqrt(sum / Math.max(1, this.playbackData.length));
+            target = Math.max(0, Math.min(1, (rms - 0.0012) * 21));
+          } catch {}
+        }
+
+        // Fast opening and slower closing makes lip movement clear and natural.
+        const response = target > this.remoteLevel ? 0.48 : 0.23;
+        this.remoteLevel += (target - this.remoteLevel) * response;
+        if (this.remoteLevel < 0.009) this.remoteLevel = 0;
+        this.onRemoteLevel(this.remoteLevel);
+        this.playbackFrame = requestAnimationFrame(tick);
+      };
+
+      this.playbackFrame = requestAnimationFrame(tick);
+    }
+
+    stopRemoteAnalysis() {
+      if (this.playbackFrame) cancelAnimationFrame(this.playbackFrame);
+      this.playbackFrame = 0;
+      this.remoteLevel = 0;
+      this.onRemoteLevel(0);
+    }
+
     async unlock() {
       this.unlocked = true;
       this.audio.muted = this.muted;
+      await this.ensurePlaybackAnalyser();
 
       // A tiny silent WAV is played during the user's gesture. This grants
       // future playback permission on Chrome/Android before remote audio arrives.
@@ -229,6 +320,8 @@
         if (!this.remoteActive) {
           this.remoteActive = true;
           this.onRemoteCount(1);
+          this.onRemoteStart(event);
+          this.ensurePlaybackAnalyser().finally(() => this.startRemoteAnalysis());
         }
       } catch (error) {
         console.warn("Invalid relayed audio chunk", error);
@@ -296,6 +389,8 @@
       this.ending = true;
       this.remoteActive = false;
       this.onRemoteCount(0);
+      this.stopRemoteAnalysis();
+      this.onRemoteStop(event);
 
       setTimeout(() => {
         if (this.queue.length || this.sourceBuffer?.updating) return;
@@ -310,6 +405,7 @@
       this.ending = false;
       this.remoteActive = false;
       this.onRemoteCount(0);
+      this.stopRemoteAnalysis();
 
       try { this.audio.pause(); } catch {}
       try {
@@ -332,6 +428,9 @@
     async destroy() {
       await this.stopCapture();
       this.resetRemote();
+      try { this.playbackSource?.disconnect?.(); } catch {}
+      try { this.playbackAnalyser?.disconnect?.(); } catch {}
+      try { await this.playbackContext?.close?.(); } catch {}
       this.audio.remove();
     }
   }

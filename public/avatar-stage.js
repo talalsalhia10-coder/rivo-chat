@@ -323,18 +323,21 @@ function animate() {
     const response = targetVoiceLevel > voiceLevel ? 0.42 : 0.20;
     voiceLevel = THREE.MathUtils.lerp(voiceLevel, targetVoiceLevel, response);
     if (targetVoiceLevel < 0.008 && voiceLevel < 0.009) voiceLevel = 0;
-    const mouth = THREE.MathUtils.clamp(Math.pow(voiceLevel * 3.15, 0.62), 0, 1);
+    const mouth = THREE.MathUtils.clamp(Math.pow(voiceLevel * 4.35, 0.58), 0, 1);
     const vowels = ["aa", "ih", "ou", "ee", "oh"];
-    const vowelPhase = Math.floor(now / 105) % vowels.length;
+    const vowelPhase = Math.floor(now / 92) % vowels.length;
 
+    // Keep AA slightly active and blend a changing vowel on top. This makes
+    // lip movement clearly visible even on small phone screens.
     vowels.forEach((name, index) => {
-      setExpression(name, index === vowelPhase ? mouth : 0);
+      const value = index === 0 ? mouth * 0.72 : (index === vowelPhase ? mouth * 0.58 : 0);
+      setExpression(name, value);
     });
 
     setExpression("happy", laughActive ? 0.96 : Math.min(0.16, mouth * 0.1));
 
     if (headBone && headBase) {
-      headBone.rotation.x = headBase.x - mouth * 0.075 + Math.sin(now * 0.00072) * 0.018;
+      headBone.rotation.x = headBase.x - mouth * 0.12 + Math.sin(now * 0.00072) * 0.022;
       headBone.rotation.y = headBase.y + Math.sin(now * 0.00043) * 0.055;
       headBone.rotation.z = headBase.z + (laughActive ? Math.sin(now * 0.019) * 0.028 : 0);
     }
@@ -356,6 +359,11 @@ function animate() {
     if (rightEyeBone && rightEyeBase) {
       rightEyeBone.rotation.x = rightEyeBase.x + gazeY;
       rightEyeBone.rotation.y = rightEyeBase.y + gazeX;
+    }
+
+    if (upperChestBone) {
+      upperChestBone.rotation.x = Math.sin(now * 0.0015) * 0.012 - mouth * 0.018;
+      upperChestBone.rotation.y = Math.sin(now * 0.00055) * 0.014;
     }
 
     applyRelaxedPose();
@@ -383,7 +391,7 @@ window.addEventListener("rivo:character-selected", (event) => {
 });
 
 window.addEventListener("rivo:avatar-level", (event) => {
-  targetVoiceLevel = Number(event.detail?.level || 0);
+  targetVoiceLevel = THREE.MathUtils.clamp(Number(event.detail?.level || 0), 0, 1);
   laughActive = Boolean(event.detail?.laugh);
 });
 
