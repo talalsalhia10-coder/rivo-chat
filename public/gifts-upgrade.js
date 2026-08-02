@@ -20,6 +20,7 @@
 
   const FALLBACK_BADGE = "ruby";
   const badgeByClient = new Map();
+  const roleByClient = new Map();
   const giftIds = new Set(Object.keys(GIFTS));
   const appNativeBadges = new Set(["ruby", "emerald"]);
   let decorateQueued = false;
@@ -31,15 +32,38 @@
     else if (!badge) badgeByClient.delete(id);
   }
 
+  function rememberRole(clientId, role) {
+    const id = String(clientId || "");
+    const normalizedRole = String(role || "");
+    if (!id || !normalizedRole) return;
+    roleByClient.set(id, normalizedRole);
+  }
+
+  function isOwnerClient(clientId, holder = null) {
+    const id = String(clientId || "");
+    const role = String(holder?.role || roleByClient.get(id) || "");
+    return role === "owner";
+  }
+
   function normalizeBadgeHolder(holder, clientId) {
     if (!holder || typeof holder !== "object") return;
+    const id = String(clientId || holder.clientId || "");
+    rememberRole(id, holder.role);
+
+    // الإدارة تظهر بالتاج فقط دائماً، ولا تظهر قربها أي هدية أو جوهرة.
+    if (isOwnerClient(id, holder)) {
+      remember(id, "");
+      holder.badge = "";
+      return;
+    }
+
     const badge = String(holder.badge || "");
     if (!badge) {
-      remember(clientId, "");
+      remember(id, "");
       return;
     }
     if (!giftIds.has(badge)) return;
-    remember(clientId, badge);
+    remember(id, badge);
     if (!appNativeBadges.has(badge)) holder.badge = FALLBACK_BADGE;
   }
 
@@ -47,16 +71,24 @@
     if (!data || typeof data !== "object") return;
 
     if (data.type === "init") {
-      // الرسائل أولاً، ثم الحضور الحالي حتى تكون هدية المستخدم الحالية هي الأحدث.
-      (Array.isArray(data.messages) ? data.messages : []).forEach((message) =>
+      const users = Array.isArray(data.users) ? data.users : [];
+      const messages = Array.isArray(data.messages) ? data.messages : [];
+
+      // نحفظ الرتب أولاً حتى نمنع أي هدية قديمة من الظهور على حساب الإدارة.
+      users.forEach((user) => rememberRole(user?.clientId, user?.role));
+      rememberRole(data.self?.clientId, data.self?.role);
+
+      messages.forEach((message) =>
         normalizeBadgeHolder(message, message?.clientId)
       );
-      (Array.isArray(data.users) ? data.users : []).forEach((user) =>
+      users.forEach((user) =>
         normalizeBadgeHolder(user, user?.clientId)
       );
       normalizeBadgeHolder(data.self, data.self?.clientId);
     } else if (data.type === "presence") {
-      (Array.isArray(data.users) ? data.users : []).forEach((user) =>
+      const users = Array.isArray(data.users) ? data.users : [];
+      users.forEach((user) => rememberRole(user?.clientId, user?.role));
+      users.forEach((user) =>
         normalizeBadgeHolder(user, user?.clientId)
       );
     } else if (data.type === "message") {
@@ -67,9 +99,17 @@
       const badge = String(data.badge || "");
       if (giftIds.has(badge)) {
         const targetId = data.targetClientId || data.clientId || "";
-        remember(targetId, badge);
-        data.rivoGiftBadge = badge;
-        data.badge = ""; // يمنع الحركة القديمة المكررة، والحركة الجديدة تظهر أدناه.
+
+        // لا نعرض أو نخزن هدايا للإدارة؛ التاج هو الشارة الوحيدة لها.
+        if (isOwnerClient(targetId)) {
+          remember(targetId, "");
+          data.rivoGiftBadge = "";
+          data.badge = "";
+        } else {
+          remember(targetId, badge);
+          data.rivoGiftBadge = badge;
+          data.badge = ""; // يمنع الحركة القديمة المكررة، والحركة الجديدة تظهر أدناه.
+        }
       }
     }
 
@@ -111,9 +151,20 @@
     container?.querySelectorAll(":scope > .rivo-gift-144").forEach((node) => node.remove());
   }
 
+  function removeAllAwardBadges(container) {
+    container?.querySelectorAll(":scope > .rivo-award-badge").forEach((node) => node.remove());
+  }
+
   function decorateUserRow(row, giftId) {
     const avatarWrap = row.querySelector(".user-avatar-wrap");
     const nameWrap = row.querySelector(".user-name-wrap");
+
+    if (row.classList.contains("role-owner")) {
+      removeAllAwardBadges(avatarWrap);
+      removeAllAwardBadges(nameWrap);
+      return;
+    }
+
     if (!giftId) {
       removeGiftBadge(avatarWrap);
       removeGiftBadge(nameWrap);
@@ -126,6 +177,15 @@
   function decorateMessageRow(row, giftId) {
     const avatarWrap = row.querySelector(".message-avatar-wrap");
     const nameWrap = row.querySelector(".message-name-line");
+    const owner = isOwnerClient(row.dataset.clientId || "");
+
+    row.classList.toggle("rivo-role-owner", owner);
+    if (owner) {
+      removeAllAwardBadges(avatarWrap);
+      removeAllAwardBadges(nameWrap);
+      return;
+    }
+
     if (!giftId) {
       removeGiftBadge(avatarWrap);
       removeGiftBadge(nameWrap);
@@ -138,6 +198,12 @@
   function decoratePresence(button, giftId) {
     const avatarWrap = button.querySelector(".presence-avatar-image");
     const existing = avatarWrap?.querySelector(":scope > .presence-gift-144");
+
+    if (button.classList.contains("role-owner")) {
+      removeAllAwardBadges(avatarWrap);
+      return;
+    }
+
     if (!giftId) {
       existing?.remove();
       return;
@@ -238,6 +304,9 @@
       .rivo-gift-choice-144:hover,.rivo-gift-choice-144:focus-visible{transform:translateY(-2px) scale(1.02);border-color:rgba(128,102,255,.8)!important;box-shadow:0 10px 22px rgba(0,0,0,.22)}
       .rivo-gift-choice-144 span{display:block!important;font-size:34px!important;line-height:1.15!important;filter:drop-shadow(0 7px 9px rgba(0,0,0,.4))}
       .rivo-gift-choice-144 b{display:block!important;margin-top:7px!important;font-size:10px!important;line-height:1.35!important}
+      .user-row.role-owner .rivo-award-badge,
+      .presence-avatar.role-owner .rivo-award-badge,
+      .message-row.rivo-role-owner .rivo-award-badge{display:none!important}
       .rivo-gift-144{display:inline-grid;place-items:center;background:transparent!important;filter:drop-shadow(0 0 7px rgba(143,116,255,.72));animation:rivoGiftPulse144 2.1s ease-in-out infinite;isolation:isolate}
       .rivo-gift-144.badge-flame{filter:drop-shadow(0 0 9px rgba(255,153,35,.9))}
       .rivo-gift-144.badge-galaxy,.rivo-gift-144.badge-crystal{filter:drop-shadow(0 0 10px rgba(163,102,255,.95))}
