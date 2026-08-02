@@ -1,2 +1,1 @@
-Rivo Chat v142.9
-Clear room chooser, home/profile return, and general-room first entry
+Rivo Chat v143.0 — top navigation + persistent admin preferences

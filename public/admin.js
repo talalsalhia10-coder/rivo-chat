@@ -8,6 +8,7 @@
   const CLIENT_ID_KEY = "rivo_group_client_id_v1";
   const DEMO_SETTINGS_KEY = "rivo_demo_room_controls_v1";
   const DEMO_MIC_STATE_KEY = "rivo_demo_active_mic_v1";
+  const ADMIN_UI_PREFS_KEY = PANEL_MODE === "owner" ? "rivo_admin_ui_prefs_owner_v1" : "rivo_admin_ui_prefs_moderator_v1";
 
   const ADMIN_BADGES = {
     star: { icon: "⭐", label: "نجمة ذهبية" },
@@ -1048,6 +1049,17 @@
     localStorage.setItem(SESSION_KEY, JSON.stringify(identity));
   }
 
+  function loadAdminUiPrefs() {
+    try { return JSON.parse(localStorage.getItem(ADMIN_UI_PREFS_KEY) || "null") || {}; }
+    catch { return {}; }
+  }
+
+  function saveAdminUiPrefs(patch = {}) {
+    const next = { ...loadAdminUiPrefs(), ...patch };
+    try { localStorage.setItem(ADMIN_UI_PREFS_KEY, JSON.stringify(next)); } catch {}
+    return next;
+  }
+
   function validLocalCode(code, role) {
     // The local server is the source of truth. Do not expose the owner secret in public JavaScript.
     return role === "owner" && Boolean(String(code || "").trim());
@@ -1077,6 +1089,8 @@
       [els.vipSubscriptionsCard, els.roomsManagerCard, els.charactersManagerCard, els.staffAccountsCard, els.permissionsCard]
         .forEach((card) => card?.classList.add("hidden"));
     }
+    const uiPrefs = loadAdminUiPrefs();
+    setControlsVisible(uiPrefs.controlsVisible !== false, false);
     loadEmbeddedChat();
   }
 
@@ -1714,12 +1728,13 @@
     });
   }
 
-  function setControlsVisible(visible) {
+  function setControlsVisible(visible, persist = true) {
     els.controlRail.classList.toggle("hidden", !visible);
     els.showControls.classList.toggle("hidden", visible);
     els.workspace.classList.toggle("chat-expanded", !visible);
     chatExpanded = !visible;
     els.expandChat.textContent = chatExpanded ? "إظهار التحكم" : "تكبير الدردشة";
+    if (persist) saveAdminUiPrefs({ controlsVisible: Boolean(visible) });
   }
 
   els.awardBadge?.addEventListener("change", () => {
