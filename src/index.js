@@ -2226,6 +2226,46 @@ export class ChatRoom extends DurableObject {
       return;
     }
 
+    if (data.type === "audio-opus") {
+      // Only the user currently holding the public microphone may relay audio.
+      if (!this.activeMicClientId || this.activeMicClientId !== session.clientId) return;
+
+      const sessionId = cleanText(data.sessionId, 90);
+      const mime = cleanText(data.mime, 80);
+      const encoded = String(data.data || "");
+      const sequence = Math.max(0, Math.min(1000000000, Number(data.seq || 0)));
+      const allowedMime = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus"
+      ].includes(mime);
+
+      if (!sessionId || !allowedMime || !encoded || encoded.length > 120000) return;
+      if (!/^[A-Za-z0-9+/=]+$/.test(encoded)) return;
+
+      this.broadcast({
+        type: "audio-opus",
+        from: session.clientId,
+        nickname: session.nickname,
+        avatar: session.avatar,
+        sessionId,
+        seq: sequence,
+        mime,
+        data: encoded
+      }, ws);
+      return;
+    }
+
+    if (data.type === "audio-opus-end") {
+      const sessionId = cleanText(data.sessionId, 90);
+      this.broadcast({
+        type: "audio-opus-end",
+        from: session.clientId,
+        sessionId
+      }, ws);
+      return;
+    }
+
     if (data.type === "mic-claim") {
       if (!this.rateAllowed(session.micTimes, 15000, 8)) {
         this.warnSpam(ws, session, "تم إيقاف تبديل المايك مؤقتاً بسبب التكرار السريع.", 20);
@@ -2293,6 +2333,11 @@ export class ChatRoom extends DurableObject {
           nickname: session.nickname,
           avatar: session.avatar
         });
+        this.broadcast({
+          type: "audio-opus-end",
+          from: session.clientId,
+          sessionId: ""
+        }, ws);
         this.broadcastAdminState();
       }
       return;
@@ -3031,6 +3076,11 @@ export class ChatRoom extends DurableObject {
         avatar: session.avatar,
         active: false
       }, ws);
+      this.broadcast({
+        type: "audio-opus-end",
+        from: session.clientId,
+        sessionId: ""
+      }, ws);
       if (this.activeMicClientId && this.activeMicClientId === session.clientId) {
         this.activeMicClientId = "";
         this.activeMicNickname = "";
@@ -3070,6 +3120,11 @@ export class ChatRoom extends DurableObject {
         nickname: session.nickname,
         avatar: session.avatar,
         active: false
+      }, ws);
+      this.broadcast({
+        type: "audio-opus-end",
+        from: session.clientId,
+        sessionId: ""
       }, ws);
       if (this.activeMicClientId && this.activeMicClientId === session.clientId) {
         this.activeMicClientId = "";
