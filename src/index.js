@@ -602,6 +602,16 @@ export class ChatRoom extends DurableObject {
         expires_at INTEGER NOT NULL DEFAULT 0,
         session_version INTEGER NOT NULL DEFAULT 1
       );
+
+      CREATE TABLE IF NOT EXISTS staff_preferences (
+        role TEXT NOT NULL,
+        staff_id TEXT NOT NULL,
+        name TEXT NOT NULL DEFAULT '',
+        avatar TEXT NOT NULL DEFAULT '',
+        visible INTEGER NOT NULL DEFAULT 1,
+        updated_at INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY(role, staff_id)
+      );
       CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_accounts_code
       ON staff_accounts(code);
 
@@ -815,6 +825,17 @@ export class ChatRoom extends DurableObject {
         );
     let role = staffIdentity?.role || "user";
     const staffClientId = staffIdentity?.id || "";
+    let staffPreference = role === "user"
+      ? { exists: false, name: "", avatar: "", visible: true }
+      : this.getStaffPreference(role, staffClientId);
+    if (role !== "user" && !staffPreference.exists) {
+      this.setStaffPreference(role, staffClientId, {
+        visible: adminVisible,
+        name: staffIdentity?.name || nickname,
+        avatar
+      });
+      staffPreference = this.getStaffPreference(role, staffClientId);
+    }
 
     let googleUid = "";
     if (role === "user" && this.env.GOOGLE_CLIENT_ID) {
@@ -863,8 +884,8 @@ export class ChatRoom extends DurableObject {
       kind: "chat",
       sessionId: crypto.randomUUID(),
       clientId,
-      nickname,
-      avatar,
+      nickname: role === "user" ? nickname : (staffPreference.name || nickname),
+      avatar: role === "user" ? avatar : (staffPreference.avatar || avatar),
       privateOpen: privateOpen && !flags.privateBlocked,
       role,
       staffClientId,
@@ -879,7 +900,7 @@ export class ChatRoom extends DurableObject {
       vipStealth: false,
       vipKickTimes: [],
       vipGiftTimes: [],
-      adminVisible: role === "user" ? true : adminVisible,
+      adminVisible: role === "user" ? true : (staffPreference.exists ? staffPreference.visible : adminVisible),
       micBlocked: flags.micBlocked,
       privateBlocked: flags.privateBlocked,
       badge: this.getUserBadge(clientId),
@@ -942,6 +963,7 @@ export class ChatRoom extends DurableObject {
     const staffSessionToken = cleanText(url.searchParams.get("staffSessionToken"), 5000);
     const requestedRole = cleanText(url.searchParams.get("role"), 20);
     const requestedStaffClientId = cleanText(url.searchParams.get("staffClientId"), 80);
+    const requestedVisible = url.searchParams.get("visible") !== "0";
     const verifiedStaff = await verifyStaffSessionToken(
       staffSessionToken,
       this.env.SESSION_SECRET
@@ -967,6 +989,14 @@ export class ChatRoom extends DurableObject {
     const staffClientId = staffIdentity?.id || requestedStaffClientId || crypto.randomUUID();
 
     if (!role) return json({ error: "Unauthorized" }, 401);
+    let staffPreference = this.getStaffPreference(role, staffClientId);
+    if (!staffPreference.exists) {
+      this.setStaffPreference(role, staffClientId, {
+        visible: requestedVisible,
+        name: staffIdentity?.name || ""
+      });
+      staffPreference = this.getStaffPreference(role, staffClientId);
+    }
 
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -975,7 +1005,7 @@ export class ChatRoom extends DurableObject {
       sessionId: crypto.randomUUID(),
       role,
       staffClientId,
-      staffName: staffIdentity?.name || "",
+      staffName: staffPreference.name || staffIdentity?.name || "",
       staffVersion: Number(verifiedStaff?.staffVersion || 0),
       permissions: verifiedModeratorState?.permissions || null,
       roomId: adminRoomId,
@@ -989,14 +1019,14 @@ export class ChatRoom extends DurableObject {
       staff: {
         id: staffClientId,
         role,
-        name: staffIdentity?.name || ""
+        name: staffPreference.name || staffIdentity?.name || ""
       },
       users: this.getAdminUsers(),
       ...this.getRoomControls(),
       activeMic: this.getActiveMic(),
       bans: this.getVisibleBansForAdmin(session),
-      staffVisible: this.getStaffSession(role, staffClientId)?.session.adminVisible !== false,
-      staffAvatar: this.getStaffSession(role, staffClientId)?.session.avatar || "",
+      staffVisible: this.getStaffSession(role, staffClientId)?.session.adminVisible !== false && staffPreference.visible !== false,
+      staffAvatar: this.getStaffSession(role, staffClientId)?.session.avatar || staffPreference.avatar || "",
       reports: this.getVisibleReportsForAdmin(session),
       logs: this.getVisibleLogsForAdmin(session),
       moderatorPermissions: this.getVisiblePermissionListForAdmin(session),
@@ -1493,6 +1523,46 @@ export class ChatRoom extends DurableObject {
     return null;
   }
 
+  getStaffPreference(role, staffClientId = "") {
+    if (!["owner", "moderator"].includes(role) || !staffClientId) {
+      return { exists: false, name: "", avatar: "", visible: true };
+    }
+    const row = this.sql.exec(
+      `SELECT name, avatar, visible FROM staff_preferences WHERE role = ? AND staff_id = ? LIMIT 1`,
+      role, staffClientId
+    ).toArray()[0];
+    return {
+      exists: Boolean(row),
+      name: cleanText(row?.name || "", 40),
+      avatar: CHARACTER_PATTERN.test(String(row?.avatar || "").toLowerCase().trim())
+        ? String(row.avatar).toLowerCase().trim()
+        : "",
+      visible: row ? Boolean(row.visible) : true
+    };
+  }
+
+  setStaffPreference(role, staffClientId, patch = {}) {
+    if (!["owner", "moderator"].includes(role) || !staffClientId) return;
+    const current = this.getStaffPreference(role, staffClientId);
+    const name = Object.prototype.hasOwnProperty.call(patch, "name")
+      ? cleanText(patch.name || "", 40)
+      : current.name;
+    const requestedAvatar = String(patch.avatar || "").toLowerCase().trim();
+    const avatar = Object.prototype.hasOwnProperty.call(patch, "avatar")
+      ? (CHARACTER_PATTERN.test(requestedAvatar) ? requestedAvatar : "")
+      : current.avatar;
+    const visible = Object.prototype.hasOwnProperty.call(patch, "visible")
+      ? Boolean(patch.visible)
+      : current.visible;
+    this.sql.exec(
+      `INSERT INTO staff_preferences(role, staff_id, name, avatar, visible, updated_at)
+       VALUES(?, ?, ?, ?, ?, ?)
+       ON CONFLICT(role, staff_id) DO UPDATE SET
+         name = excluded.name, avatar = excluded.avatar, visible = excluded.visible, updated_at = excluded.updated_at`,
+      role, staffClientId, name, avatar, visible ? 1 : 0, Date.now()
+    );
+  }
+
   getUserFlags(clientId) {
     const row = this.sql.exec(
       `SELECT mic_blocked, private_blocked
@@ -1730,19 +1800,22 @@ export class ChatRoom extends DurableObject {
       if (session?.kind !== "admin-control") continue;
 
       const staffSession = this.getStaffSession(session.role, session.staffClientId);
+      const staffPreference = this.getStaffPreference(session.role, session.staffClientId);
       this.safeSend(ws, {
         type: "admin-state",
         staff: {
           id: session.staffClientId || "",
           role: session.role || "moderator",
-          name: session.role === "moderator" ? (session.staffName || this.getModeratorAccountById(session.staffClientId)?.name || "مراقب") : (staffSession?.session.nickname || "الإدارة")
+          name: session.role === "moderator"
+            ? (staffPreference.name || session.staffName || this.getModeratorAccountById(session.staffClientId)?.name || "مراقب")
+            : (staffSession?.session.nickname || staffPreference.name || "الإدارة")
         },
         users: this.getAdminUsers(),
         ...this.getRoomControls(),
         activeMic: this.getActiveMic(),
         bans: this.getVisibleBansForAdmin(session),
-        staffVisible: staffSession?.session.adminVisible !== false,
-        staffAvatar: staffSession?.session.avatar || "",
+        staffVisible: staffSession ? staffSession.session.adminVisible !== false : staffPreference.visible !== false,
+        staffAvatar: staffSession?.session.avatar || staffPreference.avatar || "",
         reports: this.getVisibleReportsForAdmin(session),
         logs: this.getVisibleLogsForAdmin(session),
         moderatorPermissions: this.getVisiblePermissionListForAdmin(session),
@@ -2848,6 +2921,7 @@ export class ChatRoom extends DurableObject {
 
     if (action === "set-staff-visible") {
       const visible = Boolean(data.visible);
+      this.setStaffPreference(session.role, session.staffClientId, { visible });
 
       for (const socket of this.ctx.getWebSockets()) {
         if (socket.readyState !== WebSocket.OPEN) continue;
@@ -2877,6 +2951,7 @@ export class ChatRoom extends DurableObject {
       const allowed = new Set(["lina","girl2","girl3","girl4","man1","avatar6","avatar7"]);
       const avatar = cleanText(data.avatar, 30);
       if (!allowed.has(avatar)) return;
+      this.setStaffPreference(session.role, session.staffClientId, { avatar });
 
       for (const socket of this.ctx.getWebSockets()) {
         if (socket.readyState !== WebSocket.OPEN) continue;
@@ -2906,6 +2981,9 @@ export class ChatRoom extends DurableObject {
       if (session.role !== "owner") return;
       const name = cleanNickname(data.name);
       if (!name || name.length < 2) return;
+      this.setStaffPreference(session.role, session.staffClientId, { name });
+      session.staffName = name;
+      ws.serializeAttachment(session);
 
       for (const socket of this.ctx.getWebSockets()) {
         if (socket.readyState !== WebSocket.OPEN) continue;
