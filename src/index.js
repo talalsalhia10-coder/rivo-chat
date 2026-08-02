@@ -2018,6 +2018,57 @@ export class ChatRoom extends DurableObject {
         return;
       }
       const now = Date.now();
+      const ownerOverride = session.role === "owner";
+
+      if (ownerOverride) {
+        if (session.privateWith || target.session.privateWith) {
+          this.safeSend(ws, {
+            type: "private-denied",
+            to: targetId,
+            message: target.session.privateWith
+              ? `${target.session.nickname} مشغول في الخاص الآن.`
+              : "أنت مشغول في محادثة خاصة حالياً."
+          });
+          return;
+        }
+
+        target.session.pendingPrivateFrom = "";
+        target.session.pendingPrivateRequestId = "";
+        target.session.pendingPrivateExpiresAt = 0;
+        session.privateWith = target.session.clientId;
+        target.session.privateWith = session.clientId;
+        ws.serializeAttachment(session);
+        target.socket.serializeAttachment(target.session);
+
+        this.safeSend(ws, {
+          type: "private-started",
+          with: target.session.clientId,
+          adminOverride: true,
+          peer: {
+            clientId: target.session.clientId,
+            nickname: target.session.nickname,
+            avatar: target.session.avatar,
+            role: target.session.role,
+            privateOpen: true,
+            privateBusy: true
+          }
+        });
+        this.safeSend(target.socket, {
+          type: "private-started",
+          with: session.clientId,
+          adminOverride: true,
+          peer: {
+            clientId: session.clientId,
+            nickname: session.nickname,
+            avatar: session.avatar,
+            role: session.role,
+            privateOpen: true,
+            privateBusy: true
+          }
+        });
+        this.broadcastPresence();
+        return;
+      }
       const targetPendingActive = target.session.pendingPrivateRequestId && Number(target.session.pendingPrivateExpiresAt || 0) > now;
       const senderIncomingPending = session.pendingPrivateRequestId && Number(session.pendingPrivateExpiresAt || 0) > now;
       if (
