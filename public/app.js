@@ -164,6 +164,8 @@
   let micActive = false;
   let laughPeaks = [];
   let lastPeakHigh = false;
+  let localLaughUntil = 0;
+  let remoteLaughUntil = 0;
   let stageMode = "none";
   let remoteSpeakerId = "";
   let lastVoiceBroadcastAt = 0;
@@ -876,17 +878,23 @@
           );
         }
       },
-      onRemoteLevel: (level) => {
+      onRemoteLevel: (level, state = {}) => {
         if (micActive || stageMode !== "remote") return;
         const normalized = Math.max(0, Math.min(1, Number(level || 0)));
+        const now = performance.now();
+        if (state.laugh) remoteLaughUntil = Math.max(remoteLaughUntil, now + 700);
+        const laugh = Boolean(state.laugh) || now < remoteLaughUntil;
+        const active = Boolean(state.active) || normalized > 0 || laugh;
+
         window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-          detail: { level: normalized, laugh: false, active: normalized > 0 }
+          detail: { level: normalized, laugh, active }
         }));
         if (normalized > 0.02 && els.liveMicStatus) {
-          els.liveMicStatus.textContent = "يتكلم الآن";
+          els.liveMicStatus.textContent = laugh ? "يضحك الآن" : "يتكلم الآن";
         }
       },
       onRemoteStop: () => {
+        remoteLaughUntil = 0;
         if (stageMode === "remote") {
           window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
             detail: { level: 0, laugh: false, active: false }
@@ -2774,6 +2782,7 @@
     if (!event?.clientId || event.clientId === profile?.clientId) return;
 
     if (!event.active) {
+      remoteLaughUntil = 0;
       if (remoteSpeakerId === event.clientId && stageMode === "remote") {
         window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
           detail: { level: 0, laugh: false, active: false }
@@ -2784,6 +2793,9 @@
     }
 
     if (micActive) return;
+
+    const voiceNow = performance.now();
+    if (event.laugh) remoteLaughUntil = Math.max(remoteLaughUntil, voiceNow + 700);
 
     const speaker = currentUsers.find((user) => user.clientId === event.clientId);
     const character = getCharacter(event.avatar || speaker?.avatar);
@@ -2809,7 +2821,7 @@
     window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
       detail: {
         level: Number(event.level || 0),
-        laugh: Boolean(event.laugh),
+        laugh: Boolean(event.laugh) || performance.now() < remoteLaughUntil,
         active: true
       }
     }));
@@ -2936,6 +2948,7 @@
       }
       laughPeaks = [];
       lastPeakHigh = false;
+      localLaughUntil = 0;
       lastVoiceBroadcastAt = 0;
 
       els.toggleLiveMic.classList.add("active");
@@ -3039,6 +3052,7 @@
     smoothedVoiceLevel = 0;
     laughPeaks = [];
     lastPeakHigh = false;
+    localLaughUntil = 0;
 
     els.avatarStage?.classList.remove("talking", "laughing");
     if (els.voiceMeterFill) els.voiceMeterFill.style.transform = "scaleX(0)";
@@ -3063,32 +3077,45 @@
 
   function applyLocalVoiceLevel(inputLevel) {
     const target = Math.min(1, Math.max(0, Number(inputLevel || 0)));
-    smoothedVoiceLevel = smoothedVoiceLevel * 0.68 + target * 0.32;
+    smoothedVoiceLevel = smoothedVoiceLevel * 0.66 + target * 0.34;
 
-    const level = smoothedVoiceLevel < 0.012 ? 0 : smoothedVoiceLevel;
+    // A stricter gate keeps the mouth completely closed during room noise.
+    const level = smoothedVoiceLevel < 0.018 ? 0 : smoothedVoiceLevel;
     const now = performance.now();
-    const peakHigh = level > 0.34;
+    const peakHigh = level >= 0.30;
 
     if (peakHigh && !lastPeakHigh) {
-      laughPeaks.push(now);
-      laughPeaks = laughPeaks.filter((time) => now - time < 1200);
+      const previous = laughPeaks[laughPeaks.length - 1] || 0;
+      if (!previous || now - previous >= 85) laughPeaks.push(now);
+      laughPeaks = laughPeaks.filter((time) => now - time <= 1250);
+
+      if (laughPeaks.length >= 3) {
+        const recent = laughPeaks.slice(-4);
+        const gaps = recent.slice(1).map((time, index) => time - recent[index]);
+        const rhythmic = gaps.length >= 2 && gaps.every((gap) => gap >= 85 && gap <= 520);
+        if (rhythmic) localLaughUntil = now + 700;
+      }
     }
 
-    lastPeakHigh = peakHigh;
+    if (level <= 0.16) lastPeakHigh = false;
+    else if (peakHigh) lastPeakHigh = true;
 
-    const laugh = laughPeaks.length >= 3 && level > 0.18;
+    const laugh = now < localLaughUntil && (level > 0.02 || now + 160 < localLaughUntil);
+    const active = micActive;
 
     els.avatarStage.classList.toggle("talking", level > 0.025);
     els.avatarStage.classList.toggle("laughing", laugh);
     els.avatarStage.style.setProperty("--voice-level", level.toFixed(3));
-    els.voiceMeterFill.style.transform = `scaleX(${Math.max(0.03, level).toFixed(3)})`;
+    els.voiceMeterFill.style.transform = `scaleX(${level > 0 ? Math.max(0.03, level).toFixed(3) : "0"})`;
 
     if (level > 0.025) {
-      els.liveMicStatus.textContent = "يلتقط صوتك — تكلم";
+      els.liveMicStatus.textContent = laugh ? "يلتقط ضحكتك" : "يلتقط صوتك — تكلم";
+    } else if (micActive) {
+      els.liveMicStatus.textContent = "المايك يعمل — الفم مغلق عند الصمت";
     }
 
     window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-      detail: { level, laugh, active: true }
+      detail: { level, laugh, active }
     }));
 
     if (now - lastVoiceBroadcastAt >= 100) {

@@ -74,6 +74,9 @@
       this.playbackFrame = 0;
       this.remoteLevel = 0;
       this.lastRemoteLevelAt = 0;
+      this.remoteLaughPeaks = [];
+      this.remoteLastPeakHigh = false;
+      this.remoteLaughUntil = 0;
     }
 
     localId() {
@@ -142,12 +145,16 @@
         this.playbackFrame = 0;
         if (!this.remoteActive) {
           this.remoteLevel = 0;
-          this.onRemoteLevel(0);
+          this.remoteLaughPeaks = [];
+          this.remoteLastPeakHigh = false;
+          this.remoteLaughUntil = 0;
+          this.onRemoteLevel(0, { laugh: false, active: false });
           return;
         }
 
         let target = 0;
-        if (this.playbackAnalyser && this.playbackData) {
+        const actuallyPlaying = !this.audio.paused && !this.audio.ended && this.audio.readyState >= 2;
+        if (actuallyPlaying && this.playbackAnalyser && this.playbackData) {
           try {
             this.playbackAnalyser.getFloatTimeDomainData(this.playbackData);
             let sum = 0;
@@ -156,26 +163,63 @@
               sum += sample * sample;
             }
             const rms = Math.sqrt(sum / Math.max(1, this.playbackData.length));
-            target = Math.max(0, Math.min(1, (rms - 0.0012) * 21));
+
+            // Strong noise gate: normal microphone hiss must never move the mouth.
+            const gated = Math.max(0, Math.min(1, (rms - 0.006) * 32));
+            target = gated < 0.08 ? 0 : Math.min(1, (gated - 0.08) / 0.92);
+            if (target > 0) this.lastRemoteLevelAt = performance.now();
           } catch {}
         }
 
-        // Fast opening and slower closing makes lip movement clear and natural.
-        const response = target > this.remoteLevel ? 0.48 : 0.23;
+        // Close the mouth completely after a brief period without real speech.
+        if (performance.now() - this.lastRemoteLevelAt > 180) target = 0;
+
+        // Fast opening and faster, deterministic closing prevents idle lip jitter.
+        const response = target > this.remoteLevel ? 0.52 : 0.36;
         this.remoteLevel += (target - this.remoteLevel) * response;
-        if (this.remoteLevel < 0.009) this.remoteLevel = 0;
-        this.onRemoteLevel(this.remoteLevel);
+        if (target === 0 && this.remoteLevel < 0.025) this.remoteLevel = 0;
+
+        const laugh = this.detectRemoteLaugh(target, performance.now());
+        this.onRemoteLevel(this.remoteLevel, {
+          laugh,
+          active: this.remoteLevel > 0.004 || laugh
+        });
         this.playbackFrame = requestAnimationFrame(tick);
       };
 
       this.playbackFrame = requestAnimationFrame(tick);
     }
 
+    detectRemoteLaugh(level, now = performance.now()) {
+      const high = level >= 0.30;
+
+      if (high && !this.remoteLastPeakHigh) {
+        const previous = this.remoteLaughPeaks[this.remoteLaughPeaks.length - 1] || 0;
+        if (!previous || now - previous >= 85) this.remoteLaughPeaks.push(now);
+        this.remoteLaughPeaks = this.remoteLaughPeaks.filter((time) => now - time <= 1250);
+
+        if (this.remoteLaughPeaks.length >= 3) {
+          const recent = this.remoteLaughPeaks.slice(-4);
+          const gaps = recent.slice(1).map((time, index) => time - recent[index]);
+          const rhythmic = gaps.length >= 2 && gaps.every((gap) => gap >= 85 && gap <= 520);
+          if (rhythmic) this.remoteLaughUntil = now + 700;
+        }
+      }
+
+      if (level <= 0.16) this.remoteLastPeakHigh = false;
+      else if (high) this.remoteLastPeakHigh = true;
+
+      return now < this.remoteLaughUntil && (level > 0.02 || this.remoteLevel > 0.02 || now + 160 < this.remoteLaughUntil);
+    }
+
     stopRemoteAnalysis() {
       if (this.playbackFrame) cancelAnimationFrame(this.playbackFrame);
       this.playbackFrame = 0;
       this.remoteLevel = 0;
-      this.onRemoteLevel(0);
+      this.remoteLaughPeaks = [];
+      this.remoteLastPeakHigh = false;
+      this.remoteLaughUntil = 0;
+      this.onRemoteLevel(0, { laugh: false, active: false });
     }
 
     async unlock() {
