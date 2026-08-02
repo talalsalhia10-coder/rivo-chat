@@ -32,6 +32,14 @@ function controllerLabel(session) {
   return "VIP";
 }
 
+function sessionControllerId(session) {
+  return cleanText(session?.clientId || session?.staffClientId || "", 100);
+}
+
+function sessionControllerName(session) {
+  return cleanText(session?.nickname || session?.name || "", 60) || controllerLabel(session);
+}
+
 function safeHttpsUrl(value) {
   try {
     const parsed = new URL(String(value || ""));
@@ -52,16 +60,40 @@ export class ChatRoom extends GiftChatRoom {
       let data = null;
       try { data = JSON.parse(rawMessage); } catch {}
 
+      const session = ws.deserializeAttachment?.();
+
+      if (
+        data?.type === "admin-command" &&
+        (session?.role === "owner" || session?.role === "moderator")
+      ) {
+        if (data.action === "room-radio-state-request") {
+          return this.sendRoomRadioState(ws);
+        }
+
+        if (data.action === "room-radio-play") {
+          return this.handleRoomRadioPlayForSession(ws, session, data);
+        }
+
+        if (data.action === "room-radio-action") {
+          return this.handleRoomRadioActionForSession(ws, session, {
+            ...data,
+            action: data.radioAction
+          });
+        }
+      }
+
       if (data?.type === "room-radio-state-request") {
         return this.sendRoomRadioState(ws);
       }
 
       if (data?.type === "room-radio-play") {
-        return this.handleRoomRadioPlay(ws, data);
+        if (session?.kind !== "chat") return;
+        return this.handleRoomRadioPlayForSession(ws, session, data);
       }
 
       if (data?.type === "room-radio-action") {
-        return this.handleRoomRadioAction(ws, data);
+        if (session?.kind !== "chat") return;
+        return this.handleRoomRadioActionForSession(ws, session, data);
       }
     }
 
@@ -108,22 +140,19 @@ export class ChatRoom extends GiftChatRoom {
     if (!current?.active) return true;
     if (rank === 3) return true;
     if (rank === 2) return Number(current.controllerRank || 0) <= 2;
-    return current.controllerClientId === session.clientId;
+    return current.controllerClientId === sessionControllerId(session);
   }
 
   canControlRadio(session, current) {
     const rank = roleRank(session);
     if (!rank || !current?.active) return false;
-    if (current.controllerClientId === session.clientId) return true;
+    if (current.controllerClientId === sessionControllerId(session)) return true;
     if (rank === 3) return true;
     if (rank === 2 && Number(current.controllerRank || 0) <= 1) return true;
     return false;
   }
 
-  async handleRoomRadioPlay(ws, data) {
-    const session = ws.deserializeAttachment?.();
-    if (session?.kind !== "chat") return;
-
+  async handleRoomRadioPlayForSession(ws, session, data) {
     const rank = roleRank(session);
     if (!rank) {
       this.radioError(ws, "تشغيل إذاعة الغرفة متاح للإدارة والمراقبين وأعضاء VIP فقط.");
@@ -182,14 +211,16 @@ export class ChatRoom extends GiftChatRoom {
       offsetSeconds: 0,
       startedAt: now,
       updatedAt: now,
-      controllerClientId: cleanText(session.clientId, 100),
-      controllerName: cleanText(session.nickname, 60) || controllerLabel(session),
+      controllerClientId: sessionControllerId(session),
+      controllerName: sessionControllerName(session),
       controllerRole: session.role === "owner" || session.role === "moderator" ? session.role : "vip",
       controllerRank: rank
     };
 
     await this.writeRoomRadioState(state);
-    this.broadcast(this.radioPayload(state));
+    const payload = this.radioPayload(state);
+    this.broadcast(payload);
+    this.safeSend(ws, payload);
 
     try {
       this.addAdminLog(
@@ -210,10 +241,7 @@ export class ChatRoom extends GiftChatRoom {
     return clampNumber(base + elapsed, 0, MAX_POSITION_SECONDS, 0);
   }
 
-  async handleRoomRadioAction(ws, data) {
-    const session = ws.deserializeAttachment?.();
-    if (session?.kind !== "chat") return;
-
+  async handleRoomRadioActionForSession(ws, session, data) {
     const current = await this.readRoomRadioState();
     if (!current?.active) {
       this.safeSend(ws, this.radioPayload(null));
@@ -236,7 +264,9 @@ export class ChatRoom extends GiftChatRoom {
 
     if (action === "stop") {
       await this.writeRoomRadioState(null);
-      this.broadcast(this.radioPayload(null));
+      const payload = this.radioPayload(null);
+      this.broadcast(payload);
+      this.safeSend(ws, payload);
       return;
     }
 
@@ -261,6 +291,8 @@ export class ChatRoom extends GiftChatRoom {
 
     current.updatedAt = now;
     await this.writeRoomRadioState(current);
-    this.broadcast(this.radioPayload(current));
+    const payload = this.radioPayload(current);
+    this.broadcast(payload);
+    this.safeSend(ws, payload);
   }
 }
