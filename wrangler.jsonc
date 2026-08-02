@@ -1,12 +1,13 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "rivo-chat",
-  "main": "src/index-gifts.js",
+  "main": "src/index.js",
   "compatibility_date": "2026-08-01",
   "compatibility_flags": [
     "nodejs_compat"
   ],
   "workers_dev": true,
+  "keep_vars": true,
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",
