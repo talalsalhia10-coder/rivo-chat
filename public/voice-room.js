@@ -95,6 +95,14 @@
       return this.playbackMuted;
     }
 
+    isPlaybackUnlocked() {
+      return Boolean(
+        this.playbackUnlocked &&
+        this.playbackContext &&
+        this.playbackContext.state === "running"
+      );
+    }
+
     setTransportStatus(status) {
       this.transportConnected = status === "connected";
 
@@ -558,6 +566,7 @@
 
       this.playbackContext = null;
       this.masterGain = null;
+      this.playbackUnlocked = false;
       this.onRemoteCount(0);
     }
   }

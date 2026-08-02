@@ -15,6 +15,7 @@
   const DEMO_SETTINGS_KEY = "rivo_demo_room_controls_v1";
   const DEMO_MIC_BLOCKS_KEY = "rivo_demo_mic_blocks_v1";
   const DEMO_PRIVATE_BLOCKS_KEY = "rivo_demo_private_blocks_v1";
+  const PENDING_AVATAR_KEY = "rivo_pending_avatar_v2";
   const LOCAL_PUBLIC_LIMIT = 200;
   const LOCAL_PRIVATE_LIMIT = 300;
 
@@ -200,6 +201,8 @@
   let roomRefreshTimer = null;
   let vipRefreshTimer = null;
   let vipGiftTarget = null;
+  let remoteStreamCount = 0;
+  let audioUnlockInstalled = false;
 
   function isStaffMode() {
     return new URLSearchParams(location.search).get("staff") === "1";
@@ -832,11 +835,8 @@
       getProfile: () => profile,
       getTransport: () => transport,
       onRemoteCount: (count) => {
-        els.remoteAudioCount.textContent = String(count);
-        els.roomSoundButton.classList.toggle("receiving", count > 0);
-        els.roomSoundButton.title = count > 0
-          ? `تستمع الآن إلى ${count} مستخدم`
-          : "تشغيل أو كتم أصوات المستخدمين";
+        remoteStreamCount = Math.max(0, Number(count || 0));
+        syncRoomAudioCount();
       },
       onConnectionState: (_peerId, state) => {
         if (state === "failed") {
@@ -856,11 +856,50 @@
     return results.some(Boolean);
   }
 
+  function syncRoomAudioCount() {
+    const remoteMicActive = Boolean(
+      currentMicHolderId &&
+      currentMicHolderId !== profile?.clientId
+    );
+    const visibleCount = Math.max(remoteStreamCount, remoteMicActive ? 1 : 0);
+
+    if (els.remoteAudioCount) els.remoteAudioCount.textContent = String(visibleCount);
+    if (els.roomSoundButton) {
+      els.roomSoundButton.classList.toggle("receiving", visibleCount > 0);
+      els.roomSoundButton.title = visibleCount > 0
+        ? `يوجد ${visibleCount} صوت نشط — اضغط للاستماع أو الكتم`
+        : "اضغط مرة واحدة لتفعيل سماع صوت الغرفة";
+    }
+  }
+
   function syncRoomSoundButton() {
     const muted = voiceRoom?.isPlaybackMuted?.() || false;
-    els.roomSoundButton.classList.toggle("active", !muted);
-    els.roomSoundIcon.textContent = muted ? "🔇" : "🔊";
-    els.roomSoundLabel.textContent = muted ? "الصوت مكتوم" : "صوت الغرفة";
+    const unlocked = voiceRoom?.isPlaybackUnlocked?.() || false;
+    els.roomSoundButton.classList.toggle("active", unlocked && !muted);
+    els.roomSoundButton.classList.toggle("needs-unlock", !unlocked);
+    els.roomSoundIcon.textContent = !unlocked ? "🔈" : (muted ? "🔇" : "🔊");
+    els.roomSoundLabel.textContent = !unlocked ? "شغّل الصوت" : (muted ? "الصوت مكتوم" : "صوت الغرفة");
+    syncRoomAudioCount();
+  }
+
+  function installFirstGestureAudioUnlock() {
+    if (audioUnlockInstalled) return;
+    audioUnlockInstalled = true;
+
+    const unlockOnce = async () => {
+      const unlocked = await unlockRoomAudio();
+      if (!unlocked) return;
+      voiceRoom?.setPlaybackMuted?.(false);
+      localPcmRelay?.setMuted?.(false);
+      syncRoomSoundButton();
+      document.removeEventListener("pointerdown", unlockOnce, true);
+      document.removeEventListener("touchstart", unlockOnce, true);
+      document.removeEventListener("keydown", unlockOnce, true);
+    };
+
+    document.addEventListener("pointerdown", unlockOnce, true);
+    document.addEventListener("touchstart", unlockOnce, { capture: true, passive: true });
+    document.addEventListener("keydown", unlockOnce, true);
   }
 
 
@@ -981,10 +1020,12 @@
     }
 
     updateMicAvailability();
+    syncRoomAudioCount();
     if (profile?.isVip) renderUsers(currentUsers);
 
     if (event?.active && currentMicHolderId && currentMicHolderId !== profile?.clientId && !micActive) {
-      const character = getCharacter(event.avatar);
+      const speaker = currentUsers.find((user) => user.clientId === currentMicHolderId);
+      const character = getCharacter(event.avatar || speaker?.avatar);
       showCharacterStage(
         character,
         `${event.nickname || "مستخدم"} على المايك`,
@@ -1549,6 +1590,25 @@
     return googleUid ? `${PROFILE_KEY}:${googleUid}` : PROFILE_KEY;
   }
 
+  function pendingAvatarStorageKey() {
+    const googleUid = googleSession?.googleUid || "guest";
+    return `${PENDING_AVATAR_KEY}:${googleUid}`;
+  }
+
+  function loadPendingAvatar() {
+    try {
+      return localStorage.getItem(pendingAvatarStorageKey()) || "";
+    } catch {
+      return "";
+    }
+  }
+
+  function savePendingAvatar(avatarId) {
+    try {
+      localStorage.setItem(pendingAvatarStorageKey(), getCharacter(avatarId).id);
+    } catch {}
+  }
+
   function loadSavedProfile() {
     try {
       const source = isLocalDemo() ? sessionStorage : localStorage;
@@ -1647,10 +1707,26 @@
       showError("هذه الشخصية خاصة بأعضاء VIP.");
       return;
     }
+
     selectedAvatar = character.id;
-    els.avatarGrid.querySelectorAll(".avatar-option").forEach((button) => {
-      button.classList.toggle("selected", button.dataset.avatar === selectedAvatar);
-    });
+    savePendingAvatar(selectedAvatar);
+
+    if (els.avatarGrid) {
+      els.avatarGrid.querySelectorAll(".avatar-option").forEach((button) => {
+        button.classList.toggle("selected", button.dataset.avatar === selectedAvatar);
+      });
+    }
+
+    // Keep every preview synchronized with the user's latest choice.
+    if (els.liveCharacterPortrait) {
+      els.liveCharacterPortrait.src = character.portrait || character.portraitSmall;
+      els.liveCharacterPortrait.alt = character.name || "الشخصية المختارة";
+    }
+
+    window.RIVO_ACTIVE_CHARACTER = character;
+    window.dispatchEvent(new CustomEvent("rivo:character-selected", {
+      detail: { character }
+    }));
   }
   function cleanNickname(value) {
     return String(value || "").replace(/\s+/g, " ").trim().slice(0, 24);
@@ -1680,6 +1756,7 @@
     };
 
     saveProfile(profile);
+    savePendingAvatar(profile.avatar);
     els.joinScreen.classList.add("hidden");
     els.chatApp.classList.remove("hidden");
     els.myAvatarSide.src = avatarUrl(profile.avatar);
@@ -1975,6 +2052,8 @@
       if (event.clientId === profile?.clientId) {
         if (event.avatar) {
           profile.avatar = getCharacter(event.avatar).id;
+          selectedAvatar = profile.avatar;
+          savePendingAvatar(profile.avatar);
           els.myAvatarSide.src = avatarUrl(profile.avatar);
           const character = getCharacter(profile.avatar);
           window.RIVO_ACTIVE_CHARACTER = character;
@@ -2560,10 +2639,13 @@
   }
 
   function showCharacterStage(character, title, status, mode) {
+    character = getCharacter(character?.id || character || profile?.avatar || selectedAvatar);
     window.RIVO_ACTIVE_CHARACTER = character;
     stageMode = mode;
-    els.liveCharacterPortrait.src = character.portrait;
-    els.liveCharacterPortrait.alt = "صورة الشخصية";
+    els.liveCharacterPortrait.src = character.portrait || character.portraitSmall;
+    els.liveCharacterPortrait.alt = character.name || "صورة الشخصية";
+    const loadingText = els.modelLoading?.querySelector("b");
+    if (loadingText) loadingText.textContent = "تحميل الشخصية المختارة ثلاثية الأبعاد…";
     els.liveCharacterName.textContent = title;
     els.liveMicStatus.textContent = status;
     els.avatarLivePanel.classList.remove("hidden");
@@ -2636,7 +2718,8 @@
 
     if (micActive) return;
 
-    const character = getCharacter(event.avatar);
+    const speaker = currentUsers.find((user) => user.clientId === event.clientId);
+    const character = getCharacter(event.avatar || speaker?.avatar);
     const speakerChanged =
       remoteSpeakerId !== event.clientId ||
       stageMode !== "remote" ||
@@ -4381,13 +4464,21 @@
     });
 
     els.roomSoundButton.addEventListener("click", async () => {
-      const needsUnlock = isSharedLocalServer() && !localPcmRelay?.isUnlocked?.();
+      const wasUnlocked = Boolean(
+        voiceRoom?.isPlaybackUnlocked?.() ||
+        (isSharedLocalServer() && localPcmRelay?.isUnlocked?.())
+      );
 
-      await unlockRoomAudio();
+      const unlocked = await unlockRoomAudio();
+      if (!unlocked) {
+        syncRoomSoundButton();
+        return;
+      }
 
-      if (needsUnlock) {
-        voiceRoom.setPlaybackMuted(false);
-        localPcmRelay?.setMuted(false);
+      // The first tap must enable playback, not immediately mute it.
+      if (!wasUnlocked) {
+        voiceRoom?.setPlaybackMuted?.(false);
+        localPcmRelay?.setMuted?.(false);
         syncRoomSoundButton();
         showError("صوت الغرفة يعمل الآن.", 2200);
         return;
@@ -4554,14 +4645,17 @@
     localPcmRelay = new LocalPcmRelay();
     syncRoomSoundButton();
     await loadDynamicCharacters();
-    buildAvatarGrid();
     bindEvents();
     registerServiceWorker();
     setConnectionStatus("disconnected");
     await initializeGoogleLogin();
-    await loadRooms({ assign: true });
 
     const saved = loadSavedProfile();
+    const pendingAvatar = loadPendingAvatar();
+    selectedAvatar = getCharacter(pendingAvatar || saved?.avatar || selectedAvatar).id;
+    buildAvatarGrid();
+    installFirstGestureAudioUnlock();
+    await loadRooms({ assign: true });
 
     if (adminAutoName) {
       const adminProfile = {

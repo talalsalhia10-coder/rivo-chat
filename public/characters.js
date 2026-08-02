@@ -20,7 +20,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/girl2/portrait.webp",
     portraitSmall: "./characters/girl2/portrait-small.webp",
-    model: "",
+    model: "./characters/girl2/girl2.vrm",
     available: true,
     isDefault: false
   },
@@ -30,7 +30,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/girl3/portrait.webp",
     portraitSmall: "./characters/girl3/portrait-small.webp",
-    model: "",
+    model: "./characters/girl3/girl3.vrm",
     available: true,
     isDefault: false
   },
@@ -40,7 +40,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/girl4/portrait.webp",
     portraitSmall: "./characters/girl4/portrait-small.webp",
-    model: "",
+    model: "./characters/girl4/girl4.vrm",
     available: true,
     isDefault: false
   },
@@ -50,7 +50,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/man1/portrait.webp",
     portraitSmall: "./characters/man1/portrait-small.webp",
-    model: "",
+    model: "./characters/man1/man1.vrm",
     available: true,
     isDefault: false
   },
@@ -60,7 +60,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/avatar6/portrait.webp",
     portraitSmall: "./characters/avatar6/portrait-small.webp",
-    model: "",
+    model: "./characters/avatar6/avatar6.vrm",
     available: true,
     isDefault: false
   },
@@ -70,7 +70,7 @@ window.RIVO_CHARACTERS = [
     subtitle: "",
     portrait: "./characters/avatar7/portrait.webp",
     portraitSmall: "./characters/avatar7/portrait-small.webp",
-    model: "",
+    model: "./characters/avatar7/avatar7.vrm",
     available: true,
     isDefault: false
   }

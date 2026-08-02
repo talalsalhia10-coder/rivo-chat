@@ -1,5 +1,5 @@
-const CORE_CACHE = "rivo-group-chat-core-v1423";
-const MODEL_CACHE = "rivo-group-chat-model-v1423";
+const CORE_CACHE = "rivo-group-chat-core-v1424";
+const MODEL_CACHE = "rivo-group-chat-model-v1424";
 const CORE_ASSETS = [
   "./",
   "./index.html",

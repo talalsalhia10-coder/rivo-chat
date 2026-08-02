@@ -170,7 +170,7 @@ function finishLoad(gltf, character, token) {
 
 async function loadCharacter(character) {
   if (!character?.model) {
-    dispatch("rivo:vrm-error", { reason: "missing-model" });
+    dispatch("rivo:vrm-error", { reason: "missing-model", characterId: character?.id || "" });
     return;
   }
 
@@ -181,6 +181,15 @@ async function loadCharacter(character) {
 
   initRenderer();
   const token = ++loadingToken;
+
+  // Never leave the previously loaded character (usually Lina) visible while
+  // a different selected model is loading or if that model fails on mobile.
+  if (currentVrm && currentCharacterId !== character.id) {
+    clearCurrentVrm();
+    currentCharacterId = "";
+    if (renderer && scene && camera) renderer.render(scene, camera);
+  }
+
   dispatch("rivo:vrm-loading", { characterId: character.id });
 
   const loader = new GLTFLoader();
@@ -196,7 +205,7 @@ async function loadCharacter(character) {
         (gltf) => finishLoad(gltf, character, token),
         (error) => {
           console.error("Embedded VRM parse error", error);
-          dispatch("rivo:vrm-error", { reason: "parse-error" });
+          dispatch("rivo:vrm-error", { reason: "parse-error", characterId: character.id });
         }
       );
       return;
@@ -208,12 +217,12 @@ async function loadCharacter(character) {
       undefined,
       (error) => {
         console.error("VRM load error", error);
-        dispatch("rivo:vrm-error", { reason: "load-error" });
+        dispatch("rivo:vrm-error", { reason: "load-error", characterId: character.id });
       }
     );
   } catch (error) {
     console.error("VRM startup error", error);
-    dispatch("rivo:vrm-error", { reason: "startup-error" });
+    dispatch("rivo:vrm-error", { reason: "startup-error", characterId: character.id });
   }
 }
 

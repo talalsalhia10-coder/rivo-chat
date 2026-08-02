@@ -2061,3 +2061,18 @@ body.modal-open{overflow:hidden;touch-action:none}
   #openSidebar,.room-sound-button,.connection-status{width:47px!important;height:47px!important;min-width:47px!important;min-height:47px!important}
 }
 
+
+/* ==========================================================
+   Rivo Chat v142.4 — mobile voice unlock + selected character
+   ========================================================== */
+.room-sound-button.needs-unlock{
+  border-color:rgba(255,197,93,.55)!important;
+  background:linear-gradient(145deg,rgba(131,91,22,.30),rgba(35,45,76,.86))!important;
+  box-shadow:0 0 0 4px rgba(255,191,72,.06)!important
+}
+.room-sound-button.needs-unlock b{color:#ffd98c!important}
+.room-sound-button.receiving{border-color:rgba(71,226,183,.58)!important}
+.avatar-fallback{z-index:2}
+.avatar-fallback img{object-fit:contain;max-width:100%;max-height:100%}
+#vrmCanvas{z-index:1}
+.model-loading{z-index:4}
