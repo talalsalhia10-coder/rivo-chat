@@ -1,4 +1,16 @@
 (() => {
+  if (window.__RIVO_GIFTS_144__ || document.querySelector('script[src*="gifts-upgrade.js"]')) return;
+  const src = `./gifts-upgrade.js?v=1440`;
+  if (document.readyState === "loading") {
+    document.write(`<script src="${src}"><\/script>`);
+  } else {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = false;
+    document.head.appendChild(script);
+  }
+})();
+(() => {
   "use strict";
 
   const RELEASE = "1434-connection-stability";

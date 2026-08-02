@@ -19,3 +19,9 @@
 
 /*.webmanifest
   Cache-Control: no-cache, must-revalidate, max-age=0
+
+/gifts-upgrade.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+
+/admin-gifts-upgrade.js
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0

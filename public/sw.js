@@ -1,4 +1,4 @@
-const RELEASE = "1434-connection-stability";
+const RELEASE = "1440-12-gifts-connection-safe";
 const CORE_CACHE = `rivo-group-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-group-chat-model-${RELEASE}`;
 
@@ -8,6 +8,8 @@ const CORE_ASSETS = [
   "./styles.css",
   "./app.js",
   "./connection-fix.js",
+  "./gifts-upgrade.js",
+  "./admin-gifts-upgrade.js",
   "./professional-features.js",
   "./google-config.js",
   "./google-auth.js",
@@ -25,16 +27,13 @@ const CORE_ASSETS = [
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CORE_CACHE);
-    // لا نفشل تثبيت التحديث كله إذا تعذر ملف اختياري واحد.
-    await Promise.allSettled(
-      CORE_ASSETS.map(async (asset) => {
-        try {
-          const request = new Request(asset, { cache: "reload" });
-          const response = await fetch(request);
-          if (response.ok) await cache.put(request, response.clone());
-        } catch {}
-      })
-    );
+    await Promise.allSettled(CORE_ASSETS.map(async (asset) => {
+      try {
+        const request = new Request(asset, { cache: "reload" });
+        const response = await fetch(request);
+        if (response.ok) await cache.put(request, response.clone());
+      } catch {}
+    }));
     await self.skipWaiting();
   })());
 });
@@ -77,24 +76,47 @@ async function cacheCurrentModel(request) {
   return response;
 }
 
-function injectConnectionFix(html) {
-  if (html.includes("connection-fix.js")) return html;
-  const tag = `<script src="./connection-fix.js?v=${RELEASE}"></script>`;
+function injectBeforeApp(html) {
+  const tags = [];
+  if (!html.includes("gifts-upgrade.js")) {
+    tags.push(`<script src="./gifts-upgrade.js?v=${RELEASE}"></script>`);
+  }
+  if (!html.includes("connection-fix.js")) {
+    tags.push(`<script src="./connection-fix.js?v=${RELEASE}"></script>`);
+  }
+  if (!tags.length) return html;
+  const block = tags.join("\n  ");
   const appPattern = /<script\s+src=["']\.\/app\.js[^"']*["']><\/script>/i;
-  if (appPattern.test(html)) return html.replace(appPattern, `${tag}\n  $&`);
+  if (appPattern.test(html)) return html.replace(appPattern, `${block}\n  $&`);
+  return html.replace(/<\/body>/i, `  ${block}\n</body>`);
+}
+
+function injectAdminUpgrade(html) {
+  if (html.includes("admin-gifts-upgrade.js")) return html;
+  const tag = `<script src="./admin-gifts-upgrade.js?v=${RELEASE}"></script>`;
   return html.replace(/<\/body>/i, `  ${tag}\n</body>`);
 }
 
-async function navigationResponse(request, url) {
-  const response = await networkFirst(request, "./index.html");
-  const isMainPage = url.pathname === "/" || url.pathname.endsWith("/index.html");
-  if (!isMainPage || !response || !response.ok) return response;
+function isAdminPath(pathname) {
+  return /(?:^|\/)(?:admin|moderator)(?:\.html)?\/?$/i.test(pathname);
+}
 
+function isMainPath(pathname) {
+  return pathname === "/" || /(?:^|\/)index\.html\/?$/i.test(pathname);
+}
+
+async function navigationResponse(request, url) {
+  const response = await networkFirst(request, isMainPath(url.pathname) ? "./index.html" : null);
+  if (!response || !response.ok) return response;
   const type = response.headers.get("content-type") || "";
   if (!type.includes("text/html")) return response;
 
   try {
-    const html = injectConnectionFix(await response.text());
+    let html = await response.text();
+    if (isMainPath(url.pathname)) html = injectBeforeApp(html);
+    else if (isAdminPath(url.pathname)) html = injectAdminUpgrade(html);
+    else return response;
+
     const headers = new Headers(response.headers);
     headers.set("content-type", "text/html; charset=utf-8");
     headers.set("cache-control", "no-store, no-cache, must-revalidate");
