@@ -291,6 +291,7 @@
   const GUEST_DEVICE_KEY = "rivo_guest_device_v1";
   const LAST_GUEST_UID_KEY = "rivo_last_guest_uid_v1";
   const PROFILE_KEY = "rivo_group_profile_v1";
+  const GUEST_REQUEST_TIMEOUT_MS = 10000;
   const auth = window.RivoGoogleAuth;
   if (!auth) return;
 
@@ -303,6 +304,7 @@
   let guestSuccess = null;
   let guestError = null;
   let activating = false;
+  let selectedGuestAvatar = "lina";
 
   function randomDeviceId() {
     if (crypto?.randomUUID) return crypto.randomUUID();
@@ -378,8 +380,8 @@
     const email = document.getElementById("googleUserEmail");
     const picture = document.getElementById("googleUserPicture");
     const logout = document.getElementById("googleLogoutButton");
-    if (name) name.textContent = "الدخول كضيف";
-    if (email) email.textContent = "حساب مؤقت — سجّل بـ Google لحفظ إعداداتك";
+    if (name) name.textContent = "حساب ضيف";
+    if (email) email.textContent = "مؤقت — سجّل بـ Google لحفظ حسابك";
     if (picture && !picture.getAttribute("src")) picture.src = "./icons/icon-192.png";
     if (logout) logout.textContent = "حفظ الحساب بـ Google";
   }
@@ -400,8 +402,124 @@
       html.rivo-guest-active #privateNavButton,
       html.rivo-guest-active #profilePrivateButton{display:none!important}
       html.rivo-guest-active #myNameSide::after{content:" ضيف";display:inline-flex;margin-right:6px;padding:2px 6px;border-radius:8px;background:rgba(246,200,111,.16);color:#f6c86f;font-size:9px;font-weight:800}
+      .rivo-guest-modal{position:fixed;inset:0;z-index:100000;display:grid;place-items:center;padding:18px;background:rgba(3,7,22,.76);backdrop-filter:blur(10px)}
+      .rivo-guest-modal.hidden{display:none!important}
+      .rivo-guest-sheet{width:min(510px,100%);max-height:min(760px,92vh);overflow:auto;border:1px solid rgba(143,157,255,.28);border-radius:26px;padding:22px;background:linear-gradient(155deg,#111a39,#0b1229);box-shadow:0 28px 90px rgba(0,0,0,.55);color:#f7f8ff;direction:rtl}
+      .rivo-guest-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:16px}
+      .rivo-guest-head h2{margin:0 0 5px;font-size:22px}.rivo-guest-head p{margin:0;color:#aab4d4;font-size:13px;line-height:1.65}
+      .rivo-guest-close{border:0;background:rgba(255,255,255,.08);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;font-size:18px}
+      .rivo-guest-label{display:grid;gap:8px;margin:14px 0}.rivo-guest-label span{font-weight:850;font-size:13px}
+      .rivo-guest-label input{width:100%;box-sizing:border-box;border:1px solid rgba(143,157,255,.35);border-radius:14px;background:#0a1127;color:#fff;padding:13px 14px;outline:none;font:inherit}
+      .rivo-guest-label input:focus{border-color:#8f9dff;box-shadow:0 0 0 3px rgba(143,157,255,.13)}
+      .rivo-guest-avatars-title{display:block;margin:16px 0 9px;font-weight:850;font-size:13px}
+      .rivo-guest-avatars{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+      .rivo-guest-avatar{position:relative;aspect-ratio:1;border:2px solid transparent;border-radius:18px;padding:3px;background:rgba(255,255,255,.06);cursor:pointer;overflow:hidden}
+      .rivo-guest-avatar img{width:100%;height:100%;object-fit:cover;border-radius:14px;display:block}.rivo-guest-avatar.selected{border-color:#8f7bff;background:rgba(143,123,255,.18);box-shadow:0 0 0 3px rgba(143,123,255,.10)}
+      .rivo-guest-actions{display:grid;grid-template-columns:1fr auto;gap:10px;margin-top:18px}.rivo-guest-start{border:0;border-radius:15px;padding:14px 18px;background:linear-gradient(135deg,#7e64ff,#a657eb);color:#fff;font-weight:900;cursor:pointer}.rivo-guest-start:disabled{opacity:.58;cursor:wait}.rivo-guest-cancel{border:1px solid rgba(255,255,255,.14);border-radius:15px;padding:12px 16px;background:transparent;color:#d7dcf1;cursor:pointer}
+      .rivo-guest-inline-status{min-height:21px;margin:12px 0 0;color:#aeb8d7;font-size:12px}.rivo-guest-inline-status.error{color:#ff8799}
+      .rivo-google-gate .rivo-guest-sheet{text-align:center;max-width:430px}.rivo-google-gate-icon{font-size:48px;margin:3px 0 10px}.rivo-google-gate h2{margin:0 0 8px}.rivo-google-gate p{color:#aeb8d7;line-height:1.7}.rivo-google-gate-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:18px}.rivo-google-gate-actions button{border-radius:14px;padding:13px 14px;font-weight:850;cursor:pointer}.rivo-google-now{border:0;background:linear-gradient(135deg,#6b7cff,#a45be9);color:#fff}.rivo-google-later{border:1px solid rgba(255,255,255,.14);background:transparent;color:#d9def1}
+      @media(max-width:560px){.rivo-guest-avatars{grid-template-columns:repeat(4,minmax(0,1fr))}.rivo-guest-sheet{padding:18px;border-radius:21px}.rivo-guest-actions{grid-template-columns:1fr}.rivo-guest-cancel{order:2}}
     `;
     document.head.appendChild(style);
+  }
+
+  function charactersForGuest() {
+    const list = Array.isArray(window.RIVO_CHARACTERS) ? window.RIVO_CHARACTERS : [];
+    const usable = list.filter((item) => item && item.available !== false && !item.vipOnly).slice(0, 15);
+    if (usable.length) return usable;
+    return [{ id: "lina", name: "لينا", portraitSmall: "./characters/lina/portrait-small.webp", portrait: "./characters/lina/portrait.webp" }];
+  }
+
+  function ensureGuestSetupModal() {
+    let modal = document.getElementById("rivoGuestSetupModal");
+    if (modal) return modal;
+    modal = document.createElement("div");
+    modal.id = "rivoGuestSetupModal";
+    modal.className = "rivo-guest-modal hidden";
+    modal.innerHTML = `
+      <section class="rivo-guest-sheet" role="dialog" aria-modal="true" aria-labelledby="rivoGuestTitle">
+        <div class="rivo-guest-head"><div><h2 id="rivoGuestTitle">دخول سريع كضيف</h2><p>اختار اسماً مستعاراً وصورة، وبعدها تدخل الغرفة العامة مباشرة.</p></div><button class="rivo-guest-close" type="button" aria-label="إغلاق">✕</button></div>
+        <label class="rivo-guest-label"><span>الاسم المستعار</span><input id="rivoGuestNickname" type="text" minlength="2" maxlength="24" placeholder="مثلاً: ابن بغداد" autocomplete="off"></label>
+        <span class="rivo-guest-avatars-title">اختار صورتك</span>
+        <div id="rivoGuestAvatars" class="rivo-guest-avatars"></div>
+        <p id="rivoGuestInlineStatus" class="rivo-guest-inline-status"></p>
+        <div class="rivo-guest-actions"><button id="rivoGuestStart" class="rivo-guest-start" type="button">دخول الدردشة</button><button class="rivo-guest-cancel" type="button">إلغاء</button></div>
+      </section>`;
+    document.body.appendChild(modal);
+    const grid = modal.querySelector("#rivoGuestAvatars");
+    const characters = charactersForGuest();
+    selectedGuestAvatar = characters[0]?.id || "lina";
+    for (const character of characters) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = `rivo-guest-avatar${character.id === selectedGuestAvatar ? " selected" : ""}`;
+      button.dataset.avatar = character.id;
+      button.title = character.name || "صورة";
+      const img = document.createElement("img");
+      img.src = character.portraitSmall || character.portrait || "./characters/lina/portrait-small.webp";
+      img.alt = character.name || "صورة الضيف";
+      button.appendChild(img);
+      button.addEventListener("click", () => {
+        selectedGuestAvatar = character.id;
+        grid.querySelectorAll(".rivo-guest-avatar").forEach((node) => node.classList.toggle("selected", node === button));
+      });
+      grid.appendChild(button);
+    }
+    const close = () => modal.classList.add("hidden");
+    modal.querySelector(".rivo-guest-close").addEventListener("click", close);
+    modal.querySelector(".rivo-guest-cancel").addEventListener("click", close);
+    modal.addEventListener("click", (event) => { if (event.target === modal) close(); });
+    modal.querySelector("#rivoGuestStart").addEventListener("click", activateGuest);
+    modal.querySelector("#rivoGuestNickname").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") { event.preventDefault(); activateGuest(); }
+    });
+    return modal;
+  }
+
+  function openGuestSetup() {
+    const modal = ensureGuestSetupModal();
+    const status = modal.querySelector("#rivoGuestInlineStatus");
+    status.textContent = "";
+    status.classList.remove("error");
+    modal.classList.remove("hidden");
+    setTimeout(() => modal.querySelector("#rivoGuestNickname")?.focus(), 50);
+  }
+
+  function showGoogleGate() {
+    let modal = document.getElementById("rivoGoogleGateModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "rivoGoogleGateModal";
+      modal.className = "rivo-guest-modal rivo-google-gate hidden";
+      modal.innerHTML = `
+        <section class="rivo-guest-sheet" role="dialog" aria-modal="true">
+          <div class="rivo-google-gate-icon">🎙️</div><h2>المايك يحتاج حساب Google</h2><p>الدخول كضيف مخصص للكتابة في الغرفة العامة. سجّل بحساب Google حتى تستخدم المايك وتحافظ على هويتك.</p>
+          <div class="rivo-google-gate-actions"><button class="rivo-google-now" type="button">التسجيل بحساب Google</button><button class="rivo-google-later" type="button">لاحقاً</button></div>
+        </section>`;
+      document.body.appendChild(modal);
+      modal.querySelector(".rivo-google-later").addEventListener("click", () => modal.classList.add("hidden"));
+      modal.querySelector(".rivo-google-now").addEventListener("click", () => {
+        sessionStorage.removeItem(GUEST_SESSION_KEY);
+        document.documentElement.classList.remove("rivo-guest-active");
+        location.reload();
+      });
+      modal.addEventListener("click", (event) => { if (event.target === modal) modal.classList.add("hidden"); });
+    }
+    modal.classList.remove("hidden");
+  }
+
+  function installGuestMicGate() {
+    const block = (event) => {
+      if (!isGuestActive()) return;
+      const target = event.target?.closest?.("#voiceButton, #toggleLiveMic");
+      if (!target) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      showGoogleGate();
+    };
+    document.addEventListener("pointerdown", block, true);
+    document.addEventListener("click", block, true);
   }
 
   function injectGuestButton() {
@@ -422,54 +540,80 @@
 
     const note = document.createElement("small");
     note.className = "guest-access-note";
-    note.textContent = "دخول سريع للدردشة العامة. الخاص وVIP يحتاجان حساب Google.";
+    note.textContent = "دخول سريع للكتابة في الغرفة العامة. المايك والخاص وVIP تحتاج حساب Google.";
 
     googleButton.insertAdjacentElement("afterend", divider);
     divider.insertAdjacentElement("afterend", button);
     button.insertAdjacentElement("afterend", note);
-    button.addEventListener("click", activateGuest);
+    button.addEventListener("click", openGuestSetup);
 
     const copy = document.querySelector(".join-copy p");
-    if (copy) copy.textContent = "سجّل بحساب Google لحفظ حسابك ومزاياك، أو ادخل كضيف بسرعة لتجربة الدردشة العامة.";
+    if (copy) copy.textContent = "سجّل بحساب Google لحفظ حسابك ومزاياك، أو ادخل كضيف بسرعة لتجربة الكتابة في الدردشة العامة.";
   }
 
   async function activateGuest() {
     if (activating) return;
-    activating = true;
-    const button = document.getElementById("guestSignInButton");
-    if (button) {
-      button.disabled = true;
-      button.querySelector("b").textContent = "جاري دخول الضيف…";
+    const modal = ensureGuestSetupModal();
+    const input = modal.querySelector("#rivoGuestNickname");
+    const status = modal.querySelector("#rivoGuestInlineStatus");
+    const start = modal.querySelector("#rivoGuestStart");
+    const nickname = String(input?.value || "").replace(/\s+/g, " ").trim().slice(0, 24);
+    if (nickname.length < 2) {
+      status.textContent = "اكتب اسماً مستعاراً من حرفين على الأقل.";
+      status.classList.add("error");
+      input?.focus();
+      return;
     }
+
+    activating = true;
+    start.disabled = true;
+    start.textContent = "جاري الدخول…";
+    status.textContent = "جاري إنشاء جلسة الضيف…";
+    status.classList.remove("error");
     setStatus("جاري إنشاء دخول ضيف آمن…");
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), GUEST_REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch("/api/auth/guest", {
         method: "POST",
         headers: { "content-type": "application/json; charset=utf-8" },
         cache: "no-store",
-        body: JSON.stringify({ deviceId: getDeviceId() })
+        body: JSON.stringify({ deviceId: getDeviceId() }),
+        signal: controller.signal
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "تعذر الدخول كضيف.");
+      if (!response.ok) throw new Error(data.error || `تعذر الدخول كضيف (${response.status}).`);
       const session = saveGuestSession(data);
       applyGuestLabels();
       guestSuccess?.(session);
+
+      const mainNickname = document.getElementById("nicknameInput");
+      if (mainNickname) mainNickname.value = nickname;
+      const avatarButton = document.querySelector(`#avatarGrid [data-avatar="${CSS.escape(selectedGuestAvatar)}"]`);
+      avatarButton?.click();
+      modal.classList.add("hidden");
+      setStatus("تم تجهيز حساب الضيف. جاري دخول الدردشة…");
+
       setTimeout(() => {
         applyGuestLabels();
-        const nickname = document.getElementById("nicknameInput");
-        nickname?.focus();
-      }, 30);
+        const form = document.getElementById("joinForm");
+        if (form?.requestSubmit) form.requestSubmit();
+        else document.getElementById("joinButton")?.click();
+      }, 100);
     } catch (error) {
-      const message = error?.message || "تعذر الدخول كضيف.";
+      const message = error?.name === "AbortError"
+        ? "تأخر الخادم أكثر من 10 ثوانٍ. أعد المحاولة، وإذا تكرر الخطأ أرسل صورة شاشة."
+        : (error?.message || "تعذر الدخول كضيف.");
+      status.textContent = message;
+      status.classList.add("error");
       setStatus(message, true);
       guestError?.(message);
     } finally {
+      clearTimeout(timeout);
       activating = false;
-      if (button) {
-        button.disabled = false;
-        button.querySelector("b").textContent = "الدخول كضيف الآن";
-      }
+      start.disabled = false;
+      start.textContent = "دخول الدردشة";
     }
   }
 
@@ -510,6 +654,7 @@
 
   injectGuestButton();
   applyGuestLabels();
+  installGuestMicGate();
   const observer = new MutationObserver(() => applyGuestLabels());
   observer.observe(document.body, { childList: true, subtree: true });
 })();
