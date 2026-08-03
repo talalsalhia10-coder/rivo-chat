@@ -90,7 +90,128 @@ function safeHttpsUrl(value) {
   }
 }
 
-export default originalWorker;
+
+// دخول الضيف: جلسة موقعة قصيرة المدة، من دون تحويل Google إلى خيار غير آمن.
+const GUEST_TOKEN_TTL_MS = 12 * 60 * 60 * 1000;
+const GUEST_PRIVATE_TYPES = new Set([
+  "private-request", "private-response", "private-chat",
+  "private-history-request", "private-end"
+]);
+
+function guestJson(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "cache-control": "no-store, no-cache, must-revalidate"
+    }
+  });
+}
+
+function encodeGuestBase64Url(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function decodeGuestBase64Url(value) {
+  const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
+  const binary = atob(padded);
+  return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+}
+
+async function importGuestHmacKey(secret) {
+  return crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(String(secret || "")),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign", "verify"]
+  );
+}
+
+async function signGuestPayload(payload, secret) {
+  const body = encodeGuestBase64Url(new TextEncoder().encode(JSON.stringify(payload)));
+  const key = await importGuestHmacKey(secret);
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
+  return `${body}.${encodeGuestBase64Url(new Uint8Array(signature))}`;
+}
+
+async function verifyGuestSessionToken(token, secret) {
+  try {
+    const [body, signature] = String(token || "").split(".");
+    if (!body || !signature || !secret) return null;
+    const key = await importGuestHmacKey(secret);
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      decodeGuestBase64Url(signature),
+      new TextEncoder().encode(body)
+    );
+    if (!valid) return null;
+    const payload = JSON.parse(new TextDecoder().decode(decodeGuestBase64Url(body)));
+    if (payload?.type !== "guest" || !String(payload?.sub || "").startsWith("guest:")) return null;
+    if (Number(payload?.exp || 0) <= Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+async function stableGuestSubject(deviceId, secret) {
+  const key = await importGuestHmacKey(secret);
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(`rivo-guest-device:${deviceId}`)
+  );
+  return `guest:${encodeGuestBase64Url(new Uint8Array(signature)).slice(0, 32)}`;
+}
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/api/auth/guest") {
+      if (request.method !== "POST") return guestJson({ error: "Method not allowed" }, 405);
+      if (!env.SESSION_SECRET) return guestJson({ error: "جلسات الضيوف غير مفعلة على الخادم." }, 503);
+
+      const body = await request.json().catch(() => ({}));
+      const deviceId = cleanText(body.deviceId, 180);
+      if (deviceId.length < 8) return guestJson({ error: "تعذر إنشاء هوية الضيف. أعد المحاولة." }, 400);
+
+      const googleUid = await stableGuestSubject(deviceId, env.SESSION_SECRET);
+      const expiresAt = Date.now() + GUEST_TOKEN_TTL_MS;
+      const sessionToken = await signGuestPayload({
+        sub: googleUid,
+        type: "guest",
+        exp: expiresAt
+      }, env.SESSION_SECRET);
+
+      return guestJson({
+        sessionToken,
+        googleUid,
+        email: "",
+        name: "ضيف Rivo",
+        picture: "",
+        expiresAt,
+        isGuest: true
+      });
+    }
+
+    // جلسة الضيف لا يمكن استخدامها لطلب VIP أو قراءة حالة VIP.
+    if (request.method === "POST" && (url.pathname === "/api/vip/me" || url.pathname === "/api/vip/request")) {
+      const body = await request.clone().json().catch(() => ({}));
+      const guest = await verifyGuestSessionToken(cleanText(body.authToken, 5000), env.SESSION_SECRET);
+      if (guest) {
+        return guestJson({ error: "سجّل بحساب Google لاستخدام عضوية VIP." }, 403);
+      }
+    }
+
+    return originalWorker.fetch(request, env, ctx);
+  }
+};
 
 export class ChatRoom extends GiftChatRoom {
   constructor(ctx, env) {
@@ -178,13 +299,28 @@ export class ChatRoom extends GiftChatRoom {
       return super.fetch(request);
     }
 
+    const guestIdentity = await verifyGuestSessionToken(
+      cleanText(url.searchParams.get("authToken"), 5000),
+      this.env.SESSION_SECRET
+    );
+    let effectiveRequest = request;
+    if (guestIdentity) {
+      url.searchParams.set("privateOpen", "0");
+      const baseName = cleanText(url.searchParams.get("nickname"), 18) || "ضيف";
+      const guestName = /(?:^|\s)ضيف$/.test(baseName) || baseName.endsWith("• ضيف")
+        ? baseName
+        : `${baseName} • ضيف`;
+      url.searchParams.set("nickname", cleanText(guestName, 24));
+      effectiveRequest = new Request(url.toString(), request);
+    }
+
     const before = new Map();
     for (const socket of this.ctx.getWebSockets()) {
       const session = socket.deserializeAttachment?.();
       if (session?.sessionId) before.set(session.sessionId, session);
     }
 
-    const response = await super.fetch(request);
+    const response = await super.fetch(effectiveRequest);
 
     // إذا نجح اتصال الدردشة، نلتقط الجلسة الجديدة بعد أن ينشئها الخادم الأصلي.
     let joinedSocket = null;
@@ -200,6 +336,14 @@ export class ChatRoom extends GiftChatRoom {
         joinedSession = session;
         break;
       }
+    }
+
+    if (joinedSocket && joinedSession && guestIdentity) {
+      joinedSession.isGuest = true;
+      joinedSession.privateOpen = false;
+      joinedSession.privateBlocked = true;
+      joinedSession.isVip = false;
+      joinedSocket.serializeAttachment?.(joinedSession);
     }
 
     if (joinedSocket && joinedSession && this.shouldShowPresenceEvent(joinedSession)) {
@@ -411,6 +555,14 @@ export class ChatRoom extends GiftChatRoom {
     if (typeof rawMessage === "string" && rawMessage.length <= MAX_SOCKET_MESSAGE_LENGTH) {
       try { data = JSON.parse(rawMessage); } catch {}
       session = ws.deserializeAttachment?.();
+
+      if (session?.isGuest && GUEST_PRIVATE_TYPES.has(cleanText(data?.type, 40))) {
+        this.safeSend(ws, {
+          type: "error",
+          message: "المحادثة الخاصة تحتاج تسجيل الدخول بحساب Google."
+        });
+        return;
+      }
 
       // مفتاح طوارئ للمالك من داخل الدردشة، ولا تظهر رسالة الأمر للزوار.
       if (data?.type === "chat" && session?.role === "owner") {
