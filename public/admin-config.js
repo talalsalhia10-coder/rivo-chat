@@ -5,7 +5,7 @@ window.RIVO_ADMIN_CONFIG = {
 (() => {
   "use strict";
 
-  const RELEASE = "150-rivo-lina-engine-controls";
+  const RELEASE = "151-lina-admin-socket-protocol-fix";
   const NativeWebSocket = window.WebSocket;
   const adminSockets = window.__RIVO_ADMIN_SOCKETS__ = window.__RIVO_ADMIN_SOCKETS__ || new Set();
 
@@ -15,7 +15,8 @@ window.RIVO_ADMIN_CONFIG = {
   function isAdminSocket(url) {
     try {
       const parsed = new URL(String(url), location.href);
-      return parsed.origin === location.origin &&
+      return parsed.host === location.host &&
+        ["ws:", "wss:"].includes(parsed.protocol) &&
         /\/api\/rooms\/[^/]+\/admin-ws$/.test(parsed.pathname);
     } catch {
       return false;
