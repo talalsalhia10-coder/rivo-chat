@@ -1,16 +1,16 @@
-const RELEASE = "156-google-live-fix";
+const RELEASE = "157-toolbar-color-alert-fix";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=156",
-  "./app.js?v=156",
-  "./live-bridge.js?v=156",
-  "./google-config.js?v=156",
-  "./google-auth.js?v=156",
-  "./relay-audio.js?v=156",
+  "./styles.css?v=157",
+  "./app.js?v=157",
+  "./live-bridge.js?v=157",
+  "./google-config.js?v=157",
+  "./google-auth.js?v=157",
+  "./relay-audio.js?v=157",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

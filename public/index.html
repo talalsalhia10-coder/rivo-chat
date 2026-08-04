@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=156">
+<link rel="stylesheet" href="styles.css?v=157">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -64,7 +64,7 @@
 
 <audio id="globalRadioAudio" preload="metadata" loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v156</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v157</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -78,11 +78,10 @@
       <div id="messages" class="messages"></div>
       <div class="composerDock">
         <div class="composerToolbar">
-          <button id="emojiBtn" title="السمايلات المتحركة">😊</button>
-          <button id="colorBtn" class="colorToolBtn" title="ألوان الخط"><span id="activeColorDot" class="activeColorDot"></span></button>
-          <button id="composerMicBtn" title="المايك">🎙️</button>
-          <button id="composerCameraBtn" title="الكاميرا">📷</button>
-                    <button id="coinBtn" title="العملات الذهبية">🪙</button>
+          <button id="emojiBtn" class="composerToolButton" title="السمايلات المتحركة" aria-label="السمايلات المتحركة">😊</button>
+          <button id="colorBtn" class="composerToolButton colorToolBtn" title="ألوان الخط" aria-label="ألوان الخط"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.15a2.15 2.15 0 0 0 0-4.3h-.8a1.35 1.35 0 0 1 0-2.7H15a6 6 0 0 0 0-12h-3Z"/><circle cx="7.5" cy="10" r="1.35"/><circle cx="9.2" cy="6.8" r="1.35"/><circle cx="13" cy="6.2" r="1.35"/><circle cx="16.2" cy="8.5" r="1.35"/></svg><span id="activeColorDot" class="activeColorDot"></span></button>
+          <button id="composerMicBtn" class="composerToolButton" title="المايك" aria-label="المايك"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M8.5 21h7"/></svg></button>
+          <button id="composerCameraBtn" class="composerToolButton" title="الكاميرا" aria-label="الكاميرا"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l1.4-2h7.2L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></svg></button>
         </div>
         <div class="composerLine">
           <img id="composerAvatar" src="assets/avatars/guest.svg" alt="الصورة">
@@ -141,11 +140,10 @@
 
 <div id="ownerIdentityModal" class="modal hidden"><div class="card ownerIdentityCard"><button class="close" data-close="ownerIdentityModal">×</button><div class="ownerIdentityHeading"><span class="ownerIdentityPreview" id="ownerIdentityPreview"></span><div><small>هوية الإدارة داخل الدردشة</small><h2>اسم الإدارة والتاج</h2></div></div><p>اكتب أي اسم تريده، أو فعّل خيار <b>التاج فقط</b> حتى تظهر الإدارة بلا اسم.</p><label for="ownerDisplayName">اسم الإدارة</label><input id="ownerDisplayName" maxlength="20" autocomplete="off" placeholder="مثلاً: الإدارة أو طلال"><label class="ownerCrownOnlyChoice"><input id="ownerCrownOnly" type="checkbox"><span><b>إظهار التاج فقط من دون اسم</b><small>سيظهر التاج الفخم وحده قرب الرسائل وفي قائمة المستخدمين.</small></span></label><div class="ownerIdentityActions"><button id="ownerIdentityCancel" class="secondary">إلغاء</button><button id="ownerIdentitySave" class="primary">حفظ الهوية</button></div></div></div>
 
-<div id="profileModal" class="modal hidden"><div class="card profile"><button class="close" data-close="profileModal">×</button><div class="cover"></div><img id="profileAvatar" class="profileAvatar"><h2 id="profileName"></h2><div id="profileBadges" class="badges"></div><p id="profileBio"></p><div class="stats"><div><b id="profileGiftValue"></b><small>قيمة الهدايا</small></div><div><b id="profileFriends"></b><small>الأصدقاء</small></div><div><b id="profileLevel"></b><small>المستوى</small></div></div><div class="profileActions"><button id="profileAvatarEdit" class="secondary hidden">🖼️ تغيير الصورة</button><button id="profileGift">إرسال هدية</button><button id="profileDm">رسالة خاصة</button><button id="profileFreeBadge" class="profileFreeBadge">⭐ منح شارة مجانية</button></div></div></div>
+<div id="profileModal" class="modal hidden"><div class="card profile"><button class="close" data-close="profileModal">×</button><div class="cover"></div><img id="profileAvatar" class="profileAvatar"><h2 id="profileName"></h2><div id="profileBadges" class="badges"></div><p id="profileBio"></p><div class="stats"><div><b id="profileGiftValue"></b><small>قيمة الهدايا</small></div><div><b id="profileFriends"></b><small>الأصدقاء</small></div><div><b id="profileLevel"></b><small>المستوى</small></div></div><div class="profileActions"><button id="profileAvatarEdit" class="secondary hidden">تغيير الصورة</button><button id="profileGift">إرسال هدية</button><button id="profileDm">رسالة خاصة</button><button id="profileCoins" class="profileCoinsBtn">إرسال عملات ذهبية</button></div></div></div>
 
 <div id="avatarEditorModal" class="modal hidden"><div class="card avatarEditorCard"><button class="close" data-close="avatarEditorModal">×</button><h2>تعديل الصورة الشخصية</h2><p>ارفع صورة من جهازك، وسيتم قصها بشكل دائري تلقائياً. يمكنك سحب الصورة وتكبيرها حتى يتركز الوجه داخل الدائرة.</p><input id="avatarUploadInput" class="avatarUploadInput" type="file" accept="image/*"><div class="avatarCropStage"><canvas id="avatarCropCanvas" width="320" height="320" aria-label="معاينة قص الصورة"></canvas></div><label class="avatarZoomLabel"><span>التكبير</span><input id="avatarZoomRange" type="range" min="100" max="300" value="100"></label><div class="avatarEditorActions"><button id="avatarEditorCancel" class="secondary">إلغاء</button><button id="avatarEditorSave" class="primary">حفظ الصورة</button></div><small class="hint">إذا كانت الصورة تحتوي على كتابة، اسحب الصورة أو كبّرها ليبقى الوجه فقط داخل الدائرة.</small></div></div>
 
-<div id="freeBadgeModal" class="modal hidden"><div class="card wide freeBadgeControl"><button class="close" data-close="freeBadgeModal">×</button><div class="freeBadgeHeader"><div><small>شارات مجانية من الإدارة</small><h2>منح شارة متحركة</h2><p>إلى: <b id="freeBadgeTarget"></b> — تظهر شارة واحدة فقط قرب الاسم، وتبقى عند التنقل بين الغرف، وتختفي عند خروج المستخدم من الموقع.</p></div><div id="activeFreeBadge" class="activeFreeBadge"></div></div><div id="freeBadgeChoices" class="freeBadgeChoices"></div><button id="removeFreeBadgeBtn" class="secondary removeFreeBadgeBtn">إزالة الشارة من المستخدم</button><div class="freeBadgeNote">هذه الشارات مجانية ولا تخصم عملات ولا تغيّر رتبة المستخدم.</div></div></div>
 
 <div id="roleGiftModal" class="modal hidden"><div class="card wide roleGiftControl"><button class="close" data-close="roleGiftModal">×</button><div class="roleGiftHeader"><div><small>لوحة التحكم الخاصة برتبتك</small><h2 id="roleGiftRole">VIP 💎</h2><p id="roleGiftHint"></p></div><div id="activeRoleGift" class="activeRoleGift"></div></div><div id="roleGiftChoices" class="roleGiftChoices"></div><button id="clearRoleGiftBtn" class="secondary clearRoleGiftBtn">إزالة الهدية من قرب اسمي</button><div class="roleGiftSessionNote">تظهر هدية واحدة فقط، وتبقى أثناء التنقل بين الغرف، وتختفي تلقائياً عند خروج المستخدم من الموقع.</div></div></div>
 
@@ -289,15 +287,15 @@
 <div id="giftOverlay" class="giftOverlay hidden"><div class="giftScene"><div id="giftVisual" class="giftVisual">🧸</div><div class="giftText"><b id="giftSender"></b><span>أرسل إلى</span><b id="giftReceiver"></b><strong id="giftName"></strong></div></div></div>
 <video id="localVideo" class="hidden" autoplay muted playsinline></video>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="./google-config.js?v=156"></script>
-<script src="./google-auth.js?v=156"></script>
-<script src="./relay-audio.js?v=156"></script>
-<script src="app.js?v=156"></script>
-<script src="./live-bridge.js?v=156"></script>
+<script src="./google-config.js?v=157"></script>
+<script src="./google-auth.js?v=157"></script>
+<script src="./relay-audio.js?v=157"></script>
+<script src="app.js?v=157"></script>
+<script src="./live-bridge.js?v=157"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=156").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=157").catch(() => {});
   });
 }
 </script>

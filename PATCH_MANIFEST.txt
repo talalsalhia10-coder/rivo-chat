@@ -1,37 +1,15 @@
-Rivo Chat v155 GitHub upload patch
+RivoChat v157 UI + Message Color Fix
 
-Files included:
-- new: README_AR_v155.txt (2351 bytes)
-- changed: package.json (402 bytes)
-- changed: public/VERSION.txt (47 bytes)
-- new: public/admin-design.css (39694 bytes)
-- new: public/admin-design.html (25674 bytes)
-- new: public/admin-design.js (76972 bytes)
-- changed: public/app.js (111743 bytes)
-- new: public/assets/audio/rivo-radio-demo.wav (529244 bytes)
-- new: public/assets/avatars/ahmed.svg (565 bytes)
-- new: public/assets/avatars/ali.svg (565 bytes)
-- new: public/assets/avatars/guest.svg (565 bytes)
-- new: public/assets/avatars/lina.svg (565 bytes)
-- new: public/assets/avatars/mira.svg (565 bytes)
-- new: public/assets/avatars/noor.svg (565 bytes)
-- new: public/assets/avatars/owner.svg (565 bytes)
-- new: public/assets/avatars/samar.svg (565 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-man-blue-hoodie.jpg (120811 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-woman-denim.jpg (142176 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg (144140 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-young-man-light.jpg (109425 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-young-man-purple.jpg (99904 bytes)
-- new: public/assets/entry-avatars/rivo-avatar-young-woman-purple.jpg (119664 bytes)
-- changed: public/index.html (30566 bytes)
-- new: public/legacy/app.js (178413 bytes)
-- new: public/legacy/styles.css (87710 bytes)
-- new: public/legacy.html (34634 bytes)
-- new: public/live-bridge.js (39386 bytes)
-- changed: public/rivo-version.txt (4 bytes)
-- changed: public/styles.css (73769 bytes)
-- changed: public/sw.js (3069 bytes)
-- changed: scripts/check.mjs (4544 bytes)
-- changed: src/index-gifts.js (4874 bytes)
-- changed: src/index-radio.js (46971 bytes)
-- changed: src/index.js (122173 bytes)
+Replace these repository files:
+public/index.html
+public/app.js
+public/live-bridge.js
+public/styles.css
+public/sw.js
+src/index.js
+package.json
+
+Add:
+README_AR_v157.txt
+
+Do not delete the other repository files.

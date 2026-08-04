@@ -1337,3 +1337,43 @@
 .googleSignInButtonLive{position:relative;z-index:3;pointer-events:auto!important;min-width:280px}
 .googleSignInButtonLive iframe,.googleSignInButtonLive>div{pointer-events:auto!important;position:relative!important;z-index:4!important}
 #googleLoginStatus.googleLoginError{color:#b91c1c;font-weight:700}
+
+
+/* v157 — clean composer icons, real message colors, and profile-only coin transfer */
+.composerToolbar .composerToolButton{
+  position:relative;
+  color:#334155;
+  font-size:20px;
+}
+.composerToolIcon{
+  width:22px;
+  height:22px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.9;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+}
+.colorToolBtn .composerToolIcon{fill:none}
+.colorToolBtn .activeColorDot{
+  position:absolute;
+  width:8px;
+  height:8px;
+  left:3px;
+  bottom:3px;
+  border-width:1px;
+  box-shadow:0 0 0 1px rgba(15,23,42,.22);
+}
+.profileActions .profileCoinsBtn{
+  background:#fff7d6;
+  color:#7a5200;
+  border:1px solid #edcf67;
+  font-weight:800;
+}
+.profileActions .profileCoinsBtn.hidden{display:none!important}
+.userMain img{cursor:pointer}
+.userMain img:hover{box-shadow:0 0 0 3px rgba(37,99,235,.15)}
+@media(max-width:900px){
+  .composerToolIcon{width:20px;height:20px}
+}

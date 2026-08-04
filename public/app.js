@@ -13,7 +13,7 @@ const RIVO_LIVE_AVATAR_MAP={
 const av=n=>isDirectAvatarSource(n)?n:(RIVO_LIVE_AVATAR_MAP[n]||`assets/avatars/${n||'guest'}.svg`);
 const state={
  room:'general', user:null, target:null, color:'#111827', guestAvatar:'guest', localStream:null,
- inbox:{messages:3,alerts:2},
+ inbox:{messages:0,alerts:0},
  activeNameGifts:{},
  privateMessagesEnabled:true,
  privateTarget:null,
@@ -1033,8 +1033,6 @@ function requestRoomCamera(){
    time:privateTime()
  };
  state.roomCamera.requests.unshift(req);writeSharedCameraRequests(state.roomCamera.requests);
- state.inbox.alerts=(state.inbox.alerts||0)+1;
- renderHeader();
  renderRoomCameraRequests();
  toast('تم إرسال طلب تشغيل الكاميرا إلى الإدارة');
 }
@@ -1638,7 +1636,10 @@ function renderUsers(){
     </div>
    </div>
   </div>`).join('');
- $$('[data-user]').forEach(x=>x.onclick=e=>showMenu(x.dataset.user,e));
+ $$('[data-user]').forEach(x=>x.onclick=e=>{
+  if(e.target.closest('.userMain img')){showProfile(x.dataset.user);return}
+  showMenu(x.dataset.user,e);
+ });
 }
 function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble">🔊 ${esc(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user),u=publicMessageUser(realUser);const safeText=esc(m.text);const emojiOnly=/^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
 function renderHeader(){
@@ -1691,7 +1692,25 @@ function renderStage(){const r=room(),active=state.stage.filter(s=>findUser(s.us
 function renderStageAdmin(){const a=state.stage.filter(s=>findUser(s.user)?.room===state.room);$('#stageAdmin').innerHTML=a.length?a.map(s=>{const u=findUser(s.user);return`<div class="stageUser"><span>${esc(u.name)} — ${s.mode}</span><button data-kick="${u.id}">إنزال</button></div>`}).join(''):'<small>لا يوجد مستخدمون على المنصة.</small>';$$('[data-kick]').forEach(b=>b.onclick=()=>{state.stage=state.stage.filter(s=>s.user!==b.dataset.kick);renderStage();toast('تم إنزال المستخدم')})}
 function renderAll(){renderRooms();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI()}
 function showMenu(id,e){state.target=id;const target=findUser(id);$('#menuName').textContent=readableUserName(target);const m=$('#userMenu');m.style.top=Math.min(innerHeight-300,e.clientY)+'px';m.style.left=Math.max(10,e.clientX-235)+'px';m.classList.remove('hidden')}
-function showProfile(id){const u=findUser(id);state.target=id;$('#profileAvatar').src=av(u.avatar);$('#profileName').textContent=readableUserName(u);$('#profileBadges').innerHTML=`${verifiedBadgeHtml(u,'list')}${roleBadgeHtml(u,'list')}`;$('#profileBio').textContent=u.bio;$('#profileGiftValue').textContent=u.giftValue;$('#profileFriends').textContent=u.friends;$('#profileLevel').textContent=u.level;const editBtn=$('#profileAvatarEdit');if(editBtn)editBtn.classList.toggle('hidden',!(state.user&&state.user.id===id));open('profileModal')}
+function showProfile(id){
+ const u=findUser(id);if(!u)return;
+ state.target=id;
+ $('#profileAvatar').src=av(u.avatar);$('#profileName').textContent=readableUserName(u);$('#profileBadges').innerHTML=`${verifiedBadgeHtml(u,'list')}${roleBadgeHtml(u,'list')}`;$('#profileBio').textContent=u.bio;$('#profileGiftValue').textContent=u.giftValue;$('#profileFriends').textContent=u.friends;$('#profileLevel').textContent=u.level;
+ const mine=Boolean(state.user&&state.user.id===id);
+ const editBtn=$('#profileAvatarEdit');if(editBtn)editBtn.classList.toggle('hidden',!mine);
+ const coinBtn=$('#profileCoins');if(coinBtn)coinBtn.classList.toggle('hidden',mine);
+ open('profileModal');
+}
+function openCoinTransferFor(userId=state.target){
+ if(!member('تحويل العملات'))return;
+ const u=findUser(userId);
+ if(!u||u.id===state.user?.id){toast('اختر مستخدماً آخر');return}
+ state.target=u.id;
+ $('#coinTarget').textContent=readableUserName(u);
+ $('#coinAmount').value='10';
+ close('profileModal');
+ open('coinModal');
+}
 function openGifts(id){if(!member('إرسال الهدايا'))return;state.target=id;const u=findUser(id),catalog=availableGiftCatalogForSender();$('#giftTarget').textContent=u.name;$('#giftCoins').textContent=state.user.coins;$('#giftCatalog').innerHTML=catalog.map(g=>`<div class="giftItem ${g.exclusive?'exclusiveGiftItem '+g.exclusiveRole:''}"><span class="giftIcon">${g.icon}</span><b>${g.name}</b>${g.exclusive?`<em>حصري ${roleGiftLabel(g.exclusiveRole)}</em>`:''}<small>${g.price>0?g.price+' 🪙':'مجانية للمراقب'}</small><button data-gift="${g.id}">إرسال</button></div>`).join('');$$('[data-gift]').forEach(b=>b.onclick=()=>sendGift(b.dataset.gift));open('giftModal')}
 function findSendableGift(id){
  return availableGiftCatalogForSender().find(x=>x.id===id)||null;
@@ -2027,7 +2046,7 @@ function bind(){
    picker.classList.toggle('hidden');
    if(opening){requestAnimationFrame(()=>{positionColorPicker();updateColorUI()})}
  };
- if($('#giftBtn')) $('#giftBtn').onclick=()=>{const u=usersInRoom().find(x=>x.id!==state.user?.id);if(u)openGifts(u.id)};$('#coinBtn').onclick=()=>{if(!member('تحويل العملات'))return;const u=usersInRoom().find(x=>x.id!==state.user.id);state.target=u.id;$('#coinTarget').textContent=u.name;open('coinModal')};
+ if($('#giftBtn')) $('#giftBtn').onclick=()=>{const u=usersInRoom().find(x=>x.id!==state.user?.id);if(u)openGifts(u.id)};
  $('#coinSend').onclick=()=>{if(!member('تحويل العملات'))return;const n=+$('#coinAmount').value,u=findUser(state.target);if(n<1||n>state.user.coins){toast('تحقق من الكمية والرصيد');return}state.user.coins-=n;u.coins+=n;appendRoomMessage({type:'system',room:state.room,text:`${state.user.name} أرسل ${n} عملة ذهبية إلى ${u.name}`});close('coinModal');renderAll();toast('تم تحويل الذهب')};
  $('#storeBtn').onclick=()=>{showStore('coins');open('storeModal')};$$('[data-tab]').forEach(b=>b.onclick=()=>showStore(b.dataset.tab)); if($('#cameraBtn')) $('#cameraBtn').onclick=joinCamera; if($('#micBtn')) $('#micBtn').onclick=joinMic; if($('#composerCameraBtn')) $('#composerCameraBtn').onclick=joinCamera; if($('#composerMicBtn')) $('#composerMicBtn').onclick=joinMic; if($('#leaveStage')) $('#leaveStage').onclick=leaveStage; if($('#avatarToggle')) $('#avatarToggle').onclick=toggleAvatar;
  if($('#soundBtn')) $('#soundBtn').onclick=()=>{document.body.classList.toggle('muted');$('#soundBtn').textContent=document.body.classList.contains('muted')?'🔇 صوت الغرفة':'🔊 صوت الغرفة';toast('تحكم صوت تجريبي')}; $('#radioBtn').onclick=toggleRadioListener;
@@ -2072,7 +2091,7 @@ function bind(){
  if($('#entryModeratorBtn'))$('#entryModeratorBtn').onclick=()=>open('moderatorLoginModal');
  if($('#entryName'))$('#entryName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();enterFromEntry('guest')}});
 
- $('#profileGift').onclick=()=>{close('profileModal');openGifts(state.target)};$('#profileDm').onclick=()=>{close('profileModal');openPrivateChat(state.target)};if($('#profileAvatarEdit'))$('#profileAvatarEdit').onclick=()=>{close('profileModal');openAvatarEditor()};if($('#profileFreeBadge'))$('#profileFreeBadge').onclick=()=>{const id=state.target;close('profileModal');requestFreeBadgeFor(id)};
+ $('#profileGift').onclick=()=>{close('profileModal');openGifts(state.target)};$('#profileDm').onclick=()=>{close('profileModal');openPrivateChat(state.target)};if($('#profileCoins'))$('#profileCoins').onclick=()=>openCoinTransferFor(state.target);if($('#profileAvatarEdit'))$('#profileAvatarEdit').onclick=()=>{close('profileModal');openAvatarEditor()};
  if($('#avatarEditorCancel'))$('#avatarEditorCancel').onclick=()=>{close('avatarEditorModal');resetAvatarEditor()};
  if($('#avatarEditorSave'))$('#avatarEditorSave').onclick=saveAvatarEditorImage;
  if($('#avatarUploadInput'))$('#avatarUploadInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>loadAvatarIntoEditor(String(ev.target?.result||''),true);reader.readAsDataURL(file)};

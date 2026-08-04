@@ -64,6 +64,11 @@ function cleanNickname(value) {
   return cleanText(value, MAX_NAME_LENGTH).replace(/\s{2,}/g, " ");
 }
 
+function cleanMessageColor(value) {
+  const color = String(value ?? "").trim();
+  return /^#[0-9a-f]{6}$/i.test(color) ? color.toLowerCase() : "#111827";
+}
+
 function cleanAvatar(value) {
   const id = String(value ?? "").toLowerCase().trim();
   return CHARACTER_PATTERN.test(id) ? id : "lina";
@@ -357,7 +362,7 @@ export default {
       return json({
         ok: true,
         service: "rivo-group-chat",
-        version: "156.0.0",
+        version: "157.0.0",
         googleLoginConfigured: Boolean(env.GOOGLE_CLIENT_ID && env.SESSION_SECRET),
         time: new Date().toISOString()
       });
@@ -527,6 +532,7 @@ export class ChatRoom extends DurableObject {
         client_id TEXT NOT NULL,
         nickname TEXT NOT NULL,
         avatar TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '#111827',
         body TEXT NOT NULL,
         created_at INTEGER NOT NULL
       );
@@ -701,6 +707,14 @@ export class ChatRoom extends DurableObject {
       );
     } catch {
       // The is_vip column already exists.
+    }
+
+    try {
+      this.sql.exec(
+        `ALTER TABLE messages ADD COLUMN color TEXT NOT NULL DEFAULT '#111827'`
+      );
+    } catch {
+      // The color column already exists.
     }
 
     try {
@@ -1623,7 +1637,7 @@ export class ChatRoom extends DurableObject {
   getHistory() {
     this.sql.exec(`DELETE FROM messages WHERE created_at < ?`, Date.now() - PUBLIC_RETENTION_MS);
     const rows = this.sql.exec(
-      `SELECT id, client_id, nickname, avatar, role, is_vip, body, created_at
+      `SELECT id, client_id, nickname, avatar, role, is_vip, color, body, created_at
        FROM messages
        ORDER BY created_at DESC
        LIMIT ?`,
@@ -1637,6 +1651,7 @@ export class ChatRoom extends DurableObject {
       avatar: row.avatar,
       role: row.role || "user",
       isVip: Boolean(row.is_vip),
+      color: cleanMessageColor(row.color),
       body: row.body,
       createdAt: row.created_at
     }));
@@ -2552,6 +2567,7 @@ export class ChatRoom extends DurableObject {
 
     const now = Date.now();
     const body = cleanText(data.body, MAX_MESSAGE_LENGTH);
+    const color = cleanMessageColor(data.color);
     if (!body) return;
 
     const duplicate = (
@@ -2584,6 +2600,7 @@ export class ChatRoom extends DurableObject {
       isGuest: Boolean(session.isGuest),
       verified: Boolean(session.googleUid && !session.isGuest && session.role === "user"),
       badge: session.badge || "",
+      color,
       body,
       createdAt: now
     };
@@ -2591,14 +2608,15 @@ export class ChatRoom extends DurableObject {
     try {
       this.sql.exec(
         `INSERT INTO messages
-         (id, client_id, nickname, avatar, role, is_vip, body, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (id, client_id, nickname, avatar, role, is_vip, color, body, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         message.id,
         message.clientId,
         message.nickname,
         message.avatar,
         message.role,
         message.isVip ? 1 : 0,
+        message.color,
         message.body,
         message.createdAt
       );

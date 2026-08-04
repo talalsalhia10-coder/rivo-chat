@@ -378,6 +378,7 @@
         room: state.room,
         user: message.clientId,
         text: message.body,
+        color: normalizeColor(message.color),
         time: nowTime(message.createdAt),
         createdAt: message.createdAt
       });
@@ -820,7 +821,7 @@
     if (!body) return;
     if (!live.identity) { showEntryScreen(); return; }
     if (body.length > 800) { toast("الرسالة طويلة جداً"); return; }
-    if (send({ type: "chat", body })) input.value = "";
+    if (send({ type: "chat", body, color: normalizeColor(state.color) })) input.value = "";
   }
 
   function openPrivateLive(userId) {
