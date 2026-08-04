@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=180">
+<link rel="stylesheet" href="styles.css?v=181">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -63,7 +63,7 @@
 
 <div id="googleAuthModal" class="modal hidden" aria-hidden="true"><div class="card googleAuthLiveCard"><button class="close" data-close="googleAuthModal">×</button><div class="googleAuthLiveLogo">G</div><h2>تسجيل الدخول بحساب Google</h2><p>اضغط زر Google لإكمال الدخول الآمن إلى دردشة Rivo.</p><div id="googleSignInButton" class="googleSignInButtonLive"></div><small id="googleLoginStatus">جاري تجهيز تسجيل Google…</small></div></div>
 
-<audio id="globalRadioAudio" preload="metadata" loop></audio>
+<audio id="globalRadioAudio" preload="auto" autoplay loop></audio>
 <header class="topbar">
   <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v178</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
@@ -321,12 +321,12 @@
 <script src="./google-config.js?v=178"></script>
 <script src="./google-auth.js?v=178"></script>
 <script src="./relay-audio.js?v=178"></script>
-<script src="app.js?v=180"></script>
-<script src="./live-bridge.js?v=180"></script>
+<script src="app.js?v=181"></script>
+<script src="./live-bridge.js?v=181"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=180").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=181").catch(() => {});
   });
 }
 </script>

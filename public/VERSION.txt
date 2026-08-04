@@ -1,1 +1,1 @@
-Rivo Chat v180 — Direct audio without popup and remembered autoplay
+Rivo Chat v181 — Remember radio playback and resume after refresh
