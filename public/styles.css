@@ -1544,3 +1544,41 @@
   .communitySide .sideMiniAlerts{gap:5px;}
   .communitySide .miniAlertBtn{width:28px;height:28px;}
 }
+
+/* v162 — unified composer toolbar position for every account type */
+.composerDock .composerToolbar,
+body .composerToolbar,
+body[data-role="guest"] .composerToolbar,
+body[data-role="user"] .composerToolbar,
+body[data-role="plus"] .composerToolbar,
+body[data-role="vip"] .composerToolbar,
+body[data-role="premium"] .composerToolbar,
+body[data-role="moderator"] .composerToolbar,
+body[data-role="owner"] .composerToolbar,
+body.guest .composerToolbar,
+body.google-user .composerToolbar,
+body.moderator .composerToolbar,
+body.owner .composerToolbar {
+  direction: ltr !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: auto !important;
+  text-align: left !important;
+}
+.composerDock .composerToolbar .composerToolButton {
+  flex: 0 0 auto !important;
+}
+.composerDock .composerToolbar #emojiBtn { order: 1 !important; }
+.composerDock .composerToolbar #colorBtn { order: 2 !important; }
+.composerDock .composerToolbar #composerMicBtn { order: 3 !important; }
+.composerDock .composerToolbar #composerCameraBtn { order: 4 !important; }
+@media (max-width: 900px) {
+  .composerDock .composerToolbar {
+    direction: ltr !important;
+    justify-content: flex-start !important;
+    padding-left: 4px !important;
+    padding-right: 4px !important;
+  }
+}
