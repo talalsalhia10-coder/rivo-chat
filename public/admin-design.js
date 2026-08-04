@@ -1,5 +1,26 @@
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const avatarSrc=value=>typeof value==='string'&&/^(data:image\/|blob:|https?:\/\/|\/|assets\/)/.test(value)?value:`assets/avatars/${value||'guest'}.svg`;
+const RIVO_ADMIN_AVATAR_MAP={
+ entry1:'assets/entry-avatars/rivo-avatar-young-man-purple.jpg',
+ entry2:'assets/entry-avatars/rivo-avatar-young-woman-purple.jpg',
+ entry3:'assets/entry-avatars/rivo-avatar-man-blue-hoodie.jpg',
+ entry4:'assets/entry-avatars/rivo-avatar-young-man-light.jpg',
+ entry5:'assets/entry-avatars/rivo-avatar-woman-denim.jpg',
+ entry6:'assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg',
+ lina:'characters/lina/portrait-small.webp',
+ girl2:'characters/girl2/portrait-small.webp',
+ girl3:'characters/girl3/portrait-small.webp',
+ girl4:'characters/girl4/portrait-small.webp',
+ man1:'characters/man1/portrait-small.webp',
+ avatar6:'characters/avatar6/portrait-small.webp',
+ avatar7:'characters/avatar7/portrait-small.webp',
+ owner:'assets/avatars/owner.svg',
+ guest:'assets/avatars/guest.svg'
+};
+const avatarSrc=value=>{
+ const source=typeof value==='string'?value.trim():'';
+ if(/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/.test(source))return source;
+ return RIVO_ADMIN_AVATAR_MAP[source]||`assets/avatars/${source||'guest'}.svg`;
+};
 const CONFIG_KEY='rivoAdminConfigV1';
 const CAMERA_KEY='rivoCameraRequestsV1';
 const MIC_KEY='rivoMicRequestsV1';
