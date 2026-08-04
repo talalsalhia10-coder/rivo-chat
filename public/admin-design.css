@@ -929,47 +929,16 @@ body.entryAvatarManagerOpen{overflow:hidden}
 .remoteAdminLoginCard small{display:block;min-height:22px;margin-top:10px;color:#b42318}
 
 
-/* v176 — روابط خارجية فقط للراديو والفيديو */
-.radioExternalNote{margin-top:13px;padding:12px 14px;border:1px solid #cfe6dc;border-radius:12px;background:#effaf5;color:#23654b;line-height:1.7;font-size:13px;font-weight:700}
-.radioControlCard #radioAdminSource{direction:ltr;text-align:left}
-.radioControlCard .radioAdminButtons button{min-width:135px}
-@media(max-width:720px){.radioControlCard .radioAdminButtons button{flex:1 1 140px}}
-
-
-/* v177 — نافذة مستقلة للراديو داخل لوحة الإدارة */
-.adminNav button.radioWindowSelected{
-  background:linear-gradient(135deg,#edeaff,#e1f2ff);color:#4f46d8;
-  box-shadow:inset -3px 0 0 var(--primary),0 5px 14px rgba(81,70,216,.10)
-}
-.adminSection.radioAdminWindow{
-  display:none!important;position:fixed;z-index:4200;top:88px;left:50%;right:auto;
-  width:min(590px,calc(100vw - 28px));max-height:calc(100vh - 104px);padding:0;
-  transform:translateX(-50%);overflow:hidden;background:#fff;border:1px solid #ccd6e6;
-  border-radius:22px;box-shadow:0 28px 90px rgba(15,23,42,.34);direction:rtl
-}
-.adminSection.radioAdminWindow.radioWindowOpen{display:flex!important;flex-direction:column}
-.radioWindowHead{
-  min-height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:11px 14px;background:linear-gradient(135deg,#2d3e78,#5147d8);color:#fff;
-  cursor:move;user-select:none;touch-action:none
-}
-.radioWindowTitleBox{display:flex;align-items:center;gap:11px;min-width:0}
-.radioWindowIcon{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.16);font-size:22px}
-.radioWindowTitleBox b{display:block;font-size:19px}.radioWindowTitleBox small{display:block;margin-top:3px;color:#dce4ff;font-size:11px}
-.radioWindowActions{display:flex;align-items:center;gap:6px;direction:ltr}
-.radioWindowActions button{width:34px;height:34px;border:0;border-radius:10px;background:rgba(255,255,255,.15);color:#fff;font-size:20px;font-weight:900}
-.radioWindowActions button:hover{background:rgba(255,255,255,.27)}
-.radioWindowBody{min-height:0;overflow:auto;padding:16px;background:#f3f6fb}
-.radioAdminWindow .radioControlCard{max-width:none;margin:0;border-radius:17px;box-shadow:0 9px 25px rgba(35,48,76,.08)}
-.radioWindowRestore{
-  position:fixed;left:18px;bottom:18px;z-index:4199;border:0;border-radius:999px;padding:12px 17px;
-  background:linear-gradient(135deg,#5c4df1,#238bf0);color:#fff;font-weight:900;
-  box-shadow:0 14px 34px rgba(47,82,190,.32)
-}
-@media(max-width:720px){
-  .adminSection.radioAdminWindow{top:auto!important;left:7px!important;right:7px!important;bottom:7px;width:auto;max-height:91vh;transform:none!important;border-radius:20px}
-  .radioWindowHead{cursor:default}.radioWindowBody{padding:11px}.radioWindowRestore{left:10px;bottom:10px}
-}
-
-/* v178 */
-.radioBrowserPolicyNote{margin-top:10px;padding:10px 12px;border-radius:11px;background:#fff8e8;border:1px solid #efd182;color:#7f5900;font-size:12px;line-height:1.65;font-weight:700}.radioAdminButtons button:disabled{opacity:.55;cursor:wait}
+/* Rivo v185 — Owner administration settings */
+.ownerAdminConnectionState{display:inline-flex;align-items:center;border-radius:999px;padding:7px 12px;background:#fff3db;color:#9a6200;font-size:12px;font-weight:900}
+.ownerAdminConnectionState.connected{background:#e7faf0;color:#087a49}
+.ownerAdminSettingsCard{display:grid;gap:16px;max-width:820px;margin-inline:auto;background:linear-gradient(145deg,#fff,#fbf9ff)}
+.ownerAdminPreviewBox{display:flex;align-items:center;gap:16px;padding:18px;border:1px solid #e2dcff;border-radius:18px;background:linear-gradient(135deg,#fff8e7,#f1edff)}
+.ownerAdminPreviewCrown{width:72px;height:72px;border-radius:22px;display:grid;place-items:center;font-size:39px;background:linear-gradient(145deg,#fff3b8,#e7c35b);box-shadow:0 10px 25px rgba(126,92,0,.18)}
+.ownerAdminPreviewBox>div:last-child{display:grid;gap:3px}.ownerAdminPreviewBox small{color:#7b849a}.ownerAdminPreviewBox b{font-size:24px;color:#222b43}.ownerAdminPreviewBox span{font-size:13px;font-weight:900;color:#138255}.ownerAdminPreviewBox span.hiddenState{color:#6a52c7}
+.ownerAdminControlBlock{padding:17px;border:1px solid #e6e9f3;border-radius:16px;background:#fff}.ownerAdminControlBlock h2{margin:0 0 5px;font-size:18px}.ownerAdminControlBlock p{margin:0 0 13px;color:#6c758b;line-height:1.7}
+.ownerAdminChoiceRow{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ownerAdminChoice{border:1px solid #d9dfeb;border-radius:13px;padding:13px;background:#f5f7fb;color:#44506a;font-weight:900;cursor:pointer}.ownerAdminChoice.active{border-color:#2fa76f;background:#e8f9f0;color:#0b7548}.ownerAdminChoice.hiddenChoice.active{border-color:#745ce0;background:#eeeaff;color:#5740bd}
+.ownerEnterModeBtn{width:100%;border:0;border-radius:14px;padding:14px 17px;font-size:16px;font-weight:950;cursor:pointer}.crownOnlyBtn{background:linear-gradient(135deg,#f8d66d,#dba92a);color:#3d2a00}.namedOwnerBtn{margin-top:12px;background:linear-gradient(135deg,#6650e8,#318cf3);color:#fff}
+.ownerAdminNameLabel{display:block;margin-bottom:7px;font-weight:900}.ownerAdminNameInput{width:100%;box-sizing:border-box;border:1px solid #cad3e3;border-radius:13px;padding:13px 14px;font:inherit;outline:0}.ownerAdminNameInput:focus{border-color:#6650e8;box-shadow:0 0 0 3px rgba(102,80,232,.13)}
+.ownerAdminSettingsFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:4px}.ownerAdminSettingsFooter span{color:#697389;font-size:13px;font-weight:800}.ownerAdminSettingsFooter .success{color:#087b49}.ownerAdminSettingsFooter .error{color:#c33948}.ownerAdminSettingsFooter a{border-radius:12px;padding:10px 13px;background:#eff4ff;color:#315cc8;text-decoration:none;font-weight:900}
+@media(max-width:720px){.ownerAdminChoiceRow{grid-template-columns:1fr}.ownerAdminSettingsFooter{align-items:stretch;flex-direction:column}.ownerAdminSettingsFooter a{text-align:center}.ownerAdminPreviewCrown{width:58px;height:58px;font-size:31px}.ownerAdminPreviewBox b{font-size:20px}}

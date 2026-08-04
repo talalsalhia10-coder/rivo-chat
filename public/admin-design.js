@@ -42,7 +42,9 @@ let previewExpanded=false;
 let latestUploadedEntryAvatarId=null;
 let selectedEntryAvatarId=null;
 const OWNER_SESSION_KEY='rivo_staff_identity_owner_v1';
+const CROWN_ONLY_NAME='__rivo_crown_only__';
 let ownerSession=null;
+let ownerAdminSettingsState={name:'الإدارة',visible:true,connected:false};
 let remoteSaveTimer=null;
 let remoteSaveSerial=0;
 let adminSocket=null;
@@ -167,7 +169,7 @@ function defaultConfig(){
   users:structuredClone(defaultUsers),
   entryAvatars:structuredClone(defaultEntryAvatars),
   private:{enabled:true,mic:false,camera:false,paidOnly:true},
-  radio:{status:'stopped',scope:'all',roomId:'general',title:'راديو ريفو',sourceType:'audio',source:'',startedAt:0},
+  radio:{status:'stopped',scope:'all',roomId:'general',title:'موسيقى ريفو التجريبية',source:'assets/audio/rivo-radio-demo.wav'},
   economy:{giftsEnabled:true,vipEnabled:true,verifyEnabled:true,gifts:structuredClone(defaultGifts)},
   plans:defaultPlans(),
   permissions:defaultPermissions(),
@@ -297,7 +299,7 @@ function sendAdminCommand(action,payload={}){
 function mapLiveAdminUser(user,roomId){
  const role=user.role==='owner'?'owner':user.role==='moderator'?'moderator':user.isGuest?'guest':'user';
  const existing=config.users.find(item=>item.id===user.clientId)||{};
- return{...existing,id:user.clientId,name:user.nickname||'مستخدم',avatar:user.avatar||'guest',room:roomId,role,plan:role==='owner'?'owner':role==='moderator'?'moderator':user.isVip?'vip':role==='guest'?'guest':'user',authType:role==='guest'?'guest':role==='owner'?'owner':role==='moderator'?'moderator':'google',coins:Number(existing.coins||0),status:'online',vip:Boolean(user.isVip),verified:Boolean(user.verified),isHidden:user.adminVisible===false,micBlocked:Boolean(user.micBlocked),privateBlocked:Boolean(user.privateBlocked),badge:user.badge||''};
+ return{...existing,id:user.clientId,name:user.nickname===CROWN_ONLY_NAME?'':(user.nickname||'مستخدم'),avatar:user.avatar||'guest',room:roomId,role,plan:role==='owner'?'owner':role==='moderator'?'moderator':user.isVip?'vip':role==='guest'?'guest':'user',authType:role==='guest'?'guest':role==='owner'?'owner':role==='moderator'?'moderator':'google',coins:Number(existing.coins||0),status:'online',vip:Boolean(user.isVip),verified:Boolean(user.verified),isHidden:user.adminVisible===false,micBlocked:Boolean(user.micBlocked),privateBlocked:Boolean(user.privateBlocked),badge:user.badge||''};
 }
 function uiRoomId(id){return normalizeLiveRoomId(id)==='lobby'?'general':normalizeLiveRoomId(id)}
 function cleanConfiguredUsers(users=[]){return users.filter(user=>user&&!DEMO_USER_IDS.has(String(user.id||'')))}
@@ -339,6 +341,10 @@ function syncPresenceSockets(force=false){
  presenceSyncStarted=true;
 }
 function applyAdminSocketState(data,sourceRoomId=selectedRoomId,fromPresenceSocket=false){
+ if(data?.staff?.role==='owner')ownerAdminSettingsState.name=data.staff.name||ownerAdminSettingsState.name||'الإدارة';
+ if(typeof data?.staffVisible==='boolean')ownerAdminSettingsState.visible=data.staffVisible;
+ ownerAdminSettingsState.connected=true;
+ renderOwnerAdminSettings();
  if(Array.isArray(data.roomCatalog)&&data.roomCatalog.length){
   const old=new Map(config.rooms.map(room=>[normalizeLiveRoomId(room.id),room]));
   config.rooms=data.roomCatalog.map((room,index)=>({...(old.get(room.id)||{}),id:room.id==='lobby'?'general':room.id,name:room.name||room.id,icon:(old.get(room.id)||{}).icon||'💬',order:Number(room.order??index),enabled:room.enabled!==false,cams:Number((old.get(room.id)||{}).cams||0),mics:Number((old.get(room.id)||{}).mics||4),camOn:(old.get(room.id)||{}).camOn!==false,micOn:(old.get(room.id)||{}).micOn!==false,music:(old.get(room.id)||{}).music!==false,announcement:(old.get(room.id)||{}).announcement||'',announcementOn:(old.get(room.id)||{}).announcementOn!==false}));
@@ -368,12 +374,78 @@ function connectAdminSocket(force=false){
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
  socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
  socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
- socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
+ socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;ownerAdminSettingsState.connected=false;renderOwnerAdminSettings();if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
+}
+function ownerAdminPublicName(value=ownerAdminSettingsState.name){
+ const raw=String(value||'').trim();
+ return raw===CROWN_ONLY_NAME?'':raw;
+}
+function updateLocalOwnerAdminState(name=ownerAdminSettingsState.name,visible=ownerAdminSettingsState.visible){
+ ownerAdminSettingsState.name=name||'الإدارة';
+ ownerAdminSettingsState.visible=Boolean(visible);
+ for(const user of config.users){
+  if(userAccessRole(user)!=='owner')continue;
+  user.name=ownerAdminPublicName(ownerAdminSettingsState.name);
+  user.isHidden=!ownerAdminSettingsState.visible;
+ }
+ renderOwnerAdminSettings();
+ renderUsersAdmin();
+ renderCommunityPanel();
+ renderModeratorTokens();
+}
+function setOwnerAdminStatus(text,type=''){
+ const status=$('#ownerAdminSaveState');
+ if(!status)return;
+ status.textContent=text;
+ status.className=type?`ownerAdminSaveState ${type}`:'ownerAdminSaveState';
+}
+function renderOwnerAdminSettings(){
+ const name=ownerAdminPublicName();
+ const visible=ownerAdminSettingsState.visible!==false;
+ const previewName=$('#ownerAdminPreviewName');
+ const previewVisibility=$('#ownerAdminPreviewVisibility');
+ const nameInput=$('#ownerAdminDisplayName');
+ const showBtn=$('#ownerShowAdminBtn');
+ const hideBtn=$('#ownerHideAdminBtn');
+ const connection=$('#ownerAdminConnectionState');
+ if(previewName)previewName.textContent=name||'التاج فقط';
+ if(previewVisibility){
+  previewVisibility.textContent=visible?'ظاهر للمستخدمين':'مخفي عن المستخدمين';
+  previewVisibility.classList.toggle('hiddenState',!visible);
+ }
+ if(nameInput&&document.activeElement!==nameInput&&ownerAdminSettingsState.name!==CROWN_ONLY_NAME)nameInput.value=name||'الإدارة';
+ if(showBtn)showBtn.classList.toggle('active',visible);
+ if(hideBtn)hideBtn.classList.toggle('active',!visible);
+ if(connection){
+  connection.textContent=ownerAdminSettingsState.connected?'متصل بالدردشة':'بانتظار اتصال الدردشة…';
+  connection.classList.toggle('connected',ownerAdminSettingsState.connected);
+ }
+}
+function setOwnerAdminVisibility(visible){
+ if(!sendAdminCommand('set-staff-visible',{visible:Boolean(visible)}))return false;
+ updateLocalOwnerAdminState(ownerAdminSettingsState.name,Boolean(visible));
+ setOwnerAdminStatus(visible?'أصبحت الإدارة ظاهرة في الدردشة.':'أصبحت الإدارة مخفية عن المستخدمين.','success');
+ return true;
+}
+function applyOwnerAdminIdentity(crownOnly=false){
+ const typed=String($('#ownerAdminDisplayName')?.value||'').trim().slice(0,24);
+ const name=crownOnly?CROWN_ONLY_NAME:(typed||'الإدارة');
+ if(!crownOnly&&name.length<2){
+  setOwnerAdminStatus('اكتب اسماً من حرفين على الأقل.','error');
+  $('#ownerAdminDisplayName')?.focus();
+  return;
+ }
+ const nameSent=sendAdminCommand('update-staff-name',{name});
+ const visibilitySent=sendAdminCommand('set-staff-visible',{visible:true});
+ if(!nameSent||!visibilitySent)return;
+ updateLocalOwnerAdminState(name,true);
+ setOwnerAdminStatus(crownOnly?'تم الدخول بالتاج فقط من دون اسم.':'تم حفظ الاسم وظهرت الإدارة مع التاج.','success');
+ toast(crownOnly?'تم تفعيل التاج فقط 👑':'تم حفظ اسم الإدارة مع التاج 👑');
 }
 function renderAdminDesignAll(){
  ensureAdminMessageUi();
- normalizeAdminData();renderOverview();renderRoomsAdmin();renderUsersAdmin();renderEntryAvatarsAdmin();renderCameraRequests();renderMicRequests();renderRadioAdmin();renderPrivateAdmin();renderPermissionsAdmin();renderModeratorTokens();renderEconomy();renderAnnouncementAdmin();renderSecurity();renderLogs();renderCommunityPanel();requestAnimationFrame(fitChatPreview);
+ normalizeAdminData();renderOwnerAdminSettings();renderOverview();renderRoomsAdmin();renderUsersAdmin();renderEntryAvatarsAdmin();renderCameraRequests();renderMicRequests();renderRadioAdmin();renderPrivateAdmin();renderPermissionsAdmin();renderModeratorTokens();renderEconomy();renderAnnouncementAdmin();renderSecurity();renderLogs();renderCommunityPanel();requestAnimationFrame(fitChatPreview);
 }
 let config=mergeConfig(readJSON(CONFIG_KEY,null));
 try{localStorage.setItem(CONFIG_KEY,JSON.stringify(config))}catch(_){/* تبقى الإعدادات عاملة حتى لو امتلأت مساحة المتصفح */}
@@ -878,10 +950,6 @@ function normalizeAdminData(){
 }
 
 function showSection(name){
- if(name==='radio'){
-  openRadioAdminWindow();
-  return;
- }
  if(name==='avatars'){
   openEntryAvatarManager();
   return;
@@ -1156,8 +1224,12 @@ function deleteModeratorToken(tokenId){
 }
 function setStaffVisibility(userId,hidden){
  const user=userById(userId);if(!user||!['owner','moderator'].includes(user.role))return;user.isHidden=Boolean(hidden);
+ if(user.role==='owner'){
+  ownerAdminSettingsState.visible=!user.isHidden;
+  sendAdminCommand('set-staff-visible',{visible:!user.isHidden});
+ }
  if(user.moderatorTokenId){const token=config.moderatorTokens.find(t=>t.id===user.moderatorTokenId);if(token)token.isHidden=user.isHidden}
- saveConfig(`${user.name} أصبح ${user.isHidden?'مخفياً':'ظاهراً'}`);renderModeratorTokens();renderUsersAdmin();renderCommunityPanel();
+ saveConfig(`${user.name||'الإدارة'} أصبح ${user.isHidden?'مخفياً':'ظاهراً'}`);renderOwnerAdminSettings();renderModeratorTokens();renderUsersAdmin();renderCommunityPanel();
 }
 function toggleStaffVisibility(userId){const user=userById(userId);if(user)setStaffVisibility(userId,!user.isHidden)}
 function renderModeratorTokens(){
@@ -1498,214 +1570,27 @@ function closeAllCameras(){
 function populateRoomSelect(selectId,value){
  const s=$(selectId);if(!s)return;s.innerHTML=config.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');s.value=value||config.rooms[0]?.id;
 }
-const RADIO_WINDOW_POSITION_KEY='rivoAdminRadioWindowPositionV177';
-let radioAdminTestAudio=null;
-let radioWindowDragState=null;
-function radioWindowElement(){return $('#section-radio')}
-function setRadioNavWindowState(open){
- const button=$('.adminNav button[data-section="radio"]');
- if(button)button.classList.toggle('radioWindowSelected',Boolean(open));
-}
-function clampRadioWindowToViewport(){
- const win=radioWindowElement();
- if(!win||!win.classList.contains('radioWindowOpen')||window.innerWidth<=720)return;
- const rect=win.getBoundingClientRect();
- const left=Math.max(8,Math.min(rect.left,window.innerWidth-rect.width-8));
- const top=Math.max(78,Math.min(rect.top,window.innerHeight-Math.min(rect.height,window.innerHeight-16)-8));
- win.style.left=`${left}px`;win.style.top=`${top}px`;win.style.right='auto';win.style.transform='none';
-}
-function restoreRadioWindowPosition(){
- const win=radioWindowElement();if(!win||window.innerWidth<=720)return;
- try{
-  const pos=JSON.parse(localStorage.getItem(RADIO_WINDOW_POSITION_KEY)||'null');
-  if(pos&&Number.isFinite(+pos.left)&&Number.isFinite(+pos.top)){
-   win.style.left=`${+pos.left}px`;win.style.top=`${+pos.top}px`;win.style.right='auto';win.style.transform='none';
-   requestAnimationFrame(clampRadioWindowToViewport);
-  }
- }catch(_){ }
-}
-function openRadioAdminWindow(){
- const win=radioWindowElement();if(!win)return;
- renderRadioAdmin();
- win.classList.add('radioWindowOpen');
- win.setAttribute('aria-hidden','false');
- $('#radioWindowRestoreBtn')?.classList.add('hidden');
- setRadioNavWindowState(true);
- restoreRadioWindowPosition();
- setTimeout(()=>$('#radioAdminSource')?.focus(),80);
-}
-function stopRadioAdminTest(){
- if(radioAdminTestAudio){radioAdminTestAudio.pause();radioAdminTestAudio.src='';radioAdminTestAudio=null}
- const button=$('#radioTestBtn');if(button)button.textContent='اختبار الرابط';
-}
-function closeRadioAdminWindow(){
- const win=radioWindowElement();if(!win)return;
- stopRadioAdminTest();
- win.classList.remove('radioWindowOpen');
- win.setAttribute('aria-hidden','true');
- $('#radioWindowRestoreBtn')?.classList.add('hidden');
- setRadioNavWindowState(false);
-}
-function minimizeRadioAdminWindow(){
- const win=radioWindowElement();if(!win)return;
- stopRadioAdminTest();
- win.classList.remove('radioWindowOpen');
- win.setAttribute('aria-hidden','true');
- $('#radioWindowRestoreBtn')?.classList.remove('hidden');
- setRadioNavWindowState(true);
-}
-function beginRadioWindowDrag(event){
- const win=radioWindowElement();
- if(!win||window.innerWidth<=720||event.button!==0||event.target.closest('button'))return;
- const rect=win.getBoundingClientRect();
- win.style.left=`${rect.left}px`;win.style.top=`${rect.top}px`;win.style.right='auto';win.style.transform='none';
- radioWindowDragState={pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,left:rect.left,top:rect.top};
- event.currentTarget.setPointerCapture?.(event.pointerId);event.preventDefault();
-}
-function moveRadioWindowDrag(event){
- if(!radioWindowDragState||radioWindowDragState.pointerId!==event.pointerId)return;
- const win=radioWindowElement();if(!win)return;
- const width=win.offsetWidth,height=Math.min(win.offsetHeight,window.innerHeight-16);
- const left=Math.max(8,Math.min(radioWindowDragState.left+event.clientX-radioWindowDragState.startX,window.innerWidth-width-8));
- const top=Math.max(78,Math.min(radioWindowDragState.top+event.clientY-radioWindowDragState.startY,window.innerHeight-height-8));
- win.style.left=`${left}px`;win.style.top=`${top}px`;
-}
-function endRadioWindowDrag(event){
- if(!radioWindowDragState||radioWindowDragState.pointerId!==event.pointerId)return;
- const win=radioWindowElement();radioWindowDragState=null;
- if(win){const rect=win.getBoundingClientRect();localStorage.setItem(RADIO_WINDOW_POSITION_KEY,JSON.stringify({left:rect.left,top:rect.top}))}
-}
-function initRadioAdminWindow(){
- const handle=$('#radioWindowDragHandle');
- if(handle){handle.addEventListener('pointerdown',beginRadioWindowDrag);handle.addEventListener('pointermove',moveRadioWindowDrag);handle.addEventListener('pointerup',endRadioWindowDrag);handle.addEventListener('pointercancel',endRadioWindowDrag)}
- $('#radioWindowCloseBtn')?.addEventListener('click',closeRadioAdminWindow);
- $('#radioWindowMinimizeBtn')?.addEventListener('click',minimizeRadioAdminWindow);
- $('#radioWindowRestoreBtn')?.addEventListener('click',openRadioAdminWindow);
- window.addEventListener('resize',clampRadioWindowToViewport);
- document.addEventListener('keydown',event=>{if(event.key==='Escape'&&radioWindowElement()?.classList.contains('radioWindowOpen'))closeRadioAdminWindow()});
-}
-function detectRadioTypeFromSource(value){
- const source=String(value||'').trim();
- if(!source)return '';
- if(youtubeIdFromUrl(source))return 'youtube';
- try{
-  const url=new URL(source);const path=(url.pathname||'').toLowerCase();
-  if(/\.(mp4|webm|ogv|mov)$/.test(path))return 'video';
-  if(/\.(mp3|aac|m4a|ogg|oga|wav|m3u8|pls|m3u)$/.test(path))return 'audio';
- }catch(_){ }
- return '';
-}
-function applyRadioWindowDraft(){
- updateRadioFromForm();persistLiveDraft();
-}
-function syncRadioTypeFromSource(){
- const select=$('#radioAdminType');if(!select)return;
- const detected=detectRadioTypeFromSource($('#radioAdminSource')?.value||'');
- if(detected&&select.value!==detected){select.value=detected;updateRadioSourceUi()}
-}
-function normalizedRadioType(value){return ['audio','youtube','video'].includes(String(value||''))?String(value):'audio'}
-function youtubeIdFromUrl(value){
- const raw=String(value||'').trim();
- if(/^[A-Za-z0-9_-]{11}$/.test(raw))return raw;
- try{
-  const url=new URL(raw);
-  if(url.hostname==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||'';
-  if(url.hostname.includes('youtube.com')){
-   if(url.pathname==='/watch')return url.searchParams.get('v')||'';
-   const parts=url.pathname.split('/').filter(Boolean);
-   if(['embed','shorts','live'].includes(parts[0]))return parts[1]||'';
-  }
- }catch(_){ }
- return '';
-}
-function isExternalHttpsUrl(value){try{return new URL(String(value||'')).protocol==='https:'}catch(_){return false}}
-function radioTypeLabel(type){return type==='youtube'?'فيديو YouTube':type==='video'?'فيديو خارجي':'راديو أو صوت مباشر'}
-function updateRadioSourceUi(){
- const type=normalizedRadioType($('#radioAdminType')?.value||config.radio.sourceType);
- const label=$('#radioAdminSourceLabel'),input=$('#radioAdminSource');
- if(label)label.textContent=type==='youtube'?'رابط فيديو YouTube أو البث المباشر':type==='video'?'رابط فيديو خارجي مباشر':'رابط راديو أو صوت مباشر';
- if(input)input.placeholder=type==='youtube'?'https://www.youtube.com/watch?v=...':type==='video'?'https://.../video.mp4':'https://.../stream.mp3';
-}
-function validateRadioAdminSource(showMessage=true){
- const type=normalizedRadioType($('#radioAdminType')?.value||config.radio.sourceType);
- const source=String($('#radioAdminSource')?.value||'').trim();
- let error='';
- if(!source)error='ضع رابط البث أولاً.';
- else if(type==='youtube'&&!youtubeIdFromUrl(source))error='رابط YouTube غير صحيح.';
- else if(type!=='youtube'&&!isExternalHttpsUrl(source))error='يجب أن يكون الرابط خارجياً وآمناً ويبدأ بـ https://';
- if(error&&showMessage)toast(error);
- return error?'':source;
-}
 function renderRadioAdmin(){
- config.radio.sourceType=normalizedRadioType(config.radio.sourceType);
- $('#radioAdminTitle').value=config.radio.title||'راديو ريفو';
- $('#radioAdminType').value=config.radio.sourceType;
- $('#radioAdminSource').value=config.radio.source||'';
+ $('#radioAdminTitle').value=config.radio.title;
+ $('#radioAdminSource').value=config.radio.source;
  $('#radioAdminScope').value=config.radio.scope;
  populateRoomSelect('#radioAdminRoom',config.radio.roomId);
  $('#radioAdminRoomField').classList.toggle('hidden',config.radio.scope!=='room');
- updateRadioSourceUi();renderRadioState();
+ renderRadioState();
 }
 function updateRadioFromForm(){
  config.radio.title=$('#radioAdminTitle').value.trim()||'راديو ريفو';
- config.radio.sourceType=normalizedRadioType($('#radioAdminType').value);
- config.radio.source=$('#radioAdminSource').value.trim();
+ config.radio.source=$('#radioAdminSource').value.trim()||'assets/audio/rivo-radio-demo.wav';
  config.radio.scope=$('#radioAdminScope').value;
  config.radio.roomId=$('#radioAdminRoom').value||'general';
 }
-let radioStatusBusy=false;
-async function setRadioStatus(status){
- if(radioStatusBusy)return;
- updateRadioFromForm();
- if(status==='playing'&&!validateRadioAdminSource(true))return;
- const previous=structuredClone(config.radio);
- if(status==='playing')config.radio.startedAt=Date.now();
- config.radio.status=status;
- const stateBox=$('#radioAdminState');
- radioStatusBusy=true;
- ['#radioStartBtn','#radioPauseBtn','#radioStopBtn'].forEach(selector=>{const button=$(selector);if(button)button.disabled=true});
- if(stateBox){stateBox.className='bigStatus';stateBox.textContent=status==='playing'?'جاري تشغيل البث ونشره للمستخدمين…':status==='paused'?'جاري إيقاف البث مؤقتاً…':'جاري إيقاف البث…'}
- try{
-  if(!persistAdminConfig())throw new Error('تعذر حفظ إعدادات البث في المتصفح.');
-  // تظهر المعاينة فوراً داخل لوحة الإدارة.
-  sendConfigLive();
-  const serial=++remoteSaveSerial;
-  const snapshot=structuredClone(config);
-  const saved=await saveRemoteAdminConfig(snapshot,serial);
-  if(!saved)throw new Error('لم يتم حفظ البث على الخادم. سجّل دخول المالك ثم حاول مرة أخرى.');
-  addLog(status==='playing'?'بدأ بث الراديو أو الفيديو':status==='paused'?'تم إيقاف البث مؤقتاً':'تم إيقاف البث بالكامل');
-  const label=$('#lastSavedLabel');if(label)label.textContent='حفظ سحابي: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
-  renderRadioState();renderOverview();
-  toast(status==='playing'?'تم نشر البث للمستخدمين':status==='paused'?'تم إيقاف البث مؤقتاً':'تم إيقاف البث بالكامل');
- }catch(error){
-  config.radio=previous;
-  persistAdminConfig();sendConfigLive();renderRadioAdmin();
-  setServerSyncState('فشل تشغيل البث','error');
-  toast(error?.message||'تعذر تشغيل البث');
- }finally{
-  radioStatusBusy=false;
-  ['#radioStartBtn','#radioPauseBtn','#radioStopBtn'].forEach(selector=>{const button=$(selector);if(button)button.disabled=false});
- }
+function setRadioStatus(status){
+ updateRadioFromForm();config.radio.status=status;saveConfig(status==='playing'?'بدأ بث الراديو':status==='paused'?'تم إيقاف الراديو مؤقتاً':'تم إيقاف الراديو');renderRadioState();
 }
 function renderRadioState(){
  const box=$('#radioAdminState'),r=config.radio;
  box.className='bigStatus '+r.status;
- const type=radioTypeLabel(normalizedRadioType(r.sourceType));
- box.textContent=r.status==='playing'?`يبث الآن: ${r.title} · ${type} — ${r.scope==='all'?'جميع الغرف':roomById(r.roomId)?.name}`:r.status==='paused'?`متوقف مؤقتاً: ${r.title}`:'لا يوجد بث الآن.';
-}
-async function testRadioAdminSource(){
- const source=validateRadioAdminSource(true);if(!source)return;
- const type=normalizedRadioType($('#radioAdminType').value),button=$('#radioTestBtn');
- if(radioAdminTestAudio){radioAdminTestAudio.pause();radioAdminTestAudio.src='';radioAdminTestAudio=null;if(button)button.textContent='اختبار الرابط';return}
- if(type==='youtube'){
-  const id=youtubeIdFromUrl(source);window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`,'_blank','noopener');toast('تم فتح فيديو YouTube للاختبار');return;
- }
- if(type==='video'){window.open(source,'_blank','noopener');toast('تم فتح رابط الفيديو للاختبار');return}
- const audio=new Audio();radioAdminTestAudio=audio;audio.preload='none';audio.volume=.55;audio.src=source;
- if(button)button.textContent='إيقاف الاختبار';
- const reset=()=>{if(radioAdminTestAudio===audio)radioAdminTestAudio=null;if(button)button.textContent='اختبار الرابط'};
- audio.onended=reset;audio.onerror=()=>{reset();toast('تعذر تشغيل رابط الصوت. تحقق من رابط البث الحقيقي.')};
- try{await audio.play();toast('الرابط يعمل، بدأ صوت الاختبار عندك فقط.')}catch(_){reset();toast('تعذر تشغيل الرابط. قد تمنع المحطة التشغيل داخل المواقع.')}
+ box.textContent=r.status==='playing'?`يبث الآن: ${r.title} — ${r.scope==='all'?'جميع الغرف':roomById(r.roomId)?.name}`:r.status==='paused'?`متوقف مؤقتاً: ${r.title}`:'لا يوجد بث الآن.';
 }
 function renderPrivateAdmin(){
  $('#privateEnabledAdmin').checked=config.private.enabled;
@@ -1859,7 +1744,6 @@ function bind(){
 
  $$('.adminNav button').forEach(b=>b.onclick=()=>showSection(b.dataset.section));
  $$('[data-jump]').forEach(b=>b.onclick=()=>showSection(b.dataset.jump));
- initRadioAdminWindow();
  if($('#resetAdminDataBtn')) $('#resetAdminDataBtn').onclick=resetAdminData;
  $('#saveAllBtn').onclick=saveAll;
  if($('#compactSettingsBtn')) $('#compactSettingsBtn').onclick=toggleSettingsColumn;
@@ -1880,10 +1764,10 @@ function bind(){
    sendCamerasLive();
  });
  window.addEventListener('resize',fitChatPreview);
- $('#radioAdminTitle').addEventListener('input',applyRadioWindowDraft);
- $('#radioAdminSource').addEventListener('input',()=>{syncRadioTypeFromSource();applyRadioWindowDraft()});
- $('#radioAdminScope').addEventListener('change',applyRadioWindowDraft);
- $('#radioAdminRoom').addEventListener('change',applyRadioWindowDraft);
+ $('#radioAdminTitle').addEventListener('input',applyActiveSectionDraft);
+ $('#radioAdminSource').addEventListener('input',applyActiveSectionDraft);
+ $('#radioAdminScope').addEventListener('change',applyActiveSectionDraft);
+ $('#radioAdminRoom').addEventListener('change',applyActiveSectionDraft);
  $('#section-rooms').addEventListener('input',e=>{if(e.target.id!=='roomAdminSearch')applyActiveSectionDraft()});
  $('#section-rooms').addEventListener('change',e=>{if(e.target.id!=='roomAdminSearch')applyActiveSectionDraft()});
  $('#section-private').addEventListener('change',applyActiveSectionDraft);
@@ -1893,6 +1777,11 @@ function bind(){
  $('#section-security').addEventListener('change',applyActiveSectionDraft);
  $('#section-economy').addEventListener('input',applyActiveSectionDraft);
  $('#section-economy').addEventListener('change',applyActiveSectionDraft);
+ if($('#ownerShowAdminBtn'))$('#ownerShowAdminBtn').onclick=()=>setOwnerAdminVisibility(true);
+ if($('#ownerHideAdminBtn'))$('#ownerHideAdminBtn').onclick=()=>setOwnerAdminVisibility(false);
+ if($('#ownerEnterCrownOnlyBtn'))$('#ownerEnterCrownOnlyBtn').onclick=()=>applyOwnerAdminIdentity(true);
+ if($('#ownerEnterNamedBtn'))$('#ownerEnterNamedBtn').onclick=()=>applyOwnerAdminIdentity(false);
+ if($('#ownerAdminDisplayName'))$('#ownerAdminDisplayName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyOwnerAdminIdentity(false)}});
  $('#roomAdminSearch').oninput=renderRoomsAdmin;
  $('#saveRoomBtn').onclick=saveRoom;$('#addRoomBtn').onclick=addRoom;$('#deleteRoomBtn').onclick=deleteRoom;
  $('#userAdminSearch').oninput=renderUsersAdmin;$('#userRoleFilter').onchange=renderUsersAdmin;
@@ -1908,8 +1797,7 @@ function bind(){
  $('#closeAllCamerasAdmin').onclick=closeAllCameras;
  if($('#closeAllMicsAdmin')) $('#closeAllMicsAdmin').onclick=closeAllMics;
  $('#radioAdminScope').onchange=()=>{$('#radioAdminRoomField').classList.toggle('hidden',$('#radioAdminScope').value!=='room')};
- $('#radioAdminType').onchange=()=>{updateRadioSourceUi();applyRadioWindowDraft()};
- $('#radioTestBtn').onclick=testRadioAdminSource;
+ $('#radioDemoBtn').onclick=()=>{$('#radioAdminTitle').value='موسيقى ريفو التجريبية';$('#radioAdminSource').value='assets/audio/rivo-radio-demo.wav';toast('تم اختيار المقطع التجريبي')};
  $('#radioStartBtn').onclick=()=>setRadioStatus('playing');$('#radioPauseBtn').onclick=()=>setRadioStatus('paused');$('#radioStopBtn').onclick=()=>setRadioStatus('stopped');
  $('#savePrivateBtn').onclick=savePrivate;if($('#savePermissionsBtn'))$('#savePermissionsBtn').onclick=savePermissions;$('#saveEconomyBtn').onclick=saveEconomy;
  $('#announcementAdminScope').onchange=()=>$('#announcementRoomField').classList.toggle('hidden',$('#announcementAdminScope').value!=='room');

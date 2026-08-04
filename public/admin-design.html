@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=178">
+<link rel="stylesheet" href="admin-design.css?v=185">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -12,7 +12,7 @@
 <header class="adminTopbar">
   <div class="adminBrand">
     <span>R</span>
-    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v53</small></div>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v55</small></div>
   </div>
   <div class="adminTopActions">
     <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
@@ -35,6 +35,7 @@
 
     <nav class="adminNav adminNavV21">
       <button class="active" data-section="overview">📊 نظرة عامة</button>
+      <button data-section="adminsettings">👑 إعدادات الإدارة</button>
       <button data-section="rooms">🏠 الغرف</button>
       <button data-section="users">👥 المستخدمون</button>
       <button data-section="avatars">🖼️ صور الدخول</button>
@@ -83,6 +84,51 @@
           </div>
         </article>
       </div>
+    </section>
+
+    <section id="section-adminsettings" class="adminSection">
+      <div class="sectionHeading">
+        <div><h1>إعدادات الإدارة 👑</h1><p>اختر ظهور الإدارة والاسم الذي يظهر للزوار، أو ادخل بالتاج فقط من دون اسم.</p></div>
+        <span id="ownerAdminConnectionState" class="ownerAdminConnectionState">بانتظار اتصال الدردشة…</span>
+      </div>
+
+      <article class="adminCard ownerAdminSettingsCard">
+        <div class="ownerAdminPreviewBox">
+          <div id="ownerAdminPreviewCrown" class="ownerAdminPreviewCrown">👑</div>
+          <div>
+            <small>معاينة ظهورك في الدردشة</small>
+            <b id="ownerAdminPreviewName">الإدارة</b>
+            <span id="ownerAdminPreviewVisibility">ظاهر للمستخدمين</span>
+          </div>
+        </div>
+
+        <div class="ownerAdminControlBlock">
+          <h2>الظهور أو الاختفاء</h2>
+          <p>عند اختيار «مخفي» تستطيع متابعة الدردشة والكتابة، لكن اسمك وصورتك لا يظهران في قائمة المستخدمين.</p>
+          <div class="ownerAdminChoiceRow">
+            <button id="ownerShowAdminBtn" type="button" class="ownerAdminChoice active">👁️ ظهور في الدردشة</button>
+            <button id="ownerHideAdminBtn" type="button" class="ownerAdminChoice hiddenChoice">🫥 مخفي عن المستخدمين</button>
+          </div>
+        </div>
+
+        <div class="ownerAdminControlBlock">
+          <h2>الدخول بالتاج فقط</h2>
+          <p>يظهر تاج الإدارة الكبير 👑 من دون أي اسم قربه.</p>
+          <button id="ownerEnterCrownOnlyBtn" type="button" class="ownerEnterModeBtn crownOnlyBtn">👑 ادخل بدون اسم — التاج فقط</button>
+        </div>
+
+        <div class="ownerAdminControlBlock">
+          <h2>الدخول باسم مع التاج</h2>
+          <label class="ownerAdminNameLabel" for="ownerAdminDisplayName">اسم الإدارة داخل الدردشة</label>
+          <input id="ownerAdminDisplayName" class="ownerAdminNameInput" maxlength="24" autocomplete="off" placeholder="مثلاً: الإدارة أو طلال">
+          <button id="ownerEnterNamedBtn" type="button" class="ownerEnterModeBtn namedOwnerBtn">حفظ الاسم والدخول مع التاج 👑</button>
+        </div>
+
+        <div class="ownerAdminSettingsFooter">
+          <span id="ownerAdminSaveState">لم يتم إجراء تغيير.</span>
+          <a id="ownerOpenChatBtn" href="index.html" target="_blank" rel="noopener">فتح الدردشة في نافذة جديدة ←</a>
+        </div>
+      </article>
     </section>
 
     <section id="section-rooms" class="adminSection">
@@ -143,37 +189,23 @@
       </article>
     </section>
 
-    <section id="section-radio" class="adminSection radioAdminWindow" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="radioWindowTitle">
-      <header id="radioWindowDragHandle" class="radioWindowHead">
-        <div class="radioWindowTitleBox">
-          <span class="radioWindowIcon">🎵</span>
-          <div><b id="radioWindowTitle">الراديو والأغاني</b><small>نافذة تحكم مستقلة للإدارة فقط</small></div>
+    <section id="section-radio" class="adminSection">
+      <div class="sectionHeading"><div><h1>الراديو والأغاني</h1><p>بث لجميع الغرف أو غرفة محددة.</p></div></div>
+      <article class="adminCard radioControlCard">
+        <div class="formGrid">
+          <label>اسم الأغنية أو المحطة<input id="radioAdminTitle"></label>
+          <label class="fullField">رابط مباشر للصوت<input id="radioAdminSource" dir="ltr" placeholder="https://.../song.mp3"></label>
+          <label>مكان البث<select id="radioAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
+          <label id="radioAdminRoomField">الغرفة<select id="radioAdminRoom"></select></label>
         </div>
-        <div class="radioWindowActions">
-          <button id="radioWindowMinimizeBtn" type="button" title="تصغير النافذة" aria-label="تصغير">—</button>
-          <button id="radioWindowCloseBtn" type="button" title="إغلاق النافذة" aria-label="إغلاق">×</button>
+        <div class="radioAdminButtons">
+          <button id="radioDemoBtn" class="secondaryAdminBtn">استخدام المقطع التجريبي</button>
+          <button id="radioStartBtn" class="primaryAdminBtn">▶ بدء البث</button>
+          <button id="radioPauseBtn" class="secondaryAdminBtn">Ⅱ إيقاف مؤقت</button>
+          <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
         </div>
-      </header>
-      <div class="radioWindowBody">
-        <article class="adminCard radioControlCard">
-          <div class="formGrid">
-            <label>اسم الأغنية أو المحطة<input id="radioAdminTitle" maxlength="80" placeholder="مثلاً: راديو ريفو"></label>
-            <label>نوع البث<select id="radioAdminType"><option value="audio">راديو أو صوت مباشر</option><option value="youtube">فيديو YouTube أو YouTube Live</option><option value="video">رابط فيديو مباشر MP4 / WebM</option></select></label>
-            <label class="fullField"><span id="radioAdminSourceLabel">رابط البث الخارجي</span><input id="radioAdminSource" dir="ltr" inputmode="url" placeholder="https://.../stream.mp3"></label>
-            <label>مكان البث<select id="radioAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
-            <label id="radioAdminRoomField">الغرفة<select id="radioAdminRoom"></select></label>
-          </div>
-          <div class="radioExternalNote">🔒 لا يوجد رفع من اللابتوب ولا تخزين للصوت أو الفيديو على Cloudflare. الزوار يستلمون المحتوى مباشرة من الراديو الخارجي أو YouTube.</div>
-          <div class="radioAdminButtons">
-            <button id="radioTestBtn" class="secondaryAdminBtn">اختبار الرابط</button>
-            <button id="radioStartBtn" class="primaryAdminBtn">▶ بدء البث</button>
-            <button id="radioPauseBtn" class="secondaryAdminBtn">Ⅱ إيقاف مؤقت</button>
-            <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
-          </div>
-          <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
-        <div class="radioBrowserPolicyNote">عند تشغيل فيديو YouTube تظهر نافذته مباشرة. قد يطلب المتصفح من المستخدم الضغط على تشغيل مرة واحدة للسماح بالصوت.</div>
-        </article>
-      </div>
+        <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
+      </article>
     </section>
 
     <section id="section-private" class="adminSection">
@@ -409,8 +441,6 @@
 
 
 
-<button id="radioWindowRestoreBtn" class="radioWindowRestore hidden" type="button">🎵 فتح نافذة الراديو</button>
-
 <div id="entryAvatarManagerModal" class="entryAvatarManagerModal hidden" role="dialog" aria-modal="true" aria-labelledby="entryAvatarManagerTitle">
   <div class="entryAvatarManagerCard">
     <header class="entryAvatarManagerHead">
@@ -481,6 +511,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=178"></script>
+<script src="admin-design.js?v=185"></script>
 </body>
 </html>
