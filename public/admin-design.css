@@ -942,3 +942,9 @@ body.entryAvatarManagerOpen{overflow:hidden}
 .ownerAdminNameLabel{display:block;margin-bottom:7px;font-weight:900}.ownerAdminNameInput{width:100%;box-sizing:border-box;border:1px solid #cad3e3;border-radius:13px;padding:13px 14px;font:inherit;outline:0}.ownerAdminNameInput:focus{border-color:#6650e8;box-shadow:0 0 0 3px rgba(102,80,232,.13)}
 .ownerAdminSettingsFooter{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-top:4px}.ownerAdminSettingsFooter span{color:#697389;font-size:13px;font-weight:800}.ownerAdminSettingsFooter .success{color:#087b49}.ownerAdminSettingsFooter .error{color:#c33948}.ownerAdminSettingsFooter a{border-radius:12px;padding:10px 13px;background:#eff4ff;color:#315cc8;text-decoration:none;font-weight:900}
 @media(max-width:720px){.ownerAdminChoiceRow{grid-template-columns:1fr}.ownerAdminSettingsFooter{align-items:stretch;flex-direction:column}.ownerAdminSettingsFooter a{text-align:center}.ownerAdminPreviewCrown{width:58px;height:58px;font-size:31px}.ownerAdminPreviewBox b{font-size:20px}}
+
+
+/* Rivo v186 — real owner entry into chat */
+.ownerEnterChatNowBtn{width:100%;border:0;border-radius:16px;padding:15px 18px;background:linear-gradient(135deg,#159765,#2f80ed);color:#fff;font-size:17px;font-weight:950;cursor:pointer;box-shadow:0 10px 24px rgba(36,126,171,.18)}
+.ownerEnterChatNowBtn:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.ownerEnterChatNowBtn:active{transform:none}

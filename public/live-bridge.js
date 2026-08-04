@@ -1778,7 +1778,7 @@
     setTimeout(() => syncRemoteAdminSettings(false), 1800);
     if (savedProfile?.avatar) state.entryAvatar = avatarId(savedProfile.avatar);
     renderEntryAvatarChoices();
-    if (restoredIdentity && savedProfile) {
+    if (restoredIdentity && savedProfile && !["owner", "moderator"].includes(restoredIdentity.role || restoredIdentity.type)) {
       restoredIdentity.name = savedProfile.name || restoredIdentity.name;
       restoredIdentity.avatar = avatarId(savedProfile.avatar || restoredIdentity.avatar);
       saveIdentity(restoredIdentity);

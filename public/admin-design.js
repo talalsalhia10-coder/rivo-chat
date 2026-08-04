@@ -42,6 +42,10 @@ let previewExpanded=false;
 let latestUploadedEntryAvatarId=null;
 let selectedEntryAvatarId=null;
 const OWNER_SESSION_KEY='rivo_staff_identity_owner_v1';
+const LIVE_IDENTITY_KEY='rivo_live_identity_v158';
+const LEGACY_LIVE_IDENTITY_KEY='rivo_live_identity_v156';
+const PERSIST_LIVE_IDENTITY_KEY='rivo_live_identity_persistent_v1';
+const ACTIVE_ROOM_KEY='rivo_live_active_room_v1';
 const CROWN_ONLY_NAME='__rivo_crown_only__';
 let ownerSession=null;
 let ownerAdminSettingsState={name:'الإدارة',visible:true,connected:false};
@@ -377,6 +381,47 @@ function connectAdminSocket(force=false){
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;ownerAdminSettingsState.connected=false;renderOwnerAdminSettings();if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
+function buildOwnerChatIdentity(name=ownerAdminSettingsState.name,visible=ownerAdminSettingsState.visible){
+ const session=readOwnerSession();
+ if(!session?.staffSessionToken)return null;
+ const staffId=session.staffClientId||session.staffId||session.clientId||'owner-main';
+ return{
+  type:'owner',role:'owner',name:name||'الإدارة',avatar:'owner',
+  staffSessionToken:session.staffSessionToken,staffClientId:staffId,clientId:staffId,
+  visible:visible!==false,expiresAt:Number(session.expiresAt||session.staffExpiresAt||0)
+ };
+}
+function saveOwnerChatIdentity(identity){
+ if(!identity)return false;
+ const text=JSON.stringify(identity);
+ try{localStorage.setItem(PERSIST_LIVE_IDENTITY_KEY,text)}catch(_){return false}
+ try{sessionStorage.setItem(LIVE_IDENTITY_KEY,text);sessionStorage.removeItem(LEGACY_LIVE_IDENTITY_KEY)}catch(_){ }
+ try{localStorage.setItem(ACTIVE_ROOM_KEY,normalizeLiveRoomId(selectedRoomId))}catch(_){ }
+ return true;
+}
+function reloadChatPreviewAsOwner(){
+ const preview=$('#chatPreview');
+ if(!preview)return false;
+ try{
+  const url=new URL(preview.getAttribute('src')||'index.html',location.href);
+  url.searchParams.set('adminPreview','1');
+  url.searchParams.set('ownerEntry',String(Date.now()));
+  preview.src=url.href;
+  return true;
+ }catch(_){return false}
+}
+function enterOwnerChatNow(name=ownerAdminSettingsState.name,visible=ownerAdminSettingsState.visible,{openWindow=false}={}){
+ const identity=buildOwnerChatIdentity(name,visible);
+ if(!identity){showRemoteAdminLogin('أعد إدخال رمز الإدارة أولاً.');setOwnerAdminStatus('يلزم تسجيل دخول الإدارة قبل فتح الدردشة.','error');return false}
+ if(!saveOwnerChatIdentity(identity)){setOwnerAdminStatus('تعذر حفظ جلسة دخول الإدارة في المتصفح.','error');return false}
+ reloadChatPreviewAsOwner();
+ if(openWindow){
+  const tab=window.open(`index.html?ownerEntry=${Date.now()}`,'_blank','noopener');
+  if(!tab)setOwnerAdminStatus('تم دخول الإدارة داخل المعاينة. المتصفح منع فتح نافذة مستقلة.','success');
+ }
+ setOwnerAdminStatus(identity.name===CROWN_ONLY_NAME?'دخلت إلى الدردشة بالتاج فقط. اكتب الآن من مربع الرسائل في المعاينة.':`دخلت إلى الدردشة باسم ${ownerAdminPublicName(identity.name)||'الإدارة'} مع التاج. اكتب الآن من مربع الرسائل في المعاينة.`,'success');
+ return true;
+}
 function ownerAdminPublicName(value=ownerAdminSettingsState.name){
  const raw=String(value||'').trim();
  return raw===CROWN_ONLY_NAME?'':raw;
@@ -425,6 +470,8 @@ function renderOwnerAdminSettings(){
 function setOwnerAdminVisibility(visible){
  if(!sendAdminCommand('set-staff-visible',{visible:Boolean(visible)}))return false;
  updateLocalOwnerAdminState(ownerAdminSettingsState.name,Boolean(visible));
+ const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,Boolean(visible));
+ if(current)saveOwnerChatIdentity(current);
  setOwnerAdminStatus(visible?'أصبحت الإدارة ظاهرة في الدردشة.':'أصبحت الإدارة مخفية عن المستخدمين.','success');
  return true;
 }
@@ -440,8 +487,8 @@ function applyOwnerAdminIdentity(crownOnly=false){
  const visibilitySent=sendAdminCommand('set-staff-visible',{visible:true});
  if(!nameSent||!visibilitySent)return;
  updateLocalOwnerAdminState(name,true);
- setOwnerAdminStatus(crownOnly?'تم الدخول بالتاج فقط من دون اسم.':'تم حفظ الاسم وظهرت الإدارة مع التاج.','success');
- toast(crownOnly?'تم تفعيل التاج فقط 👑':'تم حفظ اسم الإدارة مع التاج 👑');
+ if(!enterOwnerChatNow(name,true))return;
+ toast(crownOnly?'دخلت إلى الدردشة بالتاج فقط 👑':'دخلت إلى الدردشة باسم الإدارة مع التاج 👑');
 }
 function renderAdminDesignAll(){
  ensureAdminMessageUi();
@@ -1781,6 +1828,8 @@ function bind(){
  if($('#ownerHideAdminBtn'))$('#ownerHideAdminBtn').onclick=()=>setOwnerAdminVisibility(false);
  if($('#ownerEnterCrownOnlyBtn'))$('#ownerEnterCrownOnlyBtn').onclick=()=>applyOwnerAdminIdentity(true);
  if($('#ownerEnterNamedBtn'))$('#ownerEnterNamedBtn').onclick=()=>applyOwnerAdminIdentity(false);
+ if($('#ownerEnterChatNowBtn'))$('#ownerEnterChatNowBtn').onclick=()=>enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+ if($('#ownerOpenChatBtn'))$('#ownerOpenChatBtn').onclick=event=>{event.preventDefault();enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,{openWindow:true})};
  if($('#ownerAdminDisplayName'))$('#ownerAdminDisplayName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyOwnerAdminIdentity(false)}});
  $('#roomAdminSearch').oninput=renderRoomsAdmin;
  $('#saveRoomBtn').onclick=saveRoom;$('#addRoomBtn').onclick=addRoom;$('#deleteRoomBtn').onclick=deleteRoom;
