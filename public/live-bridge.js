@@ -610,6 +610,9 @@
     }
     renderAll();
     syncLiveChrome();
+    if (patch.avatar !== undefined) {
+      try { window.dispatchEvent(new CustomEvent('rivo-avatar-changed', { detail: { userId: clientId, avatar: patch.avatar } })); } catch {}
+    }
   }
 
   function updateProfileLive(patch = {}) {
@@ -627,6 +630,7 @@
       saveIdentity(live.identity);
     }
     saveProfile({ name: nickname, avatar });
+    if (state.user?.id) updateUserPatch(state.user.id, { nickname, avatar });
     if (socketReady()) {
       try { live.socket.send(JSON.stringify({ type: "profile", nickname, avatar })); } catch {}
     }
@@ -634,6 +638,16 @@
     syncLiveChrome();
     return true;
   }
+
+  window.addEventListener('rivo-avatar-changed', (event) => {
+    const detail = event?.detail || {};
+    if (!detail.userId || detail.avatar === undefined) return;
+    const user = state.users.find((item) => String(item.id) === String(detail.userId));
+    if (user) user.avatar = detail.avatar;
+    if (state.user && String(state.user.id) === String(detail.userId)) state.user.avatar = detail.avatar;
+    renderAll();
+    syncLiveChrome();
+  });
 
   function applyBadge(clientId, badge) {
     const user = state.users.find((u) => u.id === clientId);

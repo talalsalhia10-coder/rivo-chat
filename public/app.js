@@ -226,6 +226,17 @@ function restoreLocalProfile(user){
  if(saved&&userAccessRole(user)==='owner'&&Object.prototype.hasOwnProperty.call(saved,'name'))user.name=String(saved.name??'');
  return user;
 }
+function applyAvatarInstantly(userId,avatar){
+ const id=String(userId||'');
+ const next=String(avatar||'guest');
+ if(state.user&&String(state.user.id)===id)state.user.avatar=next;
+ state.users.forEach(u=>{if(String(u.id)===id)u.avatar=next});
+ const directIds=['sideAvatar','composerAvatar','profileAvatar','roomCameraAvatar','entryAvatarPreview'];
+ directIds.forEach(domId=>{const img=$('#'+domId);if(img&&(!id||String(state.user?.id||'')===id))img.src=av(next)});
+ $$('img[data-user-id]').forEach(img=>{if(String(img.dataset.userId||'')===id)img.src=av(next)});
+ try{renderAll()}catch(_){ }
+ try{window.dispatchEvent(new CustomEvent('rivo-avatar-changed',{detail:{userId:id,avatar:next}}))}catch(_){ }
+}
 function persistCurrentUserProfile(){
  if(!state.user||!state.user.id)return;
  const profiles=readLocalProfiles();
@@ -242,6 +253,7 @@ function persistCurrentUserProfile(){
    notifyAdminLive('rivo-admin-config',cfg);
   }
  }
+ applyAvatarInstantly(state.user.id,state.user.avatar);
  try{window.RivoLive?.updateProfile?.({nickname:state.user.name,avatar:state.user.avatar})}catch(_){}
 }
 function cropDiameter(){return avatarEditor.size-avatarEditor.padding*2}
@@ -1936,6 +1948,7 @@ function renderEntryAvatarChoices(){
    if(avatarPickerMode==='profile'&&state.user){
     state.user.avatar=selected;
     const listed=findUser(state.user.id);if(listed)listed.avatar=selected;
+    applyAvatarInstantly(state.user.id,selected);
     persistCurrentUserProfile();
     renderAll();
     close('entryAvatarPickerModal');
