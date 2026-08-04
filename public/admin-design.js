@@ -18,6 +18,11 @@ let adminSocket=null;
 let adminSocketRoom='';
 let adminSocketReconnectTimer=null;
 let adminSocketClosing=false;
+const DEMO_USER_IDS=new Set(['owner','ahmed','samar','ali','noor','mira','guest1']);
+const liveUsersByRoom=new Map();
+const presenceSockets=new Map();
+const presenceReconnectTimers=new Map();
+let presenceSyncStarted=false;
 const badgeBackendMap={free_star:'star',free_shining_star:'galaxy',free_sparkles:'crystal',free_flower:'blossom',free_butterfly:'butterfly',free_heart:'heart',free_fire:'flame',free_medal:'medal'};
 
 const adminFreeBadgeCatalog=[
@@ -102,15 +107,7 @@ const defaultRooms=[
  {id:'turkey',name:'تركيا',icon:'🇹🇷',count:83,cams:2,mics:5,camOn:true,micOn:true,music:true,announcement:'أهلاً بكم في غرفة تركيا.',announcementOn:true},
  {id:'poets',name:'شعراء',icon:'✒️',count:39,cams:1,mics:6,camOn:true,micOn:true,music:false,announcement:'أهلاً بأصحاب الشعر والكلمة الجميلة.',announcementOn:true}
 ];
-const defaultUsers=[
-  {id:'owner',name:'الإدارة',avatar:'owner',room:'general',role:'owner',plan:'owner',authType:'owner',coins:99999,status:'online',vip:true,verified:true},
-  {id:'ahmed',name:'أحمد',avatar:'ahmed',room:'general',role:'user',plan:'user',authType:'google',coins:420,status:'online',vip:false,verified:false},
-  {id:'samar',name:'سمر',avatar:'samar',room:'general',role:'user',plan:'user',authType:'google',coins:280,status:'online',vip:false,verified:false},
-  {id:'ali',name:'علي',avatar:'ali',room:'general',role:'user',plan:'user',authType:'google',coins:150,status:'online',vip:false,verified:false},
-  {id:'noor',name:'نور',avatar:'noor',room:'general',role:'user',plan:'user',authType:'google',coins:520,status:'online',vip:false,verified:false},
-  {id:'mira',name:'ميرا',avatar:'mira',room:'iraq',role:'user',plan:'user',authType:'google',coins:210,status:'online',vip:false,verified:false},
-  {id:'guest1',name:'زائر بغداد',avatar:'guest',room:'general',role:'guest',plan:'guest',authType:'guest',coins:0,status:'online',vip:false,verified:false}
-];
+const defaultUsers=[];
 const defaultGifts=[
  ['kiss','قبلة','💋',5],['heart','قلب حب','❤️',10],['love','أحبك جداً','💞',20],['teddy','دبدوب فاخر','🧸',30],
  ['hearts','غيمة قلوب','💗',50],['ring','خاتم حب','💍',80],['cake','كعكة احتفال','🎂',100],['fireworks','ألعاب نارية','🎆',150],
@@ -142,7 +139,7 @@ function mergeConfig(saved){
   schemaVersion:35,
   ...base,...saved,
   rooms:Array.isArray(saved.rooms)&&saved.rooms.length?saved.rooms:base.rooms,
-  users:migrateUsers?base.users:(Array.isArray(saved.users)&&saved.users.length?saved.users:base.users),
+  users:migrateUsers?[]:(Array.isArray(saved.users)?saved.users.filter(user=>!DEMO_USER_IDS.has(String(user?.id||''))):[]),
   entryAvatars:normalizeEntryAvatars(saved.entryAvatars||base.entryAvatars),
   private:{...base.private,...(saved.private||{})},
   radio:{...base.radio,...(saved.radio||{})},
@@ -243,25 +240,72 @@ function closeAdminSocket(){
  setTimeout(()=>{adminSocketClosing=false},0);
 }
 function sendAdminCommand(action,payload={}){
- if(!adminSocket||adminSocket.readyState!==WebSocket.OPEN){toast('انتظر اتصال لوحة الإدارة بالدردشة');connectAdminSocket(true);return false}
- adminSocket.send(JSON.stringify({type:'admin-command',action,...payload}));return true;
+ let socket=adminSocket;
+ if(payload?.clientId){
+  const target=config.users.find(user=>user.id===payload.clientId);
+  const roomKey=normalizeLiveRoomId(target?.room||selectedRoomId);
+  const roomSocket=presenceSockets.get(roomKey);
+  if(roomSocket?.readyState===WebSocket.OPEN)socket=roomSocket;
+ }
+ if(!socket||socket.readyState!==WebSocket.OPEN){toast('انتظر اتصال لوحة الإدارة بالدردشة');connectAdminSocket(true);syncPresenceSockets(true);return false}
+ socket.send(JSON.stringify({type:'admin-command',action,...payload}));return true;
 }
 function mapLiveAdminUser(user,roomId){
  const role=user.role==='owner'?'owner':user.role==='moderator'?'moderator':user.isGuest?'guest':'user';
  const existing=config.users.find(item=>item.id===user.clientId)||{};
  return{...existing,id:user.clientId,name:user.nickname||'مستخدم',avatar:user.avatar||'guest',room:roomId,role,plan:role==='owner'?'owner':role==='moderator'?'moderator':user.isVip?'vip':role==='guest'?'guest':'user',authType:role==='guest'?'guest':role==='owner'?'owner':role==='moderator'?'moderator':'google',coins:Number(existing.coins||0),status:'online',vip:Boolean(user.isVip),verified:Boolean(user.verified),isHidden:user.adminVisible===false,micBlocked:Boolean(user.micBlocked),privateBlocked:Boolean(user.privateBlocked),badge:user.badge||''};
 }
-function applyAdminSocketState(data){
+function uiRoomId(id){return normalizeLiveRoomId(id)==='lobby'?'general':normalizeLiveRoomId(id)}
+function cleanConfiguredUsers(users=[]){return users.filter(user=>user&&!DEMO_USER_IDS.has(String(user.id||'')))}
+function rebuildUsersFromLivePresence(){
+ const live=[];
+ for(const roomUsers of liveUsersByRoom.values())for(const user of roomUsers)live.push(user);
+ const liveIds=new Set(live.map(user=>user.id));
+ const preserved=cleanConfiguredUsers(config.users).filter(user=>['owner','moderator'].includes(userAccessRole(user))&&!liveIds.has(user.id)).map(user=>({...user,status:'offline'}));
+ const unique=new Map();
+ for(const user of [...preserved,...live])unique.set(user.id,user);
+ config.users=[...unique.values()];
+ for(const room of config.rooms){room.count=(liveUsersByRoom.get(room.id)||[]).length}
+}
+function closePresenceSocket(roomKey){
+ const socket=presenceSockets.get(roomKey);
+ if(socket){try{socket.close()}catch(_){}}
+ presenceSockets.delete(roomKey);
+ clearTimeout(presenceReconnectTimers.get(roomKey));
+ presenceReconnectTimers.delete(roomKey);
+}
+function connectPresenceSocket(roomKey,force=false){
+ const session=readOwnerSession();if(!session)return;
+ const backendRoom=normalizeLiveRoomId(roomKey);
+ const existing=presenceSockets.get(backendRoom);
+ if(!force&&existing&&existing.readyState<=WebSocket.OPEN)return;
+ closePresenceSocket(backendRoom);
+ const protocol=location.protocol==='https:'?'wss:':'ws:';
+ const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:`presence-${session.staffClientId||session.staffId||'owner'}-${backendRoom}`,visible:'0'});
+ const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(backendRoom)}/admin-ws?${params}`);
+ presenceSockets.set(backendRoom,socket);
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true)};
+ socket.onclose=()=>{if(presenceSockets.get(backendRoom)!==socket)return;presenceSockets.delete(backendRoom);clearTimeout(presenceReconnectTimers.get(backendRoom));presenceReconnectTimers.set(backendRoom,setTimeout(()=>connectPresenceSocket(backendRoom,true),2200))};
+ socket.onerror=()=>{};
+}
+function syncPresenceSockets(force=false){
+ const wanted=new Set(config.rooms.filter(room=>room.enabled!==false).map(room=>normalizeLiveRoomId(room.id)));
+ for(const key of [...presenceSockets.keys()])if(!wanted.has(key))closePresenceSocket(key);
+ for(const key of wanted)connectPresenceSocket(key,force);
+ presenceSyncStarted=true;
+}
+function applyAdminSocketState(data,sourceRoomId=selectedRoomId,fromPresenceSocket=false){
  if(Array.isArray(data.roomCatalog)&&data.roomCatalog.length){
   const old=new Map(config.rooms.map(room=>[normalizeLiveRoomId(room.id),room]));
   config.rooms=data.roomCatalog.map((room,index)=>({...(old.get(room.id)||{}),id:room.id==='lobby'?'general':room.id,name:room.name||room.id,icon:(old.get(room.id)||{}).icon||'💬',order:Number(room.order??index),enabled:room.enabled!==false,cams:Number((old.get(room.id)||{}).cams||0),mics:Number((old.get(room.id)||{}).mics||4),camOn:(old.get(room.id)||{}).camOn!==false,micOn:(old.get(room.id)||{}).micOn!==false,music:(old.get(room.id)||{}).music!==false,announcement:(old.get(room.id)||{}).announcement||'',announcementOn:(old.get(room.id)||{}).announcementOn!==false}));
   if(!roomById(selectedRoomId))selectedRoomId=config.rooms[0]?.id||'general';
+  queueMicrotask(()=>syncPresenceSockets(false));
  }
  if(Array.isArray(data.users)){
-  const currentRoom=selectedRoomId;
-  const liveIds=new Set(data.users.map(user=>user.clientId));
-  const other=config.users.filter(user=>user.room!==currentRoom&&!liveIds.has(user.id));
-  config.users=[...other,...data.users.map(user=>mapLiveAdminUser(user,currentRoom))];
+  const currentRoom=uiRoomId(sourceRoomId);
+  const mapped=data.users.map(user=>mapLiveAdminUser(user,currentRoom));
+  liveUsersByRoom.set(currentRoom,mapped);
+  rebuildUsersFromLivePresence();
   for(const user of data.users){if(user.badge){activeAdminSessionBadges[user.clientId]={id:user.badge,name:'شارة',icon:({'star':'⭐','galaxy':'🌟','crystal':'✨','blossom':'🌸','butterfly':'🦋','heart':'💖','flame':'🔥','medal':'🏅','diamond':'💎','ruby':'♦️','emerald':'💚','rose':'🌹','moon':'🌙','pinkHeart':'💗','wings':'🪽'})[user.badge]||'🎁'}}}
  }
  if(Array.isArray(data.logs)&&data.logs.length){
@@ -279,7 +323,7 @@ function connectAdminSocket(force=false){
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
  socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
@@ -492,7 +536,7 @@ function resendAdminSessionBadges(){
 
 function renderCommunityPanel(){normalizeAdminData();
  const q=($('#communitySearchInput')?.value||'').trim();
- const users=sortAdminUsersByHierarchy(config.users.filter(u=>u.status!=='kicked'&&String(u.name||'').includes(q)));
+ const users=sortAdminUsersByHierarchy(config.users.filter(u=>['online','muted'].includes(u.status)&&u.status!=='kicked'&&String(u.name||'').includes(q)));
  const rooms=config.rooms.filter(r=>r.name.includes(q));
 
  $('#communityUsersCount').textContent=users.filter(u=>u.status==='online'||u.status==='muted').length;
@@ -552,7 +596,7 @@ function toggleSettingsColumn(){
 
 function normalizeAdminData(){
  if(!Array.isArray(config.rooms)||config.rooms.length===0)config.rooms=structuredClone(defaultRooms);
- if(!Array.isArray(config.users)||config.users.length===0)config.users=structuredClone(defaultUsers);
+ if(!Array.isArray(config.users))config.users=[];config.users=cleanConfiguredUsers(config.users);
  config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
  config.rooms=config.rooms.filter(Boolean).map((r,index)=>({
    id:r.id||`room_${index}`,
@@ -1465,6 +1509,7 @@ async function bootstrapAdminDesign(){
  normalizeAdminData();bind();renderAdminDesignAll();
  ownerSession=readOwnerSession();
  if(!ownerSession){setServerSyncState('يلزم دخول المالك','error');showRemoteAdminLogin();return}
- try{await loadRemoteAdminConfig();renderAdminDesignAll();connectAdminSocket(true)}catch(error){console.error(error);setServerSyncState('تعذر ربط الخادم','error');toast(error.message||'تعذر ربط لوحة الإدارة')}
+ try{await loadRemoteAdminConfig();normalizeAdminData();renderAdminDesignAll();connectAdminSocket(true);syncPresenceSockets(true)}catch(error){console.error(error);setServerSyncState('تعذر ربط الخادم','error');toast(error.message||'تعذر ربط لوحة الإدارة')}
 }
+window.addEventListener('beforeunload',()=>{for(const key of [...presenceSockets.keys()])closePresenceSocket(key)});
 bootstrapAdminDesign();
