@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=158">
+<link rel="stylesheet" href="styles.css?v=161">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -65,7 +65,7 @@
 
 <audio id="globalRadioAudio" preload="metadata" loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v158</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v161</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -143,7 +143,6 @@
 
 <div id="profileModal" class="modal hidden"><div class="card profile"><button class="close" data-close="profileModal">×</button><div class="cover"></div><img id="profileAvatar" class="profileAvatar"><h2 id="profileName"></h2><div id="profileBadges" class="badges"></div><p id="profileBio"></p><div class="stats"><div><b id="profileGiftValue"></b><small>قيمة الهدايا</small></div><div><b id="profileFriends"></b><small>الأصدقاء</small></div><div><b id="profileLevel"></b><small>المستوى</small></div></div><div class="profileActions"><button id="profileAvatarEdit" class="secondary hidden">تغيير الصورة</button><button id="profileGift">إرسال هدية</button><button id="profileDm">رسالة خاصة</button><button id="profileCoins" class="profileCoinsBtn">إرسال عملات ذهبية</button></div></div></div>
 
-<div id="avatarEditorModal" class="modal hidden"><div class="card avatarEditorCard"><button class="close" data-close="avatarEditorModal">×</button><h2>تعديل الصورة الشخصية</h2><p>ارفع صورة من جهازك، وسيتم قصها بشكل دائري تلقائياً. يمكنك سحب الصورة وتكبيرها حتى يتركز الوجه داخل الدائرة.</p><input id="avatarUploadInput" class="avatarUploadInput" type="file" accept="image/*"><div class="avatarCropStage"><canvas id="avatarCropCanvas" width="320" height="320" aria-label="معاينة قص الصورة"></canvas></div><label class="avatarZoomLabel"><span>التكبير</span><input id="avatarZoomRange" type="range" min="100" max="300" value="100"></label><div class="avatarEditorActions"><button id="avatarEditorCancel" class="secondary">إلغاء</button><button id="avatarEditorSave" class="primary">حفظ الصورة</button></div><small class="hint">إذا كانت الصورة تحتوي على كتابة، اسحب الصورة أو كبّرها ليبقى الوجه فقط داخل الدائرة.</small></div></div>
 
 
 <div id="roleGiftModal" class="modal hidden"><div class="card wide roleGiftControl"><button class="close" data-close="roleGiftModal">×</button><div class="roleGiftHeader"><div><small>لوحة التحكم الخاصة برتبتك</small><h2 id="roleGiftRole">VIP 💎</h2><p id="roleGiftHint"></p></div><div id="activeRoleGift" class="activeRoleGift"></div></div><div id="roleGiftChoices" class="roleGiftChoices"></div><button id="clearRoleGiftBtn" class="secondary clearRoleGiftBtn">إزالة الهدية من قرب اسمي</button><div class="roleGiftSessionNote">تظهر هدية واحدة فقط، وتبقى أثناء التنقل بين الغرف، وتختفي تلقائياً عند خروج المستخدم من الموقع.</div></div></div>
@@ -288,15 +287,15 @@
 <div id="giftOverlay" class="giftOverlay hidden"><div class="giftScene"><div id="giftVisual" class="giftVisual">🧸</div><div class="giftText"><b id="giftSender"></b><span>أرسل إلى</span><b id="giftReceiver"></b><strong id="giftName"></strong></div></div></div>
 <video id="localVideo" class="hidden" autoplay muted playsinline></video>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="./google-config.js?v=158"></script>
-<script src="./google-auth.js?v=158"></script>
-<script src="./relay-audio.js?v=158"></script>
-<script src="app.js?v=158"></script>
-<script src="./live-bridge.js?v=158"></script>
+<script src="./google-config.js?v=161"></script>
+<script src="./google-auth.js?v=161"></script>
+<script src="./relay-audio.js?v=161"></script>
+<script src="app.js?v=161"></script>
+<script src="./live-bridge.js?v=161"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=158").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=161").catch(() => {});
   });
 }
 </script>

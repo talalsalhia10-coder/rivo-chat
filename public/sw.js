@@ -1,16 +1,16 @@
-const RELEASE = "158-session-connection-ui-fix";
+const RELEASE = "161-admin-avatars-all-accounts";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=158",
-  "./app.js?v=158",
-  "./live-bridge.js?v=158",
-  "./google-config.js?v=158",
-  "./google-auth.js?v=158",
-  "./relay-audio.js?v=158",
+  "./styles.css?v=161",
+  "./app.js?v=161",
+  "./live-bridge.js?v=161",
+  "./google-config.js?v=161",
+  "./google-auth.js?v=161",
+  "./relay-audio.js?v=161",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
