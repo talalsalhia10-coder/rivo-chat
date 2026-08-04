@@ -2699,6 +2699,11 @@ export class ChatRoom extends DurableObject {
 
     if (data.type !== "chat") return;
 
+    if (["owner", "moderator"].includes(session.role) && session.adminVisible === false) {
+      this.safeSend(ws, { type: "error", message: "أنت في وضع المراقبة المخفية. أظهر حسابك أولاً للكتابة." });
+      return;
+    }
+
     const now = Date.now();
     const body = cleanText(data.body, MAX_MESSAGE_LENGTH);
     const color = cleanMessageColor(data.color);
@@ -3241,9 +3246,10 @@ export class ChatRoom extends DurableObject {
     }
 
     if (action === "update-staff-avatar") {
-      const allowed = new Set(["lina","girl2","girl3","girl4","man1","avatar6","avatar7"]);
-      const avatar = cleanText(data.avatar, 30);
-      if (!allowed.has(avatar)) return;
+      const allowed = new Set(["owner","lina","girl2","girl3","girl4","man1","avatar6","avatar7","entry1","entry2","entry3","entry4","entry5","entry6"]);
+      const avatar = cleanText(data.avatar, 40).toLowerCase();
+      const managedEntryAvatar = /^entry_avatar_[a-z0-9_-]{1,27}$/.test(avatar);
+      if (!allowed.has(avatar) && !managedEntryAvatar) return;
       this.setStaffPreference(session.role, session.staffClientId, { avatar });
 
       for (const socket of this.ctx.getWebSockets()) {
