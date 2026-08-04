@@ -257,17 +257,26 @@ async function authenticateGoogleCredential(credential, env) {
     return { error: "Google login is not configured on the server.", status: 503 };
   }
 
-  const response = await fetch("https://oauth2.googleapis.com/tokeninfo", {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "content-type": "application/x-www-form-urlencoded;charset=UTF-8"
-    },
-    body: new URLSearchParams({ id_token: credential })
-  });
+  let response;
+  try {
+    const tokenUrl = new URL("https://oauth2.googleapis.com/tokeninfo");
+    tokenUrl.searchParams.set("id_token", credential);
+    response = await fetch(tokenUrl.toString(), {
+      method: "GET",
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(10000)
+    });
+  } catch (error) {
+    return {
+      error: error?.name === "TimeoutError"
+        ? "تأخر اتصال Google. أعد المحاولة."
+        : "تعذر الاتصال بخدمة التحقق من Google.",
+      status: 503
+    };
+  }
   const info = await response.json().catch(() => ({}));
 
-  if (!response.ok || info.aud !== env.GOOGLE_CLIENT_ID || !info.sub) {
+  if (!response.ok || String(info.aud || "") !== String(env.GOOGLE_CLIENT_ID || "").trim() || !info.sub) {
     return { error: "تعذر التحقق من حساب Google.", status: 401 };
   }
 
@@ -348,7 +357,7 @@ export default {
       return json({
         ok: true,
         service: "rivo-group-chat",
-        version: "155.0.0",
+        version: "156.0.0",
         googleLoginConfigured: Boolean(env.GOOGLE_CLIENT_ID && env.SESSION_SECRET),
         time: new Date().toISOString()
       });

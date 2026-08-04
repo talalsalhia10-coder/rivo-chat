@@ -547,7 +547,7 @@ function handleAdminLiveMessage(message){
 
 const emojis=['😀','😍','😂','🥰','😎','😭','🤔','😮','🥳','❤️','💞','💋','🧸','🎂','🎆','🌹','🔥','👏','👍','🫶','✨','💜','💙','💚','🪙','💎','🐅','🦁','🏎️','🛥️','✈️','🐉','🌌','😊','😉','🙌','🎉','💐','☕','🍰','🎈','🤍'];
 const colors=['#111827','#dc2626','#ef4444','#f97316','#eab308','#16a34a','#059669','#0891b2','#2563eb','#4f46e5','#7c3aed','#9333ea','#db2777','#be123c','#6b7280','#000000','#8b4513','#0f766e'];
-function room(){return state.rooms.find(r=>r.id===state.room)} function findUser(id){return state.users.find(u=>u.id===id)||(state.user?.id===id?state.user:null)}
+function room(){return state.rooms.find(r=>r.id===state.room)||state.rooms[0]||{id:"lobby",name:"العامة",count:0,cams:0,mics:0,camOn:false,micOn:false,music:false,announcement:"",announcementOn:false}} function findUser(id){return state.users.find(u=>u.id===id)||(state.user?.id===id?state.user:null)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function userAccessRole(u=state.user||{}){
  if(u.role==='owner')return'owner';

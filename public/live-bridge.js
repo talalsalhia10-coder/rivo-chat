@@ -3,9 +3,9 @@
 
   if (new URLSearchParams(location.search).has("demo")) return;
 
-  const LIVE_IDENTITY_KEY = "rivo_live_identity_v155";
+  const LIVE_IDENTITY_KEY = "rivo_live_identity_v156";
   const BADGE_TOKEN_KEY = "rivo_badge_session_token_v1";
-  const PROFILE_KEY = "rivo_live_profile_v155";
+  const PROFILE_KEY = "rivo_live_profile_v156";
   const DEVICE_KEY = "rivo_guest_device_v1";
   const OWNER_STORAGE_KEY = "rivo_staff_identity_owner_v1";
   const MOD_STORAGE_KEY = "rivo_staff_identity_moderator_v1";
@@ -255,8 +255,12 @@
     try {
       const response = await fetch("/api/rooms", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok || !Array.isArray(data.rooms)) throw new Error(data.error || "تعذر تحميل الغرف");
-      state.rooms = data.rooms.map(mapRoom);
+      if (!response.ok || !Array.isArray(data.rooms) || data.rooms.length === 0) {
+        throw new Error(data.error || "لم تُرجع الخدمة أي غرفة متاحة");
+      }
+      const mappedRooms = data.rooms.map(mapRoom).filter((room) => room?.id);
+      if (!mappedRooms.length) throw new Error("قائمة الغرف فارغة");
+      state.rooms = mappedRooms;
       if (preferAssigned && data.assignedRoom?.id) live.roomId = data.assignedRoom.id;
       if (!state.rooms.some((r) => r.id === live.roomId)) live.roomId = state.rooms[0]?.id || "lobby";
       state.room = live.roomId;
@@ -699,25 +703,28 @@
     }
     open("googleAuthModal");
     status.textContent = "جاري تجهيز تسجيل Google…";
-    const render = () => {
-      if (!window.google?.accounts?.id) {
-        setTimeout(render, 250);
-        return;
-      }
-      window.RivoGoogleAuth.renderButton(
+    const render = async () => {
+      const ok = await window.RivoGoogleAuth.renderButton(
         mount,
         (session) => finishGoogleLogin(session, profile),
-        (message) => { status.textContent = message || "فشل تسجيل Google"; }
+        (message) => {
+          status.textContent = message || "فشل تسجيل Google";
+          status.classList.add("googleLoginError");
+        },
+        (message) => {
+          status.textContent = message || "جاري تسجيل الدخول…";
+          status.classList.remove("googleLoginError");
+        }
       );
-      status.textContent = "اختر حساب Google للمتابعة";
-      live.googlePrepared = true;
+      live.googlePrepared = Boolean(ok);
     };
-    window.RivoGoogleAuth.ensureConfig().finally(render);
+    render();
     return true;
   }
 
   async function finishGoogleLogin(session, profile) {
-    close("googleAuthModal");
+    const status = byId("googleLoginStatus");
+    if (status) status.textContent = "تم تسجيل الدخول، جاري فتح الدردشة…";
     const identity = {
       type: "google", role: "user", name: profile.name, avatar: profile.avatar,
       authToken: session.sessionToken, clientId: session.googleUid, visible: true,
@@ -726,6 +733,7 @@
     saveProfile(profile);
     saveIdentity(identity);
     await fetchRooms(true);
+    close("googleAuthModal");
     hideEntryScreen();
     connect(live.roomId);
   }
@@ -985,8 +993,16 @@
       renderEntryAvatarChoices();
     }
     await fetchRooms(false);
-    renderAll();
-    syncLiveChrome();
+    try {
+      renderAll();
+    } catch (error) {
+      console.error("Rivo initial render recovered", error);
+      if (!state.rooms?.length) state.rooms = [mapRoom({ id: "lobby", name: "العامة", count: 0 })];
+      state.room = state.rooms.some((room) => room.id === live.roomId) ? live.roomId : state.rooms[0].id;
+      try { renderRooms(); } catch {}
+      try { renderHeader(); } catch {}
+    }
+    try { syncLiveChrome(); } catch (error) { console.warn("Rivo chrome sync skipped", error); }
     setConnection("disconnected", "بانتظار الدخول");
     clearInterval(live.roomsTimer);
     live.roomsTimer = setInterval(() => fetchRooms(false), 15000);
@@ -995,7 +1011,9 @@
   window.RivoLive = { live, connect, send, logout: logoutLive };
   boot().catch((error) => {
     console.error("Rivo live boot failed", error);
-    setConnection("disconnected", "خطأ في التشغيل");
-    showEntryError("تعذر تشغيل الاتصال الحي. جرّب تحديث الصفحة.");
+    setConnection("disconnected", "بانتظار الدخول");
+    if (!state.rooms?.length) state.rooms = [mapRoom({ id: "lobby", name: "العامة", count: 0 })];
+    try { renderAll(); } catch {}
+    showEntryError("");
   });
 })();

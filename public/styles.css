@@ -1330,3 +1330,10 @@
 .liveMicBusy{background:#fff7ed!important;color:#c2410c!important}
 .liveSystemMessage{align-self:center;max-width:min(92%,720px);text-align:center;color:#2563eb;background:rgba(255,255,255,.72);border:1px solid #dbeafe;border-radius:14px;padding:8px 14px;font-size:14px}
 @media(max-width:700px){.liveConnection{padding:6px 9px;font-size:11px}.liveConnection span{display:none}}
+
+/* v156: تثبيت قابلية الضغط على زر Google داخل النافذة */
+#googleAuthModal{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.googleAuthLiveCard{overflow:visible!important;isolation:isolate}
+.googleSignInButtonLive{position:relative;z-index:3;pointer-events:auto!important;min-width:280px}
+.googleSignInButtonLive iframe,.googleSignInButtonLive>div{pointer-events:auto!important;position:relative!important;z-index:4!important}
+#googleLoginStatus.googleLoginError{color:#b91c1c;font-weight:700}

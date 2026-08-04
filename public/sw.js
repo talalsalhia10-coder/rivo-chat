@@ -1,16 +1,16 @@
-const RELEASE = "155-new-ui-live";
+const RELEASE = "156-google-live-fix";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=155",
-  "./app.js?v=155",
-  "./live-bridge.js?v=155",
-  "./google-config.js?v=155",
-  "./google-auth.js?v=155",
-  "./relay-audio.js?v=155",
+  "./styles.css?v=156",
+  "./app.js?v=156",
+  "./live-bridge.js?v=156",
+  "./google-config.js?v=156",
+  "./google-auth.js?v=156",
+  "./relay-audio.js?v=156",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

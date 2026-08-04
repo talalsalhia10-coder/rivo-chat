@@ -1,8 +1,8 @@
 {
   "name": "rivo-chat-cloudflare",
-  "version": "155.0.0",
+  "version": "156.0.0",
   "private": true,
-  "description": "Rivo Chat v155: new desktop UI merged with the live Cloudflare Worker, Google authentication, rooms, moderation and radio backend.",
+  "description": "Rivo Chat v156: new desktop UI merged with the live Cloudflare Worker, Google authentication, rooms, moderation and radio backend.",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
