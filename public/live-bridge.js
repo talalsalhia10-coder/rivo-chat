@@ -77,6 +77,7 @@
     pendingPrivate: null,
     roomControls: { publicMicEnabled: true, privateMicEnabled: false },
     roomsTimer: null,
+    adminSettingsTimer: null,
     heartbeatTimer: null,
     connectTimeout: null,
     lastPongAt: 0,
@@ -666,8 +667,35 @@
     }
   }
 
+  async function syncRemoteAdminSettings(showNotice = false) {
+    try {
+      const response = await fetch("/api/admin/settings/public", { cache: "no-store" });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.settings || typeof data.settings !== "object") return false;
+      try { localStorage.setItem("rivoAdminConfigV1", JSON.stringify(data.settings)); } catch {}
+      if (typeof window.refreshChatFromAdmin === "function") {
+        window.refreshChatFromAdmin(data.settings, showNotice);
+      } else if (typeof window.applyExternalAdminConfig === "function") {
+        window.applyExternalAdminConfig(showNotice, data.settings);
+      }
+      return true;
+    } catch (error) {
+      console.warn("Admin settings sync failed", error);
+      return false;
+    }
+  }
+
   async function handleEvent(data) {
     switch (data.type) {
+      case "admin-settings": {
+        const settings = data.settings && typeof data.settings === "object" ? data.settings : null;
+        if (settings) {
+          try { localStorage.setItem("rivoAdminConfigV1", JSON.stringify(settings)); } catch {}
+          if (typeof window.refreshChatFromAdmin === "function") window.refreshChatFromAdmin(settings, false);
+          else if (typeof window.applyExternalAdminConfig === "function") window.applyExternalAdminConfig(false, settings);
+        }
+        break;
+      }
       case "init": {
         live.self = { ...data.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google" };
         live.roomId = data.room?.id || live.roomId;
@@ -1169,7 +1197,7 @@
 
   function openAdminPanel() {
     const role = userAccessRole(state.user);
-    if (role === "owner") location.href = `./admin.html?room=${encodeURIComponent(state.room)}`;
+    if (role === "owner") location.href = `./admin-design.html?room=${encodeURIComponent(state.room)}`;
     else if (role === "moderator") location.href = `./moderator.html?room=${encodeURIComponent(state.room)}`;
   }
 
@@ -1239,6 +1267,7 @@
     const restoredIdentity = loadIdentity();
     updateGoogleSessionUI();
     await fetchRooms(false);
+    await syncRemoteAdminSettings(false);
     live.roomId = state.rooms.some((room) => room.id === live.roomId) ? live.roomId : (state.rooms[0]?.id || "lobby");
     state.room = live.roomId;
     if (restoredIdentity && getRoomCutoff(live.roomId) <= 0) setRoomCutoff(live.roomId, Date.now());
@@ -1256,6 +1285,8 @@
     try { syncLiveChrome(); } catch (error) { console.warn("Rivo chrome sync skipped", error); }
     clearInterval(live.roomsTimer);
     live.roomsTimer = setInterval(() => fetchRooms(false), 15000);
+    clearInterval(live.adminSettingsTimer);
+    live.adminSettingsTimer = setInterval(() => syncRemoteAdminSettings(false), 30000);
     if (restoredIdentity) {
       live.identity = restoredIdentity;
       hideEntryScreen();
@@ -1269,7 +1300,10 @@
     window.addEventListener("online", () => scheduleReconnect(true));
     window.addEventListener("offline", () => setConnection("disconnected", "بانتظار الإنترنت"));
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && live.identity && !socketReady()) scheduleReconnect(true);
+      if (document.visibilityState === "visible") {
+        syncRemoteAdminSettings(false);
+        if (live.identity && !socketReady()) scheduleReconnect(true);
+      }
     });
     window.addEventListener("pageshow", (event) => {
       if (event.persisted && live.identity && !socketReady()) scheduleReconnect(true);

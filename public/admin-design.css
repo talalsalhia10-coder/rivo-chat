@@ -912,3 +912,18 @@ body.entryAvatarManagerOpen{overflow:hidden}
 }
 
 
+
+/* v163 — اتصال لوحة الإدارة بالخادم */
+.serverSyncState{display:inline-flex;align-items:center;gap:7px;padding:8px 12px;border-radius:999px;background:#fff4d8;color:#8a5a00;font-weight:800;font-size:12px;white-space:nowrap}
+.serverSyncState.connected{background:#dcfce7;color:#087443}
+.serverSyncState.error{background:#fee2e2;color:#b42318}
+.remoteAdminLogin{position:fixed;inset:0;z-index:9999;background:rgba(15,23,42,.7);backdrop-filter:blur(8px);display:grid;place-items:center;padding:20px}
+.remoteAdminLogin.hidden{display:none!important}
+.remoteAdminLoginCard{width:min(440px,96vw);background:#fff;border-radius:24px;padding:28px;box-shadow:0 30px 90px rgba(15,23,42,.35);text-align:center}
+.remoteAdminCrown{font-size:54px;filter:drop-shadow(0 8px 12px rgba(234,179,8,.28))}
+.remoteAdminLoginCard h2{margin:8px 0 10px;font-size:25px}
+.remoteAdminLoginCard p{margin:0 0 18px;color:#64748b;line-height:1.7}
+.remoteAdminLoginCard input{width:100%;border:1px solid #cbd5e1;border-radius:14px;padding:13px 15px;font:inherit;outline:none}
+.remoteAdminLoginCard input:focus{border-color:#4f63ff;box-shadow:0 0 0 4px rgba(79,99,255,.12)}
+.remoteAdminLoginCard button{width:100%;border:0;border-radius:14px;padding:13px;margin-top:12px;background:linear-gradient(135deg,#635bff,#2e91ff);color:#fff;font-weight:900;cursor:pointer}
+.remoteAdminLoginCard small{display:block;min-height:22px;margin-top:10px;color:#b42318}

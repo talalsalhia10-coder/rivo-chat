@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin.css?v=49">
+<link rel="stylesheet" href="admin-design.css?v=163">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -15,6 +15,7 @@
     <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v50</small></div>
   </div>
   <div class="adminTopActions">
+    <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
     <button id="resetAdminDataBtn" class="resetAdminDataBtn">إعادة بيانات التجربة</button>
     <button id="saveAllBtn" class="saveAllBtn">حفظ جميع الإعدادات</button>
     <a href="index.html" class="backToChat">العودة إلى الدردشة ←</a>
@@ -452,6 +453,18 @@
   </div>
 </div>
 
-<script src="admin.js?v=49"></script>
+
+<div id="remoteAdminLogin" class="remoteAdminLogin hidden" role="dialog" aria-modal="true" aria-labelledby="remoteAdminLoginTitle">
+  <form id="remoteAdminLoginForm" class="remoteAdminLoginCard">
+    <div class="remoteAdminCrown">👑</div>
+    <h2 id="remoteAdminLoginTitle">ربط لوحة الإدارة بالدردشة</h2>
+    <p>اكتب رمز المالك مرة واحدة لفتح الحفظ السحابي والتحكم المباشر.</p>
+    <input id="remoteAdminCode" type="password" autocomplete="current-password" placeholder="رمز الإدارة" required>
+    <button id="remoteAdminLoginButton" type="submit">دخول وربط اللوحة</button>
+    <small id="remoteAdminLoginStatus"></small>
+  </form>
+</div>
+
+<script src="admin-design.js?v=163"></script>
 </body>
 </html>

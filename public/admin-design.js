@@ -10,6 +10,15 @@ try{syncChannel=new BroadcastChannel(SYNC_CHANNEL)}catch(_){}
 let previewExpanded=false;
 let latestUploadedEntryAvatarId=null;
 let selectedEntryAvatarId=null;
+const OWNER_SESSION_KEY='rivo_staff_identity_owner_v1';
+let ownerSession=null;
+let remoteSaveTimer=null;
+let remoteSaveSerial=0;
+let adminSocket=null;
+let adminSocketRoom='';
+let adminSocketReconnectTimer=null;
+let adminSocketClosing=false;
+const badgeBackendMap={free_star:'star',free_shining_star:'galaxy',free_sparkles:'crystal',free_flower:'blossom',free_butterfly:'butterfly',free_heart:'heart',free_fire:'flame',free_medal:'medal'};
 
 const adminFreeBadgeCatalog=[
  {id:'free_star',name:'نجمة ذهبية',icon:'⭐',style:'gold'},
@@ -150,12 +159,139 @@ function mergeConfig(saved){
 function readJSON(key,fallback){
  try{return JSON.parse(localStorage.getItem(key)||'null')??fallback}catch(_){return fallback}
 }
+function readOwnerSession(){
+ try{
+  const value=JSON.parse(localStorage.getItem(OWNER_SESSION_KEY)||'null');
+  if(!value?.staffSessionToken||value.role!=='owner')return null;
+  if(Number(value.expiresAt||0)&&Number(value.expiresAt)<=Date.now())return null;
+  return value;
+ }catch(_){return null}
+}
+function writeOwnerSession(value){
+ ownerSession=value||null;
+ try{if(value)localStorage.setItem(OWNER_SESSION_KEY,JSON.stringify(value));else localStorage.removeItem(OWNER_SESSION_KEY)}catch(_){ }
+}
+function setServerSyncState(text,state=''){
+ const el=$('#serverSyncState');if(!el)return;
+ el.textContent=text;
+ el.classList.toggle('connected',state==='connected');
+ el.classList.toggle('error',state==='error');
+}
+function showRemoteAdminLogin(message=''){
+ const modal=$('#remoteAdminLogin'),status=$('#remoteAdminLoginStatus');
+ if(status)status.textContent=message;
+ modal?.classList.remove('hidden');
+ setTimeout(()=>$('#remoteAdminCode')?.focus(),50);
+}
+function hideRemoteAdminLogin(){
+ $('#remoteAdminLogin')?.classList.add('hidden');
+ if($('#remoteAdminCode'))$('#remoteAdminCode').value='';
+ if($('#remoteAdminLoginStatus'))$('#remoteAdminLoginStatus').textContent='';
+}
+async function authenticateRemoteOwner(code){
+ const response=await fetch('/api/auth/staff',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({code,role:'owner'})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||!data.staffSessionToken)throw new Error(data.error||'رمز الإدارة غير صحيح');
+ const session={...data,role:'owner',staffClientId:data.staffId||'owner-main',name:data.name||'الإدارة'};
+ writeOwnerSession(session);hideRemoteAdminLogin();setServerSyncState('متصل بالخادم','connected');
+ return session;
+}
+async function ensureOwnerSession(interactive=true){
+ ownerSession=readOwnerSession();
+ if(ownerSession)return ownerSession;
+ if(interactive)showRemoteAdminLogin();
+ return null;
+}
+async function loadRemoteAdminConfig(){
+ const session=await ensureOwnerSession(false);if(!session)return false;
+ setServerSyncState('جاري تحميل الإعدادات…');
+ const response=await fetch('/api/admin/settings',{cache:'no-store',headers:{'x-rivo-staff-session':session.staffSessionToken}});
+ const data=await response.json().catch(()=>({}));
+ if(response.status===401){writeOwnerSession(null);showRemoteAdminLogin('انتهت جلسة الإدارة. اكتب الرمز من جديد.');setServerSyncState('غير متصل','error');return false}
+ if(!response.ok)throw new Error(data.error||'تعذر تحميل إعدادات الإدارة');
+ if(data.settings&&Object.keys(data.settings).length){
+  config=mergeConfig(data.settings);
+  try{localStorage.setItem(CONFIG_KEY,JSON.stringify(config))}catch(_){ }
+ }
+ setServerSyncState('متصل بالخادم','connected');
+ return true;
+}
+async function saveRemoteAdminConfig(snapshot,serial){
+ const session=await ensureOwnerSession(false);if(!session){showRemoteAdminLogin();return false}
+ setServerSyncState('جاري الحفظ…');
+ const response=await fetch('/api/admin/settings',{method:'PUT',headers:{'content-type':'application/json','x-rivo-staff-session':session.staffSessionToken},body:JSON.stringify({settings:snapshot})});
+ const data=await response.json().catch(()=>({}));
+ if(response.status===401){writeOwnerSession(null);showRemoteAdminLogin('انتهت جلسة الإدارة. اكتب الرمز من جديد.');setServerSyncState('غير متصل','error');return false}
+ if(!response.ok)throw new Error(data.error||'تعذر حفظ إعدادات الإدارة');
+ if(serial===remoteSaveSerial){
+  setServerSyncState('محفوظ ومتصل','connected');
+  const label=$('#lastSavedLabel');if(label)label.textContent='حفظ سحابي: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
+ }
+ return true;
+}
+function queueRemoteAdminSave(delay=350){
+ clearTimeout(remoteSaveTimer);
+ const serial=++remoteSaveSerial;
+ const snapshot=structuredClone(config);
+ remoteSaveTimer=setTimeout(()=>saveRemoteAdminConfig(snapshot,serial).catch(error=>{console.error(error);setServerSyncState('فشل الحفظ','error');toast(error.message||'تعذر الحفظ السحابي')}),delay);
+}
+function normalizeLiveRoomId(id){return id==='general'?'lobby':(id||'lobby')}
+function closeAdminSocket(){
+ adminSocketClosing=true;clearTimeout(adminSocketReconnectTimer);
+ try{adminSocket?.close()}catch(_){ }
+ adminSocket=null;adminSocketRoom='';
+ setTimeout(()=>{adminSocketClosing=false},0);
+}
+function sendAdminCommand(action,payload={}){
+ if(!adminSocket||adminSocket.readyState!==WebSocket.OPEN){toast('انتظر اتصال لوحة الإدارة بالدردشة');connectAdminSocket(true);return false}
+ adminSocket.send(JSON.stringify({type:'admin-command',action,...payload}));return true;
+}
+function mapLiveAdminUser(user,roomId){
+ const role=user.role==='owner'?'owner':user.role==='moderator'?'moderator':user.isGuest?'guest':'user';
+ const existing=config.users.find(item=>item.id===user.clientId)||{};
+ return{...existing,id:user.clientId,name:user.nickname||'مستخدم',avatar:user.avatar||'guest',room:roomId,role,plan:role==='owner'?'owner':role==='moderator'?'moderator':user.isVip?'vip':role==='guest'?'guest':'user',authType:role==='guest'?'guest':role==='owner'?'owner':role==='moderator'?'moderator':'google',coins:Number(existing.coins||0),status:'online',vip:Boolean(user.isVip),verified:Boolean(user.verified),isHidden:user.adminVisible===false,micBlocked:Boolean(user.micBlocked),privateBlocked:Boolean(user.privateBlocked),badge:user.badge||''};
+}
+function applyAdminSocketState(data){
+ if(Array.isArray(data.roomCatalog)&&data.roomCatalog.length){
+  const old=new Map(config.rooms.map(room=>[normalizeLiveRoomId(room.id),room]));
+  config.rooms=data.roomCatalog.map((room,index)=>({...(old.get(room.id)||{}),id:room.id==='lobby'?'general':room.id,name:room.name||room.id,icon:(old.get(room.id)||{}).icon||'💬',order:Number(room.order??index),enabled:room.enabled!==false,cams:Number((old.get(room.id)||{}).cams||0),mics:Number((old.get(room.id)||{}).mics||4),camOn:(old.get(room.id)||{}).camOn!==false,micOn:(old.get(room.id)||{}).micOn!==false,music:(old.get(room.id)||{}).music!==false,announcement:(old.get(room.id)||{}).announcement||'',announcementOn:(old.get(room.id)||{}).announcementOn!==false}));
+  if(!roomById(selectedRoomId))selectedRoomId=config.rooms[0]?.id||'general';
+ }
+ if(Array.isArray(data.users)){
+  const currentRoom=selectedRoomId;
+  const liveIds=new Set(data.users.map(user=>user.clientId));
+  const other=config.users.filter(user=>user.room!==currentRoom&&!liveIds.has(user.id));
+  config.users=[...other,...data.users.map(user=>mapLiveAdminUser(user,currentRoom))];
+  for(const user of data.users){if(user.badge){activeAdminSessionBadges[user.clientId]={id:user.badge,name:'شارة',icon:({'star':'⭐','galaxy':'🌟','crystal':'✨','blossom':'🌸','butterfly':'🦋','heart':'💖','flame':'🔥','medal':'🏅','diamond':'💎','ruby':'♦️','emerald':'💚','rose':'🌹','moon':'🌙','pinkHeart':'💗','wings':'🪽'})[user.badge]||'🎁'}}}
+ }
+ if(Array.isArray(data.logs)&&data.logs.length){
+  logs=data.logs.slice(0,100).map(item=>({time:Number(item.createdAt||Date.now()),action:`${item.action||'إجراء'} ${item.targetNickname||''}`.trim()}));
+  try{localStorage.setItem(LOG_KEY,JSON.stringify(logs))}catch(_){ }
+ }
+ renderOverview();renderRoomsAdmin();renderUsersAdmin();renderCommunityPanel();renderLogs();
+}
+function connectAdminSocket(force=false){
+ const session=readOwnerSession();if(!session)return;
+ const roomId=normalizeLiveRoomId(selectedRoomId);
+ if(!force&&adminSocket&&adminSocket.readyState<=WebSocket.OPEN&&adminSocketRoom===roomId)return;
+ closeAdminSocket();adminSocketClosing=false;adminSocketRoom=roomId;
+ const protocol=location.protocol==='https:'?'wss:':'ws:';
+ const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:'1'});
+ const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
+ socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
+ socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
+ socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
+}
+function renderAdminDesignAll(){
+ normalizeAdminData();renderOverview();renderRoomsAdmin();renderUsersAdmin();renderEntryAvatarsAdmin();renderCameraRequests();renderMicRequests();renderRadioAdmin();renderPrivateAdmin();renderPermissionsAdmin();renderModeratorTokens();renderEconomy();renderAnnouncementAdmin();renderSecurity();renderLogs();renderCommunityPanel();requestAnimationFrame(fitChatPreview);
+}
 let config=mergeConfig(readJSON(CONFIG_KEY,null));
 try{localStorage.setItem(CONFIG_KEY,JSON.stringify(config))}catch(_){/* تبقى الإعدادات عاملة حتى لو امتلأت مساحة المتصفح */}
 let cameraRequests=readJSON(CAMERA_KEY,[]);
 let micRequests=readJSON(MIC_KEY,[]);
 let logs=readJSON(LOG_KEY,[]);
-let selectedRoomId=config.rooms[0]?.id||'general';
+let selectedRoomId=(()=>{const requested=new URLSearchParams(location.search).get('room')||'';const normalized=requested==='lobby'?'general':requested;return config.rooms.some(room=>room.id===normalized)?normalized:(config.rooms[0]?.id||'general')})();
 
 
 function sendLiveMessage(type,payload){
@@ -242,6 +378,7 @@ function saveConfig(message='تم حفظ الإعدادات'){
   return false;
  }
  sendConfigLive();
+ queueRemoteAdminSave(0);
  addLog(message);
  $('#lastSavedLabel').textContent='آخر حفظ: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
  toast(message);
@@ -334,6 +471,7 @@ function grantAdminBadge(badgeId){
  if(!user||!badge)return;
  activeAdminSessionBadges[user.id]=badge;
  sendLiveMessage('rivo-free-badge-grant',{userId:user.id,badge});
+ sendAdminCommand('set-user-badge',{clientId:user.id,nickname:user.name,badge:badgeBackendMap[badge.id]||'star'});
  renderCommunityPanel();renderUsersAdmin();
  closeAdminBadgePanel();
  toast(`تم وضع ${badge.name} قرب اسم ${user.name}`);
@@ -342,6 +480,7 @@ function removeAdminBadge(userId=selectedAdminBadgeUserId){
  const user=userById(userId);if(!user)return;
  delete activeAdminSessionBadges[user.id];
  sendLiveMessage('rivo-free-badge-remove',{userId:user.id});
+ sendAdminCommand('set-user-badge',{clientId:user.id,nickname:user.name,badge:''});
  renderCommunityPanel();renderUsersAdmin();
  closeAdminBadgePanel();
  toast(`تمت إزالة الشارة من ${user.name}`);
@@ -481,7 +620,7 @@ function renderRoomsAdmin(){
  $('#adminRoomList').innerHTML=rooms.map(r=>`<button class="adminRoomItem ${r.id===selectedRoomId?'active':''}" data-room-edit="${r.id}">
    <span class="icon">${esc(r.icon)}</span><span><b>${esc(r.name)}</b><small>${r.mics} مايك · ${r.cams} كاميرا</small></span><i>${r.count}</i>
  </button>`).join('');
- $$('[data-room-edit]').forEach(b=>b.onclick=()=>{selectedRoomId=b.dataset.roomEdit;renderRoomsAdmin();loadRoomEditor()});
+ $$('[data-room-edit]').forEach(b=>b.onclick=()=>{selectedRoomId=b.dataset.roomEdit;renderRoomsAdmin();loadRoomEditor();connectAdminSocket(true)});
  if(!roomById(selectedRoomId)&&config.rooms[0])selectedRoomId=config.rooms[0].id;
  loadRoomEditor();
 }
@@ -796,12 +935,16 @@ function userAction(id,action){
  const u=userById(id);if(!u)return;
  if(action==='visibility'){toggleStaffVisibility(id);return}
  if(u.role==='owner')return;
- if(action==='mute'){u.status=u.status==='muted'?'online':'muted';addLog(`${u.status==='muted'?'كتم':'إلغاء كتم'} ${u.name}`)}
+ if(action==='mute'){
+  const blocked=u.status!=='muted';u.status=blocked?'muted':'online';u.micBlocked=blocked;
+  sendAdminCommand('block-user-mic',{clientId:u.id,nickname:u.name,blocked});
+  addLog(`${blocked?'كتم مايك':'إلغاء كتم مايك'} ${u.name}`)
+ }
  if(action==='camera'){
   cameraRequests.forEach(r=>{if(r.userId===u.id&&r.status==='approved')r.status='denied'});
   saveCameraRequests();addLog('إغلاق كاميرا '+u.name);
  }
- if(action==='kick'){u.status='kicked';delete activeAdminSessionBadges[u.id];sendLiveMessage('rivo-free-badge-remove',{userId:u.id});addLog('طرد '+u.name)}
+ if(action==='kick'){u.status='kicked';delete activeAdminSessionBadges[u.id];sendLiveMessage('rivo-free-badge-remove',{userId:u.id});sendAdminCommand('kick-user',{clientId:u.id,nickname:u.name});addLog('طرد '+u.name)}
  saveConfig('تم تنفيذ الإجراء على '+u.name);renderUsersAdmin();
 }
 
@@ -1141,6 +1284,7 @@ function persistLiveDraft(){
  liveSaveTimer=setTimeout(()=>{
    localStorage.setItem(CONFIG_KEY,JSON.stringify(config));
    sendConfigLive();
+   queueRemoteAdminSave(500);
    $('#lastSavedLabel').textContent='معاينة مباشرة: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
    renderOverview();
  },180);
@@ -1215,6 +1359,8 @@ function resetAdminData(){
 }
 
 function bind(){
+ const remoteLoginForm=$('#remoteAdminLoginForm');
+ if(remoteLoginForm)remoteLoginForm.onsubmit=async event=>{event.preventDefault();const code=$('#remoteAdminCode')?.value.trim();if(!code)return;const button=$('#remoteAdminLoginButton');if(button)button.disabled=true;try{await authenticateRemoteOwner(code);await loadRemoteAdminConfig();renderAdminDesignAll();connectAdminSocket(true)}catch(error){if($('#remoteAdminLoginStatus'))$('#remoteAdminLoginStatus').textContent=error.message||'تعذر تسجيل الدخول'}finally{if(button)button.disabled=false}};
  if($('#closeAdminBadgeModal'))$('#closeAdminBadgeModal').onclick=closeAdminBadgePanel;
  if($('#removeAdminBadgeBtn'))$('#removeAdminBadgeBtn').onclick=()=>removeAdminBadge();
  if($('#adminFreeBadgeModal'))$('#adminFreeBadgeModal').onclick=e=>{if(e.target.id==='adminFreeBadgeModal')closeAdminBadgePanel()};
@@ -1315,4 +1461,10 @@ function bind(){
    }
  };
 }
-normalizeAdminData();bind();renderOverview();renderRoomsAdmin();renderUsersAdmin();renderEntryAvatarsAdmin();renderCameraRequests();renderMicRequests();renderRadioAdmin();renderPrivateAdmin();renderPermissionsAdmin();renderModeratorTokens();renderEconomy();renderAnnouncementAdmin();renderSecurity();renderLogs();renderCommunityPanel();requestAnimationFrame(fitChatPreview);
+async function bootstrapAdminDesign(){
+ normalizeAdminData();bind();renderAdminDesignAll();
+ ownerSession=readOwnerSession();
+ if(!ownerSession){setServerSyncState('يلزم دخول المالك','error');showRemoteAdminLogin();return}
+ try{await loadRemoteAdminConfig();renderAdminDesignAll();connectAdminSocket(true)}catch(error){console.error(error);setServerSyncState('تعذر ربط الخادم','error');toast(error.message||'تعذر ربط لوحة الإدارة')}
+}
+bootstrapAdminDesign();

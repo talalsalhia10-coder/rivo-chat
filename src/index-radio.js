@@ -10,6 +10,11 @@ const PRESENCE_LEAVE_DELAY_MS = 30 * 1000;
 const PRESENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PRESENCE_HISTORY_LIMIT = 12;
 const PRESENCE_PENDING_TABLE = "presence_pending_leaves_v1";
+const ADMIN_SETTINGS_TABLE = "rivo_admin_settings_v1";
+const ADMIN_SETTINGS_FULL_KEY = "full_config";
+const ADMIN_SETTINGS_PUBLIC_KEY = "public_config";
+const MAX_ADMIN_SETTINGS_BYTES = 4 * 1024 * 1024;
+
 
 // لينا: مضيفة ذكية مستقلة عن أساس الدردشة.
 const LINA_CLIENT_ID = "rivo-ai-lina";
@@ -169,9 +174,159 @@ async function stableGuestSubject(deviceId, secret) {
   return `guest:${encodeGuestBase64Url(new Uint8Array(signature)).slice(0, 32)}`;
 }
 
+async function verifyAdminSettingsStaffToken(token, secret) {
+  try {
+    const [body, signature] = String(token || "").split(".");
+    if (!body || !signature || !secret) return null;
+    const key = await importGuestHmacKey(secret);
+    const valid = await crypto.subtle.verify(
+      "HMAC",
+      key,
+      decodeGuestBase64Url(signature),
+      new TextEncoder().encode(body)
+    );
+    if (!valid) return null;
+    const payload = JSON.parse(new TextDecoder().decode(decodeGuestBase64Url(body)));
+    if (payload?.type !== "staff" || payload?.role !== "owner") return null;
+    if (Number(payload?.exp || 0) <= Date.now()) return null;
+    return payload;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAdminRoomId(value) {
+  const id = cleanText(value, 40).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+  return id === "general" ? "lobby" : (id || "lobby");
+}
+
+function cloneJson(value, fallback = {}) {
+  try { return JSON.parse(JSON.stringify(value)); }
+  catch { return fallback; }
+}
+
+function publicAdminSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  const rooms = Array.isArray(source.rooms) ? source.rooms.map((room, index) => ({
+    id: normalizeAdminRoomId(room?.id),
+    name: cleanText(room?.name || room?.id || "غرفة", 50),
+    icon: cleanText(room?.icon || "💬", 12),
+    order: Number.isFinite(Number(room?.order)) ? Number(room.order) : index,
+    cams: Math.max(0, Math.min(4, Number(room?.cams || 0))),
+    mics: Math.max(0, Math.min(8, Number(room?.mics || 0))),
+    camOn: room?.camOn !== false,
+    micOn: room?.micOn !== false,
+    music: room?.music !== false,
+    announcement: cleanText(room?.announcement || "", 500),
+    announcementOn: room?.announcementOn !== false
+  })) : [];
+
+  const entryAvatars = Array.isArray(source.entryAvatars)
+    ? source.entryAvatars.slice(0, 40).map((item, index) => ({
+        id: cleanText(item?.id || `entry_avatar_${index + 1}`, 80),
+        src: cleanText(item?.src || item?.path || "", 800000),
+        alt: cleanText(item?.alt || item?.title || `صورة شخصية ${index + 1}`, 160),
+        title: cleanText(item?.title || item?.alt || `صورة شخصية ${index + 1}`, 160)
+      })).filter((item) => item.src)
+    : [];
+
+  const result = {
+    schemaVersion: Math.max(1, Number(source.schemaVersion || 1)),
+    updatedAt: Date.now(),
+    rooms,
+    entryAvatars,
+    private: cloneJson(source.private || {}),
+    radio: cloneJson(source.radio || {}),
+    economy: cloneJson(source.economy || {}),
+    plans: cloneJson(source.plans || {}),
+    permissions: { usage: cloneJson(source.permissions?.usage || {}) },
+    features: cloneJson(source.features || {})
+  };
+  if (result.radio?.roomId) result.radio.roomId = normalizeAdminRoomId(result.radio.roomId);
+  return result;
+}
+
+async function readCentralAdminSettings(env, kind = "full") {
+  const registry = env.CHAT_ROOMS.getByName("lobby");
+  const response = await registry.fetch(new Request(`https://rivo.internal/internal/admin-settings?kind=${encodeURIComponent(kind)}`));
+  return await response.json().catch(() => ({ settings: null, updatedAt: 0 }));
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/admin/settings/public" && request.method === "GET") {
+      const data = await readCentralAdminSettings(env, "public");
+      return guestJson({
+        ok: true,
+        settings: data.settings && typeof data.settings === "object" ? data.settings : {},
+        updatedAt: Number(data.updatedAt || 0)
+      });
+    }
+
+    if (url.pathname === "/api/admin/settings") {
+      const staffSessionToken = cleanText(request.headers.get("x-rivo-staff-session"), 5000);
+      const staff = await verifyAdminSettingsStaffToken(staffSessionToken, env.SESSION_SECRET);
+      if (!staff) return guestJson({ error: "يلزم تسجيل دخول المالك." }, 401);
+
+      if (request.method === "GET") {
+        const data = await readCentralAdminSettings(env, "full");
+        return guestJson({
+          ok: true,
+          settings: data.settings && typeof data.settings === "object" ? data.settings : {},
+          updatedAt: Number(data.updatedAt || 0)
+        });
+      }
+
+      if (request.method !== "PUT") return guestJson({ error: "Method not allowed" }, 405);
+      const declaredLength = Number(request.headers.get("content-length") || 0);
+      if (declaredLength > MAX_ADMIN_SETTINGS_BYTES) {
+        return guestJson({ error: "حجم إعدادات الإدارة أكبر من الحد المسموح." }, 413);
+      }
+      const body = await request.json().catch(() => null);
+      const settings = body?.settings && typeof body.settings === "object" ? body.settings : body;
+      if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
+        return guestJson({ error: "إعدادات الإدارة غير صالحة." }, 400);
+      }
+      const serialized = JSON.stringify(settings);
+      if (new TextEncoder().encode(serialized).byteLength > MAX_ADMIN_SETTINGS_BYTES) {
+        return guestJson({ error: "حجم إعدادات الإدارة أكبر من الحد المسموح." }, 413);
+      }
+
+      const updatedAt = Date.now();
+      const publicSettings = publicAdminSettings(settings);
+      publicSettings.updatedAt = updatedAt;
+      const registry = env.CHAT_ROOMS.getByName("lobby");
+      const saveResponse = await registry.fetch(new Request("https://rivo.internal/internal/admin-settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ settings, publicSettings, updatedAt })
+      }));
+      if (!saveResponse.ok) {
+        const error = await saveResponse.json().catch(() => ({}));
+        return guestJson({ error: error.error || "تعذر حفظ إعدادات الإدارة." }, saveResponse.status || 500);
+      }
+
+      const roomIds = new Set(["lobby"]);
+      for (const room of Array.isArray(publicSettings.rooms) ? publicSettings.rooms : []) {
+        roomIds.add(normalizeAdminRoomId(room.id));
+      }
+      await Promise.all([...roomIds].map(async (roomId) => {
+        try {
+          const room = env.CHAT_ROOMS.getByName(roomId);
+          await room.fetch(new Request("https://rivo.internal/internal/admin-config-push", {
+            method: "POST",
+            headers: { "content-type": "application/json; charset=utf-8" },
+            body: JSON.stringify({ settings: publicSettings, updatedAt })
+          }));
+        } catch (error) {
+          console.warn("Admin settings broadcast failed", roomId, error);
+        }
+      }));
+
+      return guestJson({ ok: true, settings, publicSettings, updatedAt });
+    }
 
     if (url.pathname === "/api/auth/guest") {
       if (request.method !== "POST") return guestJson({ error: "Method not allowed" }, 405);
@@ -216,6 +371,14 @@ export default {
 export class ChatRoom extends GiftChatRoom {
   constructor(ctx, env) {
     super(ctx, env);
+
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS ${ADMIN_SETTINGS_TABLE} (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `);
 
     // سجل مؤقت للخروج: ننتظر 30 ثانية حتى لا يظهر «خرج/دخل» عند التحديث السريع.
     this.sql.exec(`
@@ -291,8 +454,68 @@ export class ChatRoom extends GiftChatRoom {
     ];
   }
 
+  readStoredAdminSettings(key = ADMIN_SETTINGS_PUBLIC_KEY) {
+    const row = this.sql.exec(
+      `SELECT value, updated_at FROM ${ADMIN_SETTINGS_TABLE} WHERE key = ? LIMIT 1`,
+      key
+    ).toArray()[0];
+    if (!row) return { settings: null, updatedAt: 0 };
+    try { return { settings: JSON.parse(row.value), updatedAt: Number(row.updated_at || 0) }; }
+    catch { return { settings: null, updatedAt: Number(row.updated_at || 0) }; }
+  }
+
+  writeStoredAdminSettings(key, settings, updatedAt = Date.now()) {
+    this.sql.exec(
+      `INSERT INTO ${ADMIN_SETTINGS_TABLE}(key, value, updated_at) VALUES(?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+      key,
+      JSON.stringify(settings || {}),
+      Number(updatedAt || Date.now())
+    );
+  }
+
+  async currentPublicAdminSettings() {
+    const local = this.readStoredAdminSettings(ADMIN_SETTINGS_PUBLIC_KEY);
+    if (local.settings) return local;
+    try {
+      const registry = this.env.CHAT_ROOMS.getByName("lobby");
+      const response = await registry.fetch(new Request("https://rivo.internal/internal/admin-settings?kind=public"));
+      const data = await response.json().catch(() => ({}));
+      if (data.settings && typeof data.settings === "object") {
+        this.writeStoredAdminSettings(ADMIN_SETTINGS_PUBLIC_KEY, data.settings, data.updatedAt || Date.now());
+        return { settings: data.settings, updatedAt: Number(data.updatedAt || 0) };
+      }
+    } catch (error) {
+      console.warn("Failed to load central admin settings", error);
+    }
+    return { settings: null, updatedAt: 0 };
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/internal/admin-settings") {
+      const kind = url.searchParams.get("kind") === "public" ? "public" : "full";
+      const key = kind === "public" ? ADMIN_SETTINGS_PUBLIC_KEY : ADMIN_SETTINGS_FULL_KEY;
+      if (request.method === "GET") return guestJson(this.readStoredAdminSettings(key));
+      if (request.method !== "PUT") return guestJson({ error: "Method not allowed" }, 405);
+      const body = await request.json().catch(() => ({}));
+      const updatedAt = Number(body.updatedAt || Date.now());
+      this.writeStoredAdminSettings(ADMIN_SETTINGS_FULL_KEY, body.settings || {}, updatedAt);
+      this.writeStoredAdminSettings(ADMIN_SETTINGS_PUBLIC_KEY, body.publicSettings || publicAdminSettings(body.settings || {}), updatedAt);
+      return guestJson({ ok: true, updatedAt });
+    }
+
+    if (url.pathname === "/internal/admin-config-push") {
+      if (request.method !== "POST") return guestJson({ error: "Method not allowed" }, 405);
+      const body = await request.json().catch(() => ({}));
+      const settings = body.settings && typeof body.settings === "object" ? body.settings : {};
+      const updatedAt = Number(body.updatedAt || Date.now());
+      this.writeStoredAdminSettings(ADMIN_SETTINGS_PUBLIC_KEY, settings, updatedAt);
+      this.broadcast({ type: "admin-settings", settings, updatedAt });
+      return guestJson({ ok: true, updatedAt });
+    }
+
     const isChatSocket = /\/api\/rooms\/[^/]+\/ws$/.test(url.pathname);
 
     if (!isChatSocket) {
@@ -345,6 +568,17 @@ export class ChatRoom extends GiftChatRoom {
       joinedSession.isVip = false;
       joinedSocket.serializeAttachment?.(joinedSession);
       this.broadcastPresence();
+    }
+
+    if (joinedSocket && joinedSession) {
+      const adminSettings = await this.currentPublicAdminSettings();
+      if (adminSettings.settings) {
+        this.safeSend(joinedSocket, {
+          type: "admin-settings",
+          settings: adminSettings.settings,
+          updatedAt: adminSettings.updatedAt
+        });
+      }
     }
 
     if (joinedSocket && joinedSession && this.shouldShowPresenceEvent(joinedSession)) {
