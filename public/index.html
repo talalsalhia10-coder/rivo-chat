@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=163">
+<link rel="stylesheet" href="styles.css?v=178">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -65,7 +65,7 @@
 
 <audio id="globalRadioAudio" preload="metadata" loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v163</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v178</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -117,18 +117,40 @@
     <div class="sideTabs"><button class="active" data-side-tab="users">👥 المستخدمون</button><button data-side-tab="rooms">🏠 غرف الدردشة</button></div>
     <section id="usersPanel" class="sidePanel"><div class="search"><span>⌕</span><input id="userSearch" placeholder="بحث عن مستخدم"></div><div class="count"><b id="userCount">0</b> متصل الآن</div><div id="usersList" class="scrollList"></div></section>
     <section id="roomsPanel" class="sidePanel hidden"><div class="search"><span>⌕</span><input id="roomSearch" placeholder="بحث عن غرفة"></div><div id="roomsList" class="scrollList"></div></section>
-    <div id="radioWidget" class="radio">
+    <div id="radioWidget" class="radio" aria-label="راديو ريفو">
   <div class="radioInfo">
-    <div class="radioTitleRow"><b>راديو ريفو</b><span id="radioLiveBadge" class="radioLiveBadge hidden">مباشر</span></div>
+    <div class="radioTitleRow">
+      <b>راديو ريفو</b>
+      <span id="radioLiveBadge" class="radioLiveBadge hidden">مباشر</span>
+      <button id="radioMuteBtn" class="radioMuteBtn" type="button" title="كتم صوت الراديو" aria-label="كتم صوت الراديو">🔊</button>
+      <span id="radioSoundWaves" class="radioSoundWaves" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+    </div>
     <small id="radioTrack">لا توجد أغنية</small>
     <small id="radioState">لا يوجد بث الآن</small>
   </div>
-  <button id="radioBtn" title="تشغيل الراديو">▶</button>
-  <input id="musicVolume" type="range" min="0" max="100" value="30" title="مستوى صوت الراديو">
+  <button id="radioBtn" type="button" title="تشغيل الراديو" aria-label="تشغيل الراديو">▶</button>
+  <input id="musicVolume" type="range" min="0" max="100" value="30" title="مستوى صوت الراديو" aria-label="مستوى صوت الراديو">
+  <button id="radioVideoOpenBtn" class="radioVideoOpenBtn hidden" type="button">🎬 عرض الفيديو</button>
 </div>
     <div class="wallet"><div><small>رصيدي</small><b><span id="walletCoins">0</span> 🪙</b></div><button id="storeBtn">شراء عملات</button></div>
   </aside>
 </main>
+
+<section id="radioVideoWindow" class="radioVideoWindow hidden" aria-label="نافذة فيديو راديو ريفو">
+  <header id="radioVideoDragHandle" class="radioVideoHeader">
+    <div class="radioVideoHeading"><span>🎬</span><div><b id="radioVideoTitle">فيديو ريفو</b><small id="radioVideoStatus">جاهز للتشغيل</small></div></div>
+    <div class="radioVideoActions">
+      <button id="radioVideoMinimizeBtn" type="button" title="تصغير">—</button>
+      <button id="radioVideoMaximizeBtn" type="button" title="تكبير">□</button>
+      <button id="radioVideoCloseBtn" type="button" title="إغلاق الفيديو عندي">×</button>
+    </div>
+  </header>
+  <div id="radioVideoBody" class="radioVideoBody">
+    <div id="radioYoutubePlayer" class="radioYoutubePlayer"></div>
+    <video id="radioExternalVideo" class="radioExternalVideo hidden" controls playsinline preload="metadata"></video>
+  </div>
+</section>
+<button id="radioVideoRestoreBtn" class="radioVideoRestoreBtn hidden" type="button">🎬 إرجاع الفيديو</button>
 
 <div id="emojiPicker" class="picker hidden"><div class="pickerHead"><b>الرموز المتحركة</b><button data-close="emojiPicker">×</button></div><div id="emojiGrid" class="emojiGrid"></div></div>
 <div id="colorPicker" class="picker colorPicker hidden"><div class="pickerHead"><b>لون الخط</b><button data-close="colorPicker">×</button></div><div id="colorGrid" class="colorGrid"></div></div>
@@ -162,9 +184,16 @@
   <label>اسم الأغنية أو المحطة</label>
   <input id="adminRadioTitle" maxlength="60" placeholder="مثلاً: راديو ريفو">
 
-  <label>رابط مباشر لملف صوتي أو بث</label>
-  <input id="adminRadioSource" dir="ltr" placeholder="https://.../song.mp3">
-  <button id="useDemoRadio" class="secondary compactAdminButton">استخدام المقطع التجريبي</button>
+  <label>نوع البث</label>
+  <select id="adminRadioType">
+    <option value="audio">راديو أو صوت مباشر</option>
+    <option value="youtube">فيديو YouTube أو بث YouTube Live</option>
+    <option value="video">رابط فيديو مباشر MP4 / WebM</option>
+  </select>
+
+  <label id="adminRadioSourceLabel">رابط البث الخارجي</label>
+  <input id="adminRadioSource" dir="ltr" placeholder="https://.../stream.mp3">
+  <small class="adminHint">لا يتم رفع أي أغنية أو فيديو إلى Cloudflare؛ المحتوى يصل مباشرة من الرابط الخارجي.</small>
 
   <label>مكان البث</label>
   <select id="adminRadioScope">
@@ -287,15 +316,15 @@
 <div id="giftOverlay" class="giftOverlay hidden"><div class="giftScene"><div id="giftVisual" class="giftVisual">🧸</div><div class="giftText"><b id="giftSender"></b><span>أرسل إلى</span><b id="giftReceiver"></b><strong id="giftName"></strong></div></div></div>
 <video id="localVideo" class="hidden" autoplay muted playsinline></video>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="./google-config.js?v=163"></script>
-<script src="./google-auth.js?v=163"></script>
-<script src="./relay-audio.js?v=163"></script>
-<script src="app.js?v=163"></script>
-<script src="./live-bridge.js?v=163"></script>
+<script src="./google-config.js?v=178"></script>
+<script src="./google-auth.js?v=178"></script>
+<script src="./relay-audio.js?v=178"></script>
+<script src="app.js?v=178"></script>
+<script src="./live-bridge.js?v=178"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=163").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=178").catch(() => {});
   });
 }
 </script>

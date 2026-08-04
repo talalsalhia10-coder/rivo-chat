@@ -1653,13 +1653,39 @@ function updateRadioFromForm(){
  config.radio.scope=$('#radioAdminScope').value;
  config.radio.roomId=$('#radioAdminRoom').value||'general';
 }
-function setRadioStatus(status){
+let radioStatusBusy=false;
+async function setRadioStatus(status){
+ if(radioStatusBusy)return;
  updateRadioFromForm();
  if(status==='playing'&&!validateRadioAdminSource(true))return;
+ const previous=structuredClone(config.radio);
  if(status==='playing')config.radio.startedAt=Date.now();
  config.radio.status=status;
- saveConfig(status==='playing'?'بدأ بث الراديو':status==='paused'?'تم إيقاف الراديو مؤقتاً':'تم إيقاف الراديو');
- renderRadioState();
+ const stateBox=$('#radioAdminState');
+ radioStatusBusy=true;
+ ['#radioStartBtn','#radioPauseBtn','#radioStopBtn'].forEach(selector=>{const button=$(selector);if(button)button.disabled=true});
+ if(stateBox){stateBox.className='bigStatus';stateBox.textContent=status==='playing'?'جاري تشغيل البث ونشره للمستخدمين…':status==='paused'?'جاري إيقاف البث مؤقتاً…':'جاري إيقاف البث…'}
+ try{
+  if(!persistAdminConfig())throw new Error('تعذر حفظ إعدادات البث في المتصفح.');
+  // تظهر المعاينة فوراً داخل لوحة الإدارة.
+  sendConfigLive();
+  const serial=++remoteSaveSerial;
+  const snapshot=structuredClone(config);
+  const saved=await saveRemoteAdminConfig(snapshot,serial);
+  if(!saved)throw new Error('لم يتم حفظ البث على الخادم. سجّل دخول المالك ثم حاول مرة أخرى.');
+  addLog(status==='playing'?'بدأ بث الراديو أو الفيديو':status==='paused'?'تم إيقاف البث مؤقتاً':'تم إيقاف البث بالكامل');
+  const label=$('#lastSavedLabel');if(label)label.textContent='حفظ سحابي: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
+  renderRadioState();renderOverview();
+  toast(status==='playing'?'تم نشر البث للمستخدمين':status==='paused'?'تم إيقاف البث مؤقتاً':'تم إيقاف البث بالكامل');
+ }catch(error){
+  config.radio=previous;
+  persistAdminConfig();sendConfigLive();renderRadioAdmin();
+  setServerSyncState('فشل تشغيل البث','error');
+  toast(error?.message||'تعذر تشغيل البث');
+ }finally{
+  radioStatusBusy=false;
+  ['#radioStartBtn','#radioPauseBtn','#radioStopBtn'].forEach(selector=>{const button=$(selector);if(button)button.disabled=false});
+ }
 }
 function renderRadioState(){
  const box=$('#radioAdminState'),r=config.radio;

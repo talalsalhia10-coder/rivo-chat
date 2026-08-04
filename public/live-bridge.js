@@ -1334,15 +1334,14 @@
   }
 
   function handleRadioState(data) {
-    const widget = byId("radioWidget");
-    const track = byId("radioTrack");
-    const status = byId("radioState");
-    if (!widget || !track || !status) return;
-    if (!data.active) {
-      track.textContent = "لا يوجد بث الآن";
-      status.textContent = "متوقف";
+    // إعدادات لوحة المالك هي المصدر الرئيسي. نتجاهل أي حالة قديمة محفوظة في إذاعة الغرفة.
+    if (state.radioBroadcast && state.radioBroadcast.status !== "stopped" && state.radioBroadcast.source) {
+      try { renderRadioUI(); } catch {}
       return;
     }
+    const widget = byId("radioWidget"), track = byId("radioTrack"), status = byId("radioState");
+    if (!widget || !track || !status) return;
+    if (!data.active) { track.textContent = "لا يوجد بث الآن"; status.textContent = "متوقف"; return; }
     track.textContent = data.title || "راديو ريفو";
     status.textContent = data.paused ? "متوقف مؤقتاً" : "يبث الآن";
     if (data.sourceType === "audio" && data.audioUrl) {
@@ -1708,12 +1707,8 @@
       const muted = relay?.setMuted(!relay.isMuted());
       byId("soundBtn").textContent = muted ? "🔇 الصوت مكتوم" : "🔊 صوت الغرفة";
     };
-    if (byId("radioBtn")) byId("radioBtn").onclick = async () => {
-      const audio = byId("globalRadioAudio");
-      if (!audio?.src) { toast("لا يوجد بث الآن"); return; }
-      if (audio.paused) { try { await audio.play(); } catch { toast("اضغط مرة أخرى للسماح بالصوت"); } }
-      else audio.pause();
-      renderRadioUI();
+    if (byId("radioBtn")) byId("radioBtn").onclick = () => {
+      try { toggleRadioListener(); } catch { toast("تعذر تشغيل البث الآن"); }
     };
   }
 
@@ -1737,6 +1732,8 @@
     updateGoogleSessionUI();
     await fetchRooms(false);
     await syncRemoteAdminSettings(false);
+    // إعادة تحقق قصيرة بعد اكتمال تحميل الواجهة، ثم يبقى WebSocket هو التحديث الفوري.
+    setTimeout(() => syncRemoteAdminSettings(false), 1800);
     if (savedProfile?.avatar) state.entryAvatar = avatarId(savedProfile.avatar);
     renderEntryAvatarChoices();
     if (restoredIdentity && savedProfile) {

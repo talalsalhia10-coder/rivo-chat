@@ -49,10 +49,14 @@ const state={
    status:'stopped',
    scope:'all',
    roomId:'general',
-   title:'موسيقى ريفو التجريبية',
-   source:'assets/audio/rivo-radio-demo.wav',
+   title:'راديو ريفو',
+   sourceType:'audio',
+   source:'',
+   startedAt:0,
    listenerPlaying:false,
-   loadedSource:''
+   loadedSource:'',
+   userMuted:false,
+   videoClosed:false
  },
  roomMic:{
    requests:[],
@@ -459,13 +463,17 @@ function applyExternalAdminConfig(showNotice=false,suppliedConfig=null){
    state.privateMedia.paidOnly=cfg.private.paidOnly!==false;
  }
  if(cfg.radio){
-   const changedSource=state.radioBroadcast.source!==cfg.radio.source;
+   const nextType=['audio','youtube','video'].includes(cfg.radio.sourceType)?cfg.radio.sourceType:'audio';
+   const nextSource=String(cfg.radio.source||'').trim();
+   const changedSource=state.radioBroadcast.source!==nextSource||state.radioBroadcast.sourceType!==nextType;
    state.radioBroadcast.status=cfg.radio.status||'stopped';
    state.radioBroadcast.scope=cfg.radio.scope||'all';
    state.radioBroadcast.roomId=cfg.radio.roomId||state.rooms[0]?.id||'general';
    state.radioBroadcast.title=cfg.radio.title||'راديو ريفو';
-   state.radioBroadcast.source=cfg.radio.source||'assets/audio/rivo-radio-demo.wav';
-   if(changedSource)state.radioBroadcast.loadedSource='';
+   state.radioBroadcast.sourceType=nextType;
+   state.radioBroadcast.source=nextSource;
+   state.radioBroadcast.startedAt=Number(cfg.radio.startedAt||0);
+   if(changedSource){state.radioBroadcast.loadedSource='';state.radioBroadcast.videoClosed=false;state.radioBroadcast.listenerPlaying=false}
  }
  if(cfg.economy){
    state.economyConfig.giftsEnabled=cfg.economy.giftsEnabled!==false;
@@ -912,206 +920,204 @@ function clearInbox(kind){
 
 
 
-function radioAudio(){
- return $('#globalRadioAudio');
-}
-function radioTargetRoom(){
- return state.rooms.find(r=>r.id===state.radioBroadcast.roomId);
-}
+const RIVO_RADIO_VOLUME_KEY='rivo_radio_volume_v1';
+const RIVO_RADIO_MUTED_KEY='rivo_radio_muted_v1';
+let radioYoutubePlayer=null;
+let radioYoutubeReadyPromise=null;
+let radioVideoDragState=null;
+function radioAudio(){return $('#globalRadioAudio')}
+function radioDirectVideo(){return $('#radioExternalVideo')}
+function radioType(value=state.radioBroadcast.sourceType){return ['audio','youtube','video'].includes(String(value||''))?String(value):'audio'}
+function radioTargetRoom(){return state.rooms.find(r=>r.id===state.radioBroadcast.roomId)}
 function radioIsInCurrentRoom(){
  const broadcast=state.radioBroadcast;
- if(broadcast.status==='stopped') return false;
- if(!room().music) return false;
+ if(broadcast.status==='stopped'||!String(broadcast.source||'').trim())return false;
+ if(!room().music)return false;
  return broadcast.scope==='all'||broadcast.roomId===state.room;
 }
-function radioScopeText(){
- const broadcast=state.radioBroadcast;
- if(broadcast.scope==='all') return 'جميع الغرف';
- return radioTargetRoom()?.name||'غرفة محددة';
+function radioScopeText(){return state.radioBroadcast.scope==='all'?'جميع الغرف':(radioTargetRoom()?.name||'غرفة محددة')}
+function youtubeIdFromRadioUrl(value){
+ const raw=String(value||'').trim();if(/^[A-Za-z0-9_-]{11}$/.test(raw))return raw;
+ try{const url=new URL(raw);if(url.hostname==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||'';if(url.hostname.includes('youtube.com')){if(url.pathname==='/watch')return url.searchParams.get('v')||'';const parts=url.pathname.split('/').filter(Boolean);if(['embed','shorts','live'].includes(parts[0]))return parts[1]||''}}catch(_){ }
+ return '';
 }
-function prepareRadioSource(){
- const audio=radioAudio();
- const source=String(state.radioBroadcast.source||'').trim();
- if(!audio||!source) return false;
- if(state.radioBroadcast.loadedSource!==source){
-   audio.pause();
-   audio.src=source;
-   audio.load();
-   state.radioBroadcast.loadedSource=source;
+function loadRadioPreferences(){
+ const slider=$('#musicVolume');let volume=30;try{volume=Math.max(0,Math.min(100,Number(localStorage.getItem(RIVO_RADIO_VOLUME_KEY)||30)))}catch(_){ }
+ if(slider)slider.value=String(volume);
+ try{state.radioBroadcast.userMuted=localStorage.getItem(RIVO_RADIO_MUTED_KEY)==='1'}catch(_){state.radioBroadcast.userMuted=false}
+ applyRadioVolume();
+}
+function radioVolume(){return Math.max(0,Math.min(100,Number($('#musicVolume')?.value||0)))}
+function radioIsMuted(){return Boolean(state.radioBroadcast.userMuted)||radioVolume()<=0}
+function ensureYouTubeApi(){
+ if(window.YT?.Player)return Promise.resolve(window.YT);
+ if(radioYoutubeReadyPromise)return radioYoutubeReadyPromise;
+ radioYoutubeReadyPromise=new Promise((resolve,reject)=>{
+  const previous=window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady=()=>{try{if(typeof previous==='function')previous()}catch(_){ }resolve(window.YT)};
+  if(!document.querySelector('script[data-rivo-youtube-api]')){const script=document.createElement('script');script.src='https://www.youtube.com/iframe_api';script.async=true;script.dataset.rivoYoutubeApi='1';script.onerror=()=>reject(new Error('youtube-api'));document.head.appendChild(script)}
+  setTimeout(()=>{if(!window.YT?.Player)reject(new Error('youtube-timeout'))},15000);
+ }).catch(error=>{radioYoutubeReadyPromise=null;throw error});
+ return radioYoutubeReadyPromise;
+}
+async function ensureRadioYoutubePlayer(videoId){
+ if(!videoId)return false;
+ await ensureYouTubeApi();
+ if(radioYoutubePlayer?.loadVideoById){
+  if(state.radioBroadcast.loadedSource!==`youtube:${videoId}`)radioYoutubePlayer.cueVideoById(videoId);
+  state.radioBroadcast.loadedSource=`youtube:${videoId}`;applyRadioVolume();return true;
  }
- audio.volume=Math.max(0,Math.min(1,(+$('#musicVolume')?.value||30)/100));
- return true;
+ return await new Promise((resolve,reject)=>{
+  let settled=false;
+  radioYoutubePlayer=new YT.Player('radioYoutubePlayer',{videoId,playerVars:{controls:1,playsinline:1,rel:0,modestbranding:1,autoplay:0,enablejsapi:1,origin:location.origin},events:{
+   onReady:event=>{state.radioBroadcast.loadedSource=`youtube:${videoId}`;applyRadioVolume();settled=true;resolve(true)},
+   onStateChange:event=>{if(window.YT){state.radioBroadcast.listenerPlaying=event.data===YT.PlayerState.PLAYING}renderRadioUI()},
+   onError:()=>{state.radioBroadcast.listenerPlaying=false;renderRadioUI();toast('تعذر تشغيل فيديو YouTube')}
+  }});
+  setTimeout(()=>{if(!settled)reject(new Error('youtube-player-timeout'))},12000);
+ }).catch(()=>false);
+}
+function pauseOtherRadioMedia(activeType=''){
+ const audio=radioAudio(),video=radioDirectVideo();
+ if(activeType!=='audio')audio?.pause();
+ if(activeType!=='video')video?.pause();
+ if(activeType!=='youtube'){try{radioYoutubePlayer?.pauseVideo?.()}catch(_){ }}
+}
+async function prepareRadioSource(){
+ const broadcast=state.radioBroadcast,source=String(broadcast.source||'').trim(),type=radioType();
+ if(!source)return false;
+ if(type==='audio'){
+  const audio=radioAudio();if(!audio)return false;pauseOtherRadioMedia('audio');
+  const key=`audio:${source}`;if(broadcast.loadedSource!==key){audio.pause();audio.removeAttribute('src');audio.src=source;audio.load();broadcast.loadedSource=key}
+  applyRadioVolume();return true;
+ }
+ showRadioVideoWindow(false);
+ if(type==='video'){
+  const video=radioDirectVideo();if(!video)return false;pauseOtherRadioMedia('video');
+  $('#radioYoutubePlayer')?.classList.add('hidden');video.classList.remove('hidden');
+  const key=`video:${source}`;if(broadcast.loadedSource!==key){video.pause();video.removeAttribute('src');video.src=source;video.load();broadcast.loadedSource=key}
+  applyRadioVolume();return true;
+ }
+ const id=youtubeIdFromRadioUrl(source);if(!id)return false;pauseOtherRadioMedia('youtube');
+ radioDirectVideo()?.classList.add('hidden');$('#radioYoutubePlayer')?.classList.remove('hidden');
+ return await ensureRadioYoutubePlayer(id);
+}
+function applyRadioVolume(){
+ const value=radioVolume(),muted=radioIsMuted(),fraction=value/100;
+ const audio=radioAudio(),video=radioDirectVideo();
+ if(audio){audio.volume=fraction;audio.muted=muted}
+ if(video){video.volume=fraction;video.muted=muted}
+ try{if(radioYoutubePlayer?.setVolume)radioYoutubePlayer.setVolume(value);if(muted)radioYoutubePlayer?.mute?.();else radioYoutubePlayer?.unMute?.()}catch(_){ }
+ renderRadioUI();
+}
+function toggleRadioMute(){
+ state.radioBroadcast.userMuted=!state.radioBroadcast.userMuted;
+ try{localStorage.setItem(RIVO_RADIO_MUTED_KEY,state.radioBroadcast.userMuted?'1':'0')}catch(_){ }
+ applyRadioVolume();
+}
+function radioMediaPlaying(){
+ const type=radioType();
+ if(type==='audio')return Boolean(radioAudio()&&!radioAudio().paused&&!radioAudio().ended);
+ if(type==='video')return Boolean(radioDirectVideo()&&!radioDirectVideo().paused&&!radioDirectVideo().ended);
+ try{return Boolean(window.YT&&radioYoutubePlayer?.getPlayerState?.()===YT.PlayerState.PLAYING)}catch(_){return Boolean(state.radioBroadcast.listenerPlaying)}
 }
 function renderRadioUI(){
- const broadcast=state.radioBroadcast;
- const available=radioIsInCurrentRoom();
- const audio=radioAudio();
- const title=$('#radioTrack');
- const stateText=$('#radioState');
- const badge=$('#radioLiveBadge');
- const button=$('#radioBtn');
- const widget=$('#radioWidget');
-
- if(title) title.textContent=broadcast.status==='stopped'?'لا توجد أغنية':broadcast.title;
- if(badge) badge.classList.toggle('hidden',broadcast.status!=='playing'||!available);
- if(widget){
-   widget.classList.toggle('radioBroadcasting',broadcast.status==='playing'&&available);
-   widget.classList.toggle('radioUnavailable',!available);
- }
+ const broadcast=state.radioBroadcast,available=radioIsInCurrentRoom(),type=radioType();
+ const title=$('#radioTrack'),stateText=$('#radioState'),badge=$('#radioLiveBadge'),button=$('#radioBtn'),widget=$('#radioWidget'),mute=$('#radioMuteBtn'),videoOpen=$('#radioVideoOpenBtn');
+ const localPlaying=radioMediaPlaying(),audible=Boolean(localPlaying&&available&&broadcast.status==='playing'&&!radioIsMuted());
+ if(title)title.textContent=broadcast.status==='stopped'?'لا توجد أغنية':broadcast.title;
+ if(badge)badge.classList.toggle('hidden',broadcast.status!=='playing'||!available);
+ if(widget){widget.classList.toggle('radioBroadcasting',broadcast.status==='playing'&&available);widget.classList.toggle('radioUnavailable',!available);widget.classList.toggle('radioSoundActive',audible)}
  if(stateText){
-   if(broadcast.status==='stopped') stateText.textContent='لا يوجد بث الآن';
-   else if(broadcast.status==='paused') stateText.textContent=`البث متوقف مؤقتاً · ${radioScopeText()}`;
-   else if(!available) stateText.textContent=`البث يعمل في ${radioScopeText()}`;
-   else stateText.textContent=broadcast.scope==='all'?'يبث في جميع الغرف':`يبث في غرفة ${radioScopeText()}`;
+  if(broadcast.status==='stopped')stateText.textContent='لا يوجد بث الآن';
+  else if(broadcast.status==='paused')stateText.textContent=`البث متوقف مؤقتاً · ${radioScopeText()}`;
+  else if(!available)stateText.textContent=`البث يعمل في ${radioScopeText()}`;
+  else if(type==='youtube')stateText.textContent=localPlaying?'فيديو YouTube يعمل الآن':'فيديو جاهز · اضغط تشغيل';
+  else if(type==='video')stateText.textContent=localPlaying?'الفيديو يعمل الآن':'فيديو جاهز · اضغط تشغيل';
+  else stateText.textContent=localPlaying?'يعمل الآن':'اضغط تشغيل للاستماع';
  }
- if(button){
-   const listening=Boolean(audio&&!audio.paused&&available&&broadcast.status==='playing');
-   button.textContent=listening?'Ⅱ':'▶';
-   button.disabled=broadcast.status!=='playing'||!available;
-   button.title=listening?'إيقاف الصوت عندي':'تشغيل الراديو عندي';
- }
+ if(button){button.textContent=localPlaying?'Ⅱ':'▶';button.disabled=broadcast.status!=='playing'||!available;button.title=localPlaying?'إيقاف الصوت عندي':'تشغيل البث عندي';button.setAttribute('aria-label',button.title)}
+ if(mute){mute.textContent=radioIsMuted()?'🔇':'🔊';mute.title=radioIsMuted()?'تشغيل الصوت':'كتم الصوت';mute.setAttribute('aria-label',mute.title);mute.disabled=broadcast.status==='stopped'}
+ if(videoOpen)videoOpen.classList.toggle('hidden',!['youtube','video'].includes(type)||broadcast.status==='stopped'||!available);
+ const videoTitle=$('#radioVideoTitle'),videoStatus=$('#radioVideoStatus');if(videoTitle)videoTitle.textContent=broadcast.title||'فيديو ريفو';if(videoStatus)videoStatus.textContent=broadcast.status==='paused'?'متوقف مؤقتاً':localPlaying?'يعمل الآن':'جاهز للتشغيل';
 }
 async function startRadioListener(showError=true){
  const broadcast=state.radioBroadcast;
- if(broadcast.status!=='playing'){
-   if(showError) toast(broadcast.status==='paused'?'البث متوقف مؤقتاً':'لا يوجد بث الآن');
-   renderRadioUI();
-   return;
- }
- if(!radioIsInCurrentRoom()){
-   if(showError) toast(`البث مخصص إلى ${radioScopeText()}`);
-   renderRadioUI();
-   return;
- }
- if(!prepareRadioSource()){
-   if(showError) toast('لم يتم تحديد مصدر صوت');
-   return;
- }
+ if(broadcast.status!=='playing'){if(showError)toast(broadcast.status==='paused'?'البث متوقف مؤقتاً':'لا يوجد بث الآن');renderRadioUI();return}
+ if(!radioIsInCurrentRoom()){if(showError)toast(`البث مخصص إلى ${radioScopeText()}`);renderRadioUI();return}
+ if(!(await prepareRadioSource())){if(showError)toast('الرابط غير صالح أو تعذر تجهيز المشغل');return}
  try{
-   await radioAudio().play();
-   broadcast.listenerPlaying=true;
- }catch(e){
-   broadcast.listenerPlaying=false;
-   if(showError) toast('اضغط تشغيل مرة أخرى أو تحقق من رابط الصوت');
- }
- updateStaffVisibilityUI();
- renderRadioUI();
+  const type=radioType();
+  if(type==='audio')await radioAudio().play();
+  else if(type==='video'){showRadioVideoWindow(true);await radioDirectVideo().play()}
+  else{showRadioVideoWindow(true);radioYoutubePlayer?.playVideo?.()}
+  broadcast.listenerPlaying=true;
+ }catch(_){broadcast.listenerPlaying=false;if(showError)toast('تعذر التشغيل. اضغط تشغيل مرة أخرى أو تحقق من الرابط')}
+ updateStaffVisibilityUI();renderRadioUI();
 }
 function pauseRadioListener(){
- const audio=radioAudio();
- if(audio) audio.pause();
- state.radioBroadcast.listenerPlaying=false;
- renderRadioUI();
+ const type=radioType();if(type==='audio')radioAudio()?.pause();else if(type==='video')radioDirectVideo()?.pause();else{try{radioYoutubePlayer?.pauseVideo?.()}catch(_){ }}
+ state.radioBroadcast.listenerPlaying=false;renderRadioUI();
 }
-function toggleRadioListener(){
- const audio=radioAudio();
- if(!audio||audio.paused) startRadioListener(true);
- else pauseRadioListener();
-}
-function syncRadioForRoom(){
+function toggleRadioListener(){radioMediaPlaying()?pauseRadioListener():startRadioListener(true)}
+async function syncRadioForRoom(){
  const broadcast=state.radioBroadcast;
- const audio=radioAudio();
- if(!audio) return;
  if(!radioIsInCurrentRoom()||broadcast.status!=='playing'){
-   audio.pause();
-   renderRadioUI();
-   return;
+  pauseOtherRadioMedia('');broadcast.listenerPlaying=false;
+  if(broadcast.status==='stopped'){hideRadioVideoWindow(true)}
+  renderRadioUI();return;
  }
- prepareRadioSource();
- if(broadcast.listenerPlaying){
-   audio.play().catch(()=>{broadcast.listenerPlaying=false;renderRadioUI()});
+ const videoMode=['youtube','video'].includes(radioType());
+ // أظهر النافذة فور وصول أمر الإدارة، حتى قبل اكتمال تحميل YouTube.
+ if(videoMode&&!broadcast.videoClosed){
+  showRadioVideoWindow(false);
+  const videoStatus=$('#radioVideoStatus');if(videoStatus)videoStatus.textContent='جاري تحميل الفيديو…';
  }
+ if(!(await prepareRadioSource())){
+  const videoStatus=$('#radioVideoStatus');if(videoStatus&&videoMode)videoStatus.textContent='تعذر تحميل الرابط';
+  renderRadioUI();return;
+ }
+ if(videoMode&&!broadcast.videoClosed)showRadioVideoWindow(false);
+ if(broadcast.listenerPlaying){startRadioListener(false).catch(()=>{})}
  renderRadioUI();
 }
-function populateRadioRoomSelect(){
- const select=$('#adminRadioRoom');
- if(!select) return;
- select.innerHTML=state.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
- select.value=state.radioBroadcast.roomId||state.room;
+function showRadioVideoWindow(userAction=false){
+ if(!['youtube','video'].includes(radioType()))return;
+ const win=$('#radioVideoWindow'),restore=$('#radioVideoRestoreBtn');if(!win)return;
+ state.radioBroadcast.videoClosed=false;win.classList.remove('hidden');restore?.classList.add('hidden');
+ if(userAction)win.style.zIndex=String(520+Date.now()%100);
 }
-function updateRadioScopeAdmin(){
- const scope=$('#adminRadioScope')?.value||state.radioBroadcast.scope;
- const wrap=$('#adminRadioRoomWrap');
- const select=$('#adminRadioRoom');
- const hidden=scope!=='room';
- if(wrap) wrap.classList.toggle('hidden',hidden);
- if(select) select.classList.toggle('hidden',hidden);
+function hideRadioVideoWindow(stopped=false){
+ const win=$('#radioVideoWindow'),restore=$('#radioVideoRestoreBtn');if(!win)return;
+ win.classList.add('hidden');win.classList.remove('minimized','maximized');
+ if(stopped){state.radioBroadcast.videoClosed=false;restore?.classList.add('hidden')}else{state.radioBroadcast.videoClosed=true;restore?.classList.remove('hidden')}
 }
-function renderRadioAdminStatus(){
- const box=$('#adminRadioStatus');
- if(!box) return;
- const broadcast=state.radioBroadcast;
- if(broadcast.status==='stopped'){
-   box.textContent='لا يوجد بث الآن.';
-   box.className='adminRadioStatus stopped';
-   return;
- }
- const status=broadcast.status==='playing'?'يبث الآن':'متوقف مؤقتاً';
- box.textContent=`${status}: ${broadcast.title} — ${radioScopeText()}`;
- box.className=`adminRadioStatus ${broadcast.status}`;
+function initRadioVideoWindow(){
+ const win=$('#radioVideoWindow'),handle=$('#radioVideoDragHandle');if(!win||!handle)return;
+ $('#radioVideoCloseBtn')?.addEventListener('click',()=>{pauseRadioListener();hideRadioVideoWindow(false)});
+ $('#radioVideoRestoreBtn')?.addEventListener('click',()=>showRadioVideoWindow(true));
+ $('#radioVideoOpenBtn')?.addEventListener('click',()=>showRadioVideoWindow(true));
+ $('#radioVideoMinimizeBtn')?.addEventListener('click',()=>{win.classList.toggle('minimized');win.classList.remove('maximized')});
+ $('#radioVideoMaximizeBtn')?.addEventListener('click',()=>{win.classList.toggle('maximized');win.classList.remove('minimized');win.style.left='';win.style.top='';win.style.right='';win.style.bottom=''});
+ handle.addEventListener('pointerdown',event=>{if(event.target.closest('button')||win.classList.contains('maximized'))return;const rect=win.getBoundingClientRect();radioVideoDragState={id:event.pointerId,x:event.clientX-rect.left,y:event.clientY-rect.top};handle.setPointerCapture?.(event.pointerId);win.style.left=`${rect.left}px`;win.style.top=`${rect.top}px`;win.style.right='auto';win.style.bottom='auto'});
+ handle.addEventListener('pointermove',event=>{if(!radioVideoDragState||event.pointerId!==radioVideoDragState.id)return;const maxX=Math.max(0,innerWidth-win.offsetWidth),maxY=Math.max(0,innerHeight-win.offsetHeight);win.style.left=`${Math.max(0,Math.min(maxX,event.clientX-radioVideoDragState.x))}px`;win.style.top=`${Math.max(0,Math.min(maxY,event.clientY-radioVideoDragState.y))}px`});
+ const stop=event=>{if(radioVideoDragState&&(!event||event.pointerId===radioVideoDragState.id))radioVideoDragState=null};handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);
 }
-function initRadioAdmin(){
- const broadcast=state.radioBroadcast;
- populateRadioRoomSelect();
- $('#adminRadioTitle').value=broadcast.title||'';
- $('#adminRadioSource').value=broadcast.source||'';
- $('#adminRadioScope').value=broadcast.scope||'all';
- $('#adminRadioRoom').value=broadcast.roomId||state.room;
- updateRadioScopeAdmin();
- renderRadioAdminStatus();
+function populateRadioRoomSelect(){const select=$('#adminRadioRoom');if(!select)return;select.innerHTML=state.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');select.value=state.radioBroadcast.roomId||state.room}
+function updateRadioScopeAdmin(){const scope=$('#adminRadioScope')?.value||state.radioBroadcast.scope,hidden=scope!=='room';$('#adminRadioRoomWrap')?.classList.toggle('hidden',hidden);$('#adminRadioRoom')?.classList.toggle('hidden',hidden)}
+function updateInlineRadioTypeUi(){
+ const type=radioType($('#adminRadioType')?.value),label=$('#adminRadioSourceLabel'),input=$('#adminRadioSource');if(label)label.textContent=type==='youtube'?'رابط فيديو YouTube أو البث المباشر':type==='video'?'رابط فيديو خارجي مباشر':'رابط راديو أو صوت مباشر';if(input)input.placeholder=type==='youtube'?'https://www.youtube.com/watch?v=...':type==='video'?'https://.../video.mp4':'https://.../stream.mp3';
 }
+function renderRadioAdminStatus(){const box=$('#adminRadioStatus');if(!box)return;const broadcast=state.radioBroadcast;if(broadcast.status==='stopped'){box.textContent='لا يوجد بث الآن.';box.className='adminRadioStatus stopped';return}const status=broadcast.status==='playing'?'يبث الآن':'متوقف مؤقتاً';box.textContent=`${status}: ${broadcast.title} — ${radioScopeText()}`;box.className=`adminRadioStatus ${broadcast.status}`}
+function initRadioAdmin(){const broadcast=state.radioBroadcast;populateRadioRoomSelect();if($('#adminRadioTitle'))$('#adminRadioTitle').value=broadcast.title||'';if($('#adminRadioType'))$('#adminRadioType').value=radioType();if($('#adminRadioSource'))$('#adminRadioSource').value=broadcast.source||'';if($('#adminRadioScope'))$('#adminRadioScope').value=broadcast.scope||'all';if($('#adminRadioRoom'))$('#adminRadioRoom').value=broadcast.roomId||state.room;updateInlineRadioTypeUi();updateRadioScopeAdmin();renderRadioAdminStatus()}
 async function startRadioBroadcast(){
- const title=$('#adminRadioTitle').value.trim()||'راديو ريفو';
- const source=$('#adminRadioSource').value.trim();
- const scope=$('#adminRadioScope').value;
- const roomId=$('#adminRadioRoom').value||state.room;
- if(!source){
-   toast('ضع رابطاً مباشراً للصوت أو استخدم المقطع التجريبي');
-   return;
- }
- state.radioBroadcast.title=title;
- state.radioBroadcast.source=source;
- state.radioBroadcast.scope=scope;
- state.radioBroadcast.roomId=roomId;
- state.radioBroadcast.status='playing';
- state.radioBroadcast.listenerPlaying=true;
-
- if(scope==='all') state.rooms.forEach(r=>r.music=true);
- else{
-   const target=state.rooms.find(r=>r.id===roomId);
-   if(target) target.music=true;
- }
-
- prepareRadioSource();
- await startRadioListener(false);
- renderHeader();
- renderRadioAdminStatus();
- toast(scope==='all'?'بدأ البث في جميع الغرف':`بدأ البث في غرفة ${radioTargetRoom()?.name||''}`);
+ const title=$('#adminRadioTitle').value.trim()||'راديو ريفو',source=$('#adminRadioSource').value.trim(),sourceType=radioType($('#adminRadioType')?.value),scope=$('#adminRadioScope').value,roomId=$('#adminRadioRoom').value||state.room;
+ if(!source){toast('ضع رابط البث الخارجي أولاً');return}if(sourceType==='youtube'&&!youtubeIdFromRadioUrl(source)){toast('رابط YouTube غير صحيح');return}if(sourceType!=='youtube'&&!/^https:\/\//i.test(source)){toast('يجب أن يبدأ الرابط الخارجي بـ https://');return}
+ Object.assign(state.radioBroadcast,{title,source,sourceType,scope,roomId,status:'playing',startedAt:Date.now(),listenerPlaying:false,loadedSource:'',videoClosed:false});if(scope==='all')state.rooms.forEach(r=>r.music=true);else{const target=state.rooms.find(r=>r.id===roomId);if(target)target.music=true}
+ await prepareRadioSource();renderHeader();renderRadioAdminStatus();renderRadioUI();toast(scope==='all'?'بدأ البث في جميع الغرف':`بدأ البث في غرفة ${radioTargetRoom()?.name||''}`);
 }
-function pauseRadioBroadcast(){
- if(state.radioBroadcast.status==='stopped'){
-   toast('لا يوجد بث لإيقافه');
-   return;
- }
- state.radioBroadcast.status='paused';
- state.radioBroadcast.listenerPlaying=false;
- radioAudio()?.pause();
- renderHeader();
- renderRadioAdminStatus();
- toast('تم إيقاف البث مؤقتاً');
-}
-function stopRadioBroadcast(){
- const audio=radioAudio();
- state.radioBroadcast.status='stopped';
- state.radioBroadcast.listenerPlaying=false;
- if(audio){
-   audio.pause();
-   try{audio.currentTime=0}catch(_){}
- }
- renderHeader();
- renderRadioAdminStatus();
- toast('تم إيقاف بث الراديو');
-}
+function pauseRadioBroadcast(){if(state.radioBroadcast.status==='stopped'){toast('لا يوجد بث لإيقافه');return}state.radioBroadcast.status='paused';pauseRadioListener();renderHeader();renderRadioAdminStatus();toast('تم إيقاف البث مؤقتاً')}
+function stopRadioBroadcast(){state.radioBroadcast.status='stopped';pauseOtherRadioMedia('');state.radioBroadcast.listenerPlaying=false;const audio=radioAudio(),video=radioDirectVideo();try{if(audio)audio.currentTime=0;if(video)video.currentTime=0}catch(_){ }hideRadioVideoWindow(true);renderHeader();renderRadioAdminStatus();renderRadioUI();toast('تم إيقاف بث الراديو')}
 
 
 function roomMicApprovalKey(userId,roomId=state.room){return`${roomId}:${userId}`}
@@ -2250,24 +2256,16 @@ function bind(){
  if($('#soundBtn')) $('#soundBtn').onclick=()=>{document.body.classList.toggle('muted');$('#soundBtn').textContent=document.body.classList.contains('muted')?'🔇 صوت الغرفة':'🔊 صوت الغرفة';toast('تحكم صوت تجريبي')}; $('#radioBtn').onclick=toggleRadioListener;
  if($('#adminBtn')) $('#adminBtn').onclick=(e)=>{e.stopPropagation();if(!state.user){open('loginModal');return}showProfile(state.user.id)};$('#cameraLimit').oninput=e=>$('#cameraLimitText').textContent=e.target.value;$('#micLimit').oninput=e=>$('#micLimitText').textContent=e.target.value;$('#saveAnnouncement').onclick=saveAnnouncement;$('#applySettings').onclick=applySettings;
 
- if($('#musicVolume')) $('#musicVolume').oninput=e=>{
-   const audio=radioAudio();
-   if(audio) audio.volume=Math.max(0,Math.min(1,(+e.target.value||0)/100));
- };
+ loadRadioPreferences();initRadioVideoWindow();
+ if($('#musicVolume')) $('#musicVolume').oninput=e=>{state.radioBroadcast.userMuted=Number(e.target.value)<=0;try{localStorage.setItem(RIVO_RADIO_VOLUME_KEY,String(e.target.value));localStorage.setItem(RIVO_RADIO_MUTED_KEY,state.radioBroadcast.userMuted?'1':'0')}catch(_){ }applyRadioVolume()};
+ if($('#radioMuteBtn'))$('#radioMuteBtn').onclick=toggleRadioMute;
  if($('#adminRadioScope')) $('#adminRadioScope').onchange=updateRadioScopeAdmin;
- if($('#useDemoRadio')) $('#useDemoRadio').onclick=()=>{
-   $('#adminRadioTitle').value='موسيقى ريفو التجريبية';
-   $('#adminRadioSource').value='assets/audio/rivo-radio-demo.wav';
-   toast('تم اختيار المقطع التجريبي');
- };
+ if($('#adminRadioType'))$('#adminRadioType').onchange=updateInlineRadioTypeUi;
  if($('#startRadioBroadcast')) $('#startRadioBroadcast').onclick=startRadioBroadcast;
  if($('#pauseRadioBroadcast')) $('#pauseRadioBroadcast').onclick=pauseRadioBroadcast;
  if($('#stopRadioBroadcast')) $('#stopRadioBroadcast').onclick=stopRadioBroadcast;
- if($('#globalRadioAudio')){
-   $('#globalRadioAudio').onplay=renderRadioUI;
-   $('#globalRadioAudio').onpause=renderRadioUI;
-   $('#globalRadioAudio').onerror=()=>{renderRadioUI();toast('تعذر تشغيل رابط الصوت')};
- }
+ if($('#globalRadioAudio')){$('#globalRadioAudio').onplay=renderRadioUI;$('#globalRadioAudio').onpause=renderRadioUI;$('#globalRadioAudio').onvolumechange=renderRadioUI;$('#globalRadioAudio').onerror=()=>{state.radioBroadcast.listenerPlaying=false;renderRadioUI();toast('تعذر تشغيل رابط الصوت')}}
+ if($('#radioExternalVideo')){$('#radioExternalVideo').onplay=()=>{state.radioBroadcast.listenerPlaying=true;renderRadioUI()};$('#radioExternalVideo').onpause=renderRadioUI;$('#radioExternalVideo').onvolumechange=renderRadioUI;$('#radioExternalVideo').onerror=()=>{state.radioBroadcast.listenerPlaying=false;renderRadioUI();toast('تعذر تشغيل رابط الفيديو')}}
 
  $('#roomSearch').oninput=renderRooms;$('#userSearch').oninput=renderUsers; if($('#hideAnnouncement')) $('#hideAnnouncement').onclick=()=>$('#announcement').classList.add('hidden');
  $('#userMenu').onclick=e=>{

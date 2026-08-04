@@ -970,3 +970,6 @@ body.entryAvatarManagerOpen{overflow:hidden}
   .adminSection.radioAdminWindow{top:auto!important;left:7px!important;right:7px!important;bottom:7px;width:auto;max-height:91vh;transform:none!important;border-radius:20px}
   .radioWindowHead{cursor:default}.radioWindowBody{padding:11px}.radioWindowRestore{left:10px;bottom:10px}
 }
+
+/* v178 */
+.radioBrowserPolicyNote{margin-top:10px;padding:10px 12px;border-radius:11px;background:#fff8e8;border:1px solid #efd182;color:#7f5900;font-size:12px;line-height:1.65;font-weight:700}.radioAdminButtons button:disabled{opacity:.55;cursor:wait}

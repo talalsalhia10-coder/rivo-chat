@@ -1619,3 +1619,28 @@ body.owner .composerToolbar {
 .freeBadgeChoice.rose,.freeBadgeChoice.pinkHeart{background:linear-gradient(160deg,#fff,#ffe1ef)}
 .freeBadgeChoice.moon{background:linear-gradient(160deg,#fff,#e7e9ff)}
 .freeBadgeChoice.wings{background:linear-gradient(160deg,#fff,#edf6ff)}
+
+
+/* v176 — راديو خارجي وفيديو YouTube من دون رفع وسائط إلى Cloudflare */
+.radio{position:relative;overflow:visible;grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.radioInfo{min-width:0}.radioTitleRow{display:flex;align-items:center;gap:7px;min-width:0}.radioTitleRow>b{white-space:nowrap}.radioLiveBadge{padding:2px 7px;border-radius:999px;background:rgba(255,255,255,.2);font-size:10px;font-weight:900}
+.radioMuteBtn{width:28px!important;height:28px!important;margin-inline-start:auto;border-radius:9px!important;background:rgba(255,255,255,.16)!important;color:#fff!important;font-size:15px!important;padding:0}
+.radioSoundWaves{height:22px;display:flex;align-items:center;gap:2px;opacity:0;transform:scaleX(.75);transform-origin:center;transition:opacity .18s ease,transform .18s ease;pointer-events:none}
+.radioSoundWaves i{display:block;width:3px;height:5px;border-radius:4px;background:#fff;animation:rivoRadioWave .72s ease-in-out infinite alternate;animation-play-state:paused}
+.radioSoundWaves i:nth-child(2){height:11px;animation-delay:.12s}.radioSoundWaves i:nth-child(3){height:17px;animation-delay:.24s}.radioSoundWaves i:nth-child(4){height:9px;animation-delay:.36s}
+.radio.radioSoundActive .radioSoundWaves{opacity:1;transform:scaleX(1)}.radio.radioSoundActive .radioSoundWaves i{animation-play-state:running}
+@keyframes rivoRadioWave{from{transform:scaleY(.35);opacity:.58}to{transform:scaleY(1);opacity:1}}
+.radioVideoOpenBtn{grid-column:1/-1;width:100%!important;height:34px!important;border-radius:10px!important;background:rgba(255,255,255,.18)!important;color:#fff!important;font-weight:800}
+.radio input[type=range]{accent-color:#fff}
+.radioVideoWindow{position:fixed;z-index:510;width:min(560px,calc(100vw - 28px));height:auto;min-width:300px;min-height:220px;right:34px;bottom:28px;border:1px solid rgba(255,255,255,.78);border-radius:18px;background:#101522;box-shadow:0 26px 75px rgba(9,18,37,.42);overflow:hidden;resize:both;direction:rtl}
+.radioVideoWindow.maximized{inset:18px!important;width:auto!important;height:auto!important;resize:none;border-radius:18px}
+.radioVideoWindow.minimized{width:320px!important;min-width:260px;height:auto!important;min-height:0;resize:none}.radioVideoWindow.minimized .radioVideoBody{display:none}.radioVideoWindow.minimized .radioVideoHeader{border-bottom:0}
+.radioVideoHeader{height:54px;padding:8px 10px 8px 13px;background:linear-gradient(135deg,#6551ef,#248ee9);display:flex;align-items:center;justify-content:space-between;gap:10px;color:#fff;cursor:move;touch-action:none}
+.radioVideoHeading{display:flex;align-items:center;gap:9px;min-width:0}.radioVideoHeading>span{font-size:21px}.radioVideoHeading div{min-width:0}.radioVideoHeading b,.radioVideoHeading small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.radioVideoHeading small{font-size:11px;opacity:.82;margin-top:2px}
+.radioVideoActions{display:flex;gap:5px;direction:ltr}.radioVideoActions button{width:32px;height:32px;border:0;border-radius:9px;background:rgba(255,255,255,.16);color:#fff;font-size:18px}.radioVideoActions button:hover{background:rgba(255,255,255,.28)}
+.radioVideoBody{position:relative;width:100%;aspect-ratio:16/9;background:#070a10;display:grid;place-items:center}.radioYoutubePlayer,.radioYoutubePlayer iframe,.radioExternalVideo{width:100%!important;height:100%!important;border:0;display:block;background:#070a10}.radioExternalVideo{object-fit:contain}
+.radioVideoRestoreBtn{position:fixed;z-index:509;left:18px;bottom:18px;border:0;border-radius:999px;padding:11px 15px;background:linear-gradient(135deg,#6551ef,#248ee9);color:#fff;font-weight:900;box-shadow:0 12px 30px rgba(42,73,180,.3)}
+@media(max-width:720px){.radioVideoWindow{right:8px;left:8px;bottom:72px;width:auto;min-width:0;max-height:70vh;resize:none}.radioVideoWindow.maximized{inset:8px 8px 68px!important}.radioVideoWindow.minimized{right:8px;left:8px;width:auto!important}.radioVideoRestoreBtn{left:10px;bottom:74px}.radioTitleRow{gap:5px}.radioSoundWaves{display:none}.radio.radioSoundActive .radioSoundWaves{display:flex}}
+
+/* v178 */
+.radioVideoBody:empty::after{content:"جاري تحميل الفيديو…";color:#fff;font-weight:800}.radioVideoWindow:not(.hidden){animation:rivoVideoWindowIn .22s ease-out}@keyframes rivoVideoWindowIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
