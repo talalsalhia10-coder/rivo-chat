@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>دردشة Rivo الجماعية المجانية | صوت وكتابة</title>
 <meta name="description" content="دردشة ريفو العراقية منصة دردشة عربية كتابية للتواصل وتكوين الصداقات، تضم غرفًا عامة ومحادثات خاصة وهدايا ورتبًا ومزايا متقدمة للمستخدمين.">
 <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=182">
+<link rel="stylesheet" href="styles.css?v=190">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -71,7 +71,7 @@
 
 <audio id="globalRadioAudio" preload="auto" autoplay loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v182</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v190</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -327,12 +327,13 @@
 <script src="./google-config.js?v=178"></script>
 <script src="./google-auth.js?v=178"></script>
 <script src="./relay-audio.js?v=178"></script>
-<script src="app.js?v=182"></script>
-<script src="./live-bridge.js?v=182"></script>
+<script src="app.js?v=190"></script>
+<script src="./live-bridge.js?v=190"></script>
+<script src="./mobile-experience.js?v=190"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=182").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=190").catch(() => {});
   });
 }
 </script>

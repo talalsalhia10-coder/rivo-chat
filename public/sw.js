@@ -1,16 +1,17 @@
-const RELEASE = "182-entry-room-choice";
+const RELEASE = "190-mobile-first-experience";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=182",
-  "./app.js?v=182",
-  "./live-bridge.js?v=182",
-  "./google-config.js?v=182",
-  "./google-auth.js?v=182",
-  "./relay-audio.js?v=182",
+  "./styles.css?v=190",
+  "./app.js?v=190",
+  "./live-bridge.js?v=190",
+  "./mobile-experience.js?v=190",
+  "./google-config.js?v=178",
+  "./google-auth.js?v=178",
+  "./relay-audio.js?v=178",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"
