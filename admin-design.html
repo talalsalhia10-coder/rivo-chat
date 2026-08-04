@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>لوحة إدارة دردشة ريفو العراقية</title>
+<link rel="stylesheet" href="admin-design.css?v=176">
+</head>
+<body>
+<div id="adminToast" class="adminToastHost"></div>
+
+<header class="adminTopbar">
+  <div class="adminBrand">
+    <span>R</span>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v51</small></div>
+  </div>
+  <div class="adminTopActions">
+    <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
+    <button id="resetAdminDataBtn" class="resetAdminDataBtn">إعادة بيانات التجربة</button>
+    <button id="saveAllBtn" class="saveAllBtn">حفظ جميع الإعدادات</button>
+    <a href="index.html" class="backToChat">العودة إلى الدردشة ←</a>
+  </div>
+</header>
+
+
+<div class="adminShell adminShellV21">
+  <section class="adminSettingsColumn">
+    <div class="settingsColumnHead">
+      <div>
+        <b>الإعدادات والإدارة</b>
+        <small>كل التغييرات تظهر مباشرة في الدردشة</small>
+      </div>
+      <button id="compactSettingsBtn" title="تصغير الإعدادات">—</button>
+    </div>
+
+    <nav class="adminNav adminNavV21">
+      <button class="active" data-section="overview">📊 نظرة عامة</button>
+      <button data-section="rooms">🏠 الغرف</button>
+      <button data-section="users">👥 المستخدمون</button>
+      <button data-section="avatars">🖼️ صور الدخول</button>
+      <button data-section="camera">📷 طلبات الكاميرا</button>
+      <button data-section="radio">🎵 الراديو والأغاني</button>
+      <button data-section="private">💬 الدردشة الخاصة</button>
+      <button data-section="permissions">🔐 الرتب والصلاحيات</button>
+      <button data-section="moderators">⭐ رموز المراقبين</button>
+      <button data-section="economy">🪙 العملات والهدايا</button>
+      <button data-section="announcements">📢 الإعلانات</button>
+      <button data-section="security">🛡️ الحماية والدخول</button>
+      <button data-section="logs">📋 السجل الإداري</button>
+    </nav>
+
+    <main class="adminContent adminContentV21">
+    <section id="section-overview" class="adminSection active">
+      <div class="sectionHeading">
+        <div><h1>نظرة عامة</h1><p>حالة الدردشة والغرف والخدمات.</p></div>
+        <span id="lastSavedLabel" class="lastSavedLabel">لم يتم الحفظ بعد</span>
+      </div>
+
+      <div class="metricGrid">
+        <article><span>👥</span><div><b id="metricUsers">0</b><small>مستخدمون تجريبيون</small></div></article>
+        <article><span>🏠</span><div><b id="metricRooms">0</b><small>غرف الدردشة</small></div></article>
+        <article><span>📷</span><div><b id="metricCameraRequests">0</b><small>طلبات كاميرا معلقة</small></div></article>
+        <article><span>🎵</span><div><b id="metricRadio">متوقف</b><small>حالة الراديو</small></div></article>
+      </div>
+
+      <div class="overviewGrid">
+        <article class="adminCard">
+          <div class="cardTitle"><h2>اختصارات سريعة</h2></div>
+          <div class="quickActions">
+            <button data-jump="announcements">نشر إعلان</button>
+            <button data-jump="radio">تشغيل الراديو</button>
+            <button data-jump="camera">مراجعة الكاميرات</button>
+            <button data-jump="users">إدارة المستخدمين</button>
+          </div>
+        </article>
+        <article class="adminCard">
+          <div class="cardTitle"><h2>حالة الخدمات</h2></div>
+          <div class="serviceList">
+            <div><span>دخول الضيف</span><b id="serviceGuest">مفتوح</b></div>
+            <div><span>الدردشة الخاصة</span><b id="servicePrivate">مفتوحة</b></div>
+            <div><span>كاميرا الخاص</span><b id="servicePrivateCamera">مغلقة</b></div>
+            <div><span>الدفع</span><b class="mutedStatus">غير متاح حالياً</b></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="section-rooms" class="adminSection">
+      <div class="sectionHeading"><div><h1>إدارة الغرف</h1><p>المايك والكاميرا والإعلانات لكل غرفة.</p></div><button id="addRoomBtn" class="primaryAdminBtn">+ إضافة غرفة</button></div>
+      <div class="twoColumnAdmin">
+        <article class="adminCard roomListCard">
+          <div class="cardTitle"><h2>الغرف</h2><input id="roomAdminSearch" placeholder="بحث"></div>
+          <div id="adminRoomList" class="adminRoomList"></div>
+        </article>
+        <article class="adminCard">
+          <div class="cardTitle"><h2 id="roomEditorTitle">إعدادات الغرفة</h2></div>
+          <div class="formGrid">
+            <label>اسم الغرفة<input id="editRoomName"></label>
+            <label>الأيقونة<input id="editRoomIcon" maxlength="4"></label>
+            <label class="fullField">إعلان الغرفة<textarea id="editRoomAnnouncement" rows="3"></textarea></label>
+            <label class="toggleLine"><span>إظهار الإعلان</span><input id="editRoomAnnouncementOn" type="checkbox"></label>
+            <label class="toggleLine"><span>تشغيل المايك</span><input id="editRoomMicOn" type="checkbox"></label>
+            <label>عدد مقاعد المايك<input id="editRoomMics" type="number" min="0" max="8"></label>
+            <label class="toggleLine"><span>السماح بالكاميرا</span><input id="editRoomCamOn" type="checkbox"></label>
+            <label>عدد الكاميرات<input id="editRoomCams" type="number" min="0" max="4"></label>
+            <label class="toggleLine"><span>السماح بالراديو</span><input id="editRoomMusic" type="checkbox"></label>
+          </div>
+          <div class="formActions">
+            <button id="saveRoomBtn" class="primaryAdminBtn">حفظ الغرفة</button>
+            <button id="deleteRoomBtn" class="dangerAdminBtn">حذف الغرفة</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section id="section-users" class="adminSection">
+      <div class="sectionHeading"><div><h1>المستخدمون</h1><p>الرتب والعملات والكتم والطرد.</p></div></div>
+      <article class="adminCard">
+        <div class="tableToolbar">
+          <input id="userAdminSearch" placeholder="ابحث عن اسم المستخدم">
+          <select id="userRoleFilter"><option value="all">كل الرتب</option><option value="owner">الإدارة</option><option value="moderator">المراقبون</option><option value="plus">Plus</option><option value="vip">VIP</option><option value="primo">بريمو</option><option value="user">المستخدمون</option><option value="guest">الضيوف</option></select>
+        </div>
+        <div class="adminTableWrap">
+          <table class="adminTable">
+            <thead><tr><th>المستخدم</th><th>الغرفة</th><th>الرتبة</th><th>العملات</th><th>الحالة</th><th>الإجراء</th></tr></thead>
+            <tbody id="adminUsersBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+    <section id="section-avatars" class="adminSection" aria-hidden="true"></section>
+
+    <section id="section-camera" class="adminSection">
+      <div class="sectionHeading"><div><h1>طلبات المايك والكاميرا</h1><p>المستخدم الذي رتبته «طلب» يحتاج موافقة الإدارة قبل التشغيل.</p></div><button id="closeAllCamerasAdmin" class="dangerAdminBtn">إغلاق جميع الكاميرات</button></div>
+      <article class="adminCard">
+        <div class="cardTitle"><h2>طلبات المايك</h2><button id="closeAllMicsAdmin" class="dangerAdminBtn">إنزال الجميع</button></div>
+        <div id="micRequestsAdmin" class="cameraRequestsAdmin"></div>
+      </article>
+      <article class="adminCard">
+        <div class="cardTitle"><h2>طلبات الكاميرا</h2></div>
+        <div id="cameraRequestsAdmin" class="cameraRequestsAdmin"></div>
+      </article>
+    </section>
+
+    <section id="section-radio" class="adminSection">
+      <div class="sectionHeading"><div><h1>الراديو والأغاني</h1><p>بث لجميع الغرف أو غرفة محددة.</p></div></div>
+      <article class="adminCard radioControlCard">
+        <div class="formGrid">
+          <label>اسم الأغنية أو المحطة<input id="radioAdminTitle" maxlength="80" placeholder="مثلاً: راديو ريفو"></label>
+          <label>نوع البث<select id="radioAdminType"><option value="audio">راديو أو صوت مباشر</option><option value="youtube">فيديو YouTube أو YouTube Live</option><option value="video">رابط فيديو مباشر MP4 / WebM</option></select></label>
+          <label class="fullField"><span id="radioAdminSourceLabel">رابط البث الخارجي</span><input id="radioAdminSource" dir="ltr" inputmode="url" placeholder="https://.../stream.mp3"></label>
+          <label>مكان البث<select id="radioAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
+          <label id="radioAdminRoomField">الغرفة<select id="radioAdminRoom"></select></label>
+        </div>
+        <div class="radioExternalNote">🔒 لا يوجد رفع من اللابتوب ولا تخزين للصوت أو الفيديو على Cloudflare. الزوار يستلمون المحتوى مباشرة من الراديو الخارجي أو YouTube.</div>
+        <div class="radioAdminButtons">
+          <button id="radioTestBtn" class="secondaryAdminBtn">اختبار الرابط</button>
+          <button id="radioStartBtn" class="primaryAdminBtn">▶ بدء البث</button>
+          <button id="radioPauseBtn" class="secondaryAdminBtn">Ⅱ إيقاف مؤقت</button>
+          <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
+        </div>
+        <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
+      </article>
+    </section>
+
+    <section id="section-private" class="adminSection">
+      <div class="sectionHeading"><div><h1>الدردشة الخاصة</h1><p>تحكم بالرسائل والمايك والكاميرا الخاصة.</p></div></div>
+      <article class="adminCard settingsList">
+        <label class="settingRow"><span><b>تشغيل الدردشة الخاصة</b><small>فتح المحادثات الخاصة للمستخدمين.</small></span><input id="privateEnabledAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>مايك الدردشة الخاصة</b><small>مغلق افتراضياً من الإدارة.</small></span><input id="privateMicAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>كاميرا الدردشة الخاصة</b><small>مغلقة افتراضياً من الإدارة.</small></span><input id="privateCameraAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>للـVIP فقط</b><small>المايك والكاميرا الخاصة للمشتركين فقط.</small></span><input id="privatePaidOnlyAdmin" type="checkbox"></label>
+        <button id="savePrivateBtn" class="primaryAdminBtn">حفظ إعدادات الخاص</button>
+      </article>
+    </section>
+
+
+    <section id="section-permissions" class="adminSection">
+      <div class="sectionHeading">
+        <div>
+          <h1>الرتب والصلاحيات</h1>
+          <p>حدد ما يستطيع استخدامه الزائر والمستخدم وPlus وVIP وبريمو والمراقب.</p>
+        </div>
+        <button id="savePermissionsBtn" class="primaryAdminBtn">حفظ الصلاحيات</button>
+      </div>
+
+      <article class="adminCard">
+        <div class="cardTitle"><h2>خطط الاشتراك</h2></div>
+        <div id="membershipPlansGrid" class="membershipPlansGrid"></div>
+      </article>
+
+      <article class="adminCard">
+        <div class="cardTitle">
+          <div>
+            <h2>صلاحيات استخدام الدردشة</h2>
+            <small>ممنوع = لا يظهر أو لا يعمل، طلب = يحتاج موافقة، مباشر = يعمل فوراً.</small>
+          </div>
+        </div>
+        <div class="permissionsTableWrap">
+          <table class="permissionsTable">
+            <thead>
+              <tr>
+                <th>الرتبة</th>
+                <th>الرسائل</th>
+                <th>الخاص</th>
+                <th>الهدايا</th>
+                <th>مايك الغرفة</th>
+                <th>كاميرا الغرفة</th>
+                <th>مايك الخاص</th>
+                <th>كاميرا الخاص</th>
+                <th>الأولوية</th>
+              </tr>
+            </thead>
+            <tbody id="usagePermissionsBody"></tbody>
+          </table>
+        </div>
+      </article>
+
+      <article class="adminCard">
+        <div class="cardTitle">
+          <div>
+            <h2>صلاحيات الإدارة والمراقبين</h2>
+            <small>الإدارة تملك كل الصلاحيات، ويمكن تقليل صلاحيات المراقب.</small>
+          </div>
+        </div>
+        <div class="permissionsTableWrap">
+          <table class="permissionsTable adminPowersTable">
+            <thead>
+              <tr>
+                <th>الرتبة</th>
+                <th>حذف رسالة</th>
+                <th>كتم</th>
+                <th>طرد</th>
+                <th>حظر مؤقت</th>
+                <th>حظر دائم</th>
+                <th>الإعلانات</th>
+                <th>البلاغات</th>
+                <th>طلبات المايك</th>
+                <th>طلبات الكاميرا</th>
+                <th>الراديو</th>
+                <th>الغرف</th>
+                <th>الاشتراكات</th>
+              </tr>
+            </thead>
+            <tbody id="adminPermissionsBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+
+
+    <section id="section-moderators" class="adminSection">
+      <div class="sectionHeading">
+        <div>
+          <h1>رموز واشتراكات المراقبين</h1>
+          <p>كل مراقب يملك اسماً ورمزاً فريداً ومدة مستقلة، مع تحكم الظهور والإخفاء.</p>
+        </div>
+      </div>
+
+      <article class="adminCard ownerVisibilityCard">
+        <div class="staffVisibilityInfo">
+          <img src="assets/avatars/owner.svg" alt="">
+          <div><b>الإدارة 👑</b><small>تحكم بظهورك في قائمة المستخدمين والدردشة.</small></div>
+        </div>
+        <button id="ownerVisibilityBtn" class="staffVisibilityBtn">👁️ ظاهر</button>
+      </article>
+
+      <article class="adminCard moderatorCreateCard">
+        <div class="cardTitle"><h2>إنشاء رمز مراقب جديد</h2><span id="moderatorTokenCount" class="moderatorTokenCount">0</span></div>
+        <div class="moderatorCreateGrid">
+          <label>اسم المراقب<input id="moderatorNameInput" maxlength="30" placeholder="مثلاً: أحمد"></label>
+          <label>مدة الاشتراك<select id="moderatorDurationInput">
+            <option value="30">شهر واحد — 30 يوماً</option>
+            <option value="60">شهران — 60 يوماً</option>
+            <option value="90">3 أشهر — 90 يوماً</option>
+            <option value="180">6 أشهر — 180 يوماً</option>
+            <option value="365">سنة — 365 يوماً</option>
+          </select></label>
+          <button id="createModeratorTokenBtn" class="primaryAdminBtn">إنشاء رمز مراقب جديد</button>
+        </div>
+      </article>
+
+      <article class="adminCard">
+        <div class="tableToolbar moderatorToolbar">
+          <input id="moderatorSearchInput" placeholder="بحث باسم المراقب أو الرمز">
+          <select id="moderatorStatusFilter">
+            <option value="all">كل الرموز</option>
+            <option value="active">فعال</option>
+            <option value="disabled">معطّل</option>
+            <option value="expired">منتهي</option>
+          </select>
+        </div>
+        <div id="moderatorTokenList" class="moderatorTokenList"></div>
+      </article>
+    </section>
+
+    <section id="section-economy" class="adminSection">
+      <div class="sectionHeading"><div><h1>العملات والهدايا</h1><p>أسعار الهدايا وخدمات الاشتراك.</p></div></div>
+      <article class="adminCard settingsList">
+        <label class="settingRow"><span><b>تشغيل الهدايا</b><small>الهدايا تُرسل من قائمة المستخدم فقط.</small></span><input id="giftsEnabledAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>VIP 💎</b><small>إظهار خدمة VIP في المتجر.</small></span><input id="vipEnabledAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>التوثيق الأزرق</b><small>إظهار خدمة التوثيق في المتجر.</small></span><input id="verifyEnabledAdmin" type="checkbox"></label>
+      </article>
+      <article class="adminCard">
+        <div class="cardTitle"><h2>أسعار الهدايا</h2></div>
+        <div id="giftPriceGrid" class="giftPriceGrid"></div>
+        <button id="saveEconomyBtn" class="primaryAdminBtn">حفظ الأسعار</button>
+      </article>
+    </section>
+
+    <section id="section-announcements" class="adminSection">
+      <div class="sectionHeading"><div><h1>الإعلانات</h1><p>إعلان ثابت لجميع الغرف أو غرفة واحدة.</p></div></div>
+      <article class="adminCard">
+        <div class="formGrid">
+          <label class="fullField">نص الإعلان<textarea id="announcementAdminText" rows="4"></textarea></label>
+          <label>النطاق<select id="announcementAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
+          <label id="announcementRoomField">الغرفة<select id="announcementAdminRoom"></select></label>
+          <label class="toggleLine"><span>إظهار الإعلان</span><input id="announcementAdminOn" type="checkbox" checked></label>
+        </div>
+        <button id="publishAnnouncementBtn" class="primaryAdminBtn">نشر الإعلان</button>
+      </article>
+    </section>
+
+    <section id="section-security" class="adminSection">
+      <div class="sectionHeading"><div><h1>الحماية والدخول</h1><p>قواعد الدخول والصلاحيات الأساسية.</p></div></div>
+      <article class="adminCard settingsList">
+        <label class="settingRow"><span><b>السماح بدخول الضيف</b><small>الضيف يستطيع الكتابة فقط.</small></span><input id="guestEntryAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>Google للمايك والكاميرا</b><small>لا يصعد الضيف إلى المايك أو الكاميرا.</small></span><input id="googleMediaAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>حماية تاج الإدارة 👑</b><small>التاج للمالك فقط ومنع وضعه داخل الأسماء.</small></span><input id="crownProtectionAdmin" type="checkbox"></label>
+        <label class="settingRow"><span><b>مكافحة السبام</b><small>منع الرسائل المتكررة والسريعة.</small></span><input id="antiSpamAdmin" type="checkbox"></label>
+        <label class="numberSetting"><span>الحد الأقصى لطول الرسالة</span><input id="maxMessageAdmin" type="number" min="50" max="1000"></label>
+        <button id="saveSecurityBtn" class="primaryAdminBtn">حفظ إعدادات الحماية</button>
+      </article>
+    </section>
+
+    <section id="section-logs" class="adminSection">
+      <div class="sectionHeading"><div><h1>السجل الإداري</h1><p>عمليات الإدارة المهمة.</p></div><button id="clearLogsBtn" class="dangerAdminBtn">مسح السجل</button></div>
+      <article class="adminCard"><div id="adminLogs" class="adminLogs"></div></article>
+    </section>
+  </main>
+  </section>
+
+  <aside id="livePreviewPanel" class="livePreviewPanel">
+    <header class="livePreviewHead">
+      <div>
+        <div class="livePreviewTitle"><b>معاينة الدردشة المباشرة</b><span id="previewLiveDot">متصل</span></div>
+        <small>كل تغيير محفوظ يظهر هنا فوراً</small>
+      </div>
+      <div class="previewActions">
+        <button id="refreshPreviewBtn" title="تحديث المعاينة">↻</button>
+        <button id="expandPreviewBtn" title="تكبير المعاينة">□</button>
+        <button id="collapsePreviewBtn" title="إخفاء المعاينة">—</button>
+      </div>
+    </header>
+    <div id="previewViewport" class="previewViewport">
+      <iframe id="chatPreview" src="index.html?adminPreview=1" title="معاينة Rivo Chat"></iframe>
+    </div>
+    <footer class="livePreviewFooter">
+      <span id="previewSyncState">الربط المباشر يعمل</span>
+      <a href="index.html" target="_blank">فتح الدردشة في نافذة مستقلة</a>
+    </footer>
+  </aside>
+
+  <aside class="adminCommunityColumn">
+    <div class="communityOwner">
+      <img src="assets/avatars/owner.svg" alt="">
+      <div><b>الإدارة 👑</b><small>المالك الوحيد</small></div>
+    </div>
+
+    <div class="communityTabs">
+      <button class="active" data-community-tab="users">👥 المستخدمون</button>
+      <button data-community-tab="rooms">🏠 الغرف</button>
+    </div>
+
+    <div class="communitySearch">
+      <span>⌕</span>
+      <input id="communitySearchInput" placeholder="بحث">
+    </div>
+
+    <section id="communityUsersPanel" class="communityPanel">
+      <div class="communityCount"><b id="communityUsersCount">0</b> متصل الآن</div>
+      <div id="communityUsersList" class="communityList"></div>
+    </section>
+
+    <section id="communityRoomsPanel" class="communityPanel hidden">
+      <div class="communityCount"><b id="communityRoomsCount">0</b> غرفة</div>
+      <div id="communityRoomsList" class="communityList"></div>
+    </section>
+
+    <div class="communityFooter">
+      <span>الترتيب النهائي</span>
+      <small>إعدادات ← دردشة ← غرف ومستخدمون</small>
+    </div>
+  </aside>
+</div>
+
+
+
+<div id="entryAvatarManagerModal" class="entryAvatarManagerModal hidden" role="dialog" aria-modal="true" aria-labelledby="entryAvatarManagerTitle">
+  <div class="entryAvatarManagerCard">
+    <header class="entryAvatarManagerHead">
+      <div>
+        <h2 id="entryAvatarManagerTitle">صور صفحة الدخول</h2>
+        <p>اختر صورة موجودة أو ارفع صورة جديدة من جهازك.</p>
+      </div>
+      <button id="closeEntryAvatarManager" class="entryAvatarManagerClose" type="button" aria-label="إغلاق">×</button>
+    </header>
+
+    <div class="entryAvatarManagerStrip">
+      <button type="button" class="active">الصور الافتراضية والمضافة</button>
+    </div>
+
+    <div id="entryAvatarAdminGrid" class="entryAvatarManagerGrid"></div>
+
+    <section class="entryAvatarChoicePanel">
+      <div class="entryAvatarSelectedBox">
+        <img id="entryAvatarSelectedPreview" src="assets/entry-avatars/rivo-avatar-young-man-purple.jpg" alt="الصورة المختارة">
+        <span id="entryAvatarSelectedBadge">الصورة الأولى</span>
+      </div>
+      <div class="entryAvatarChoiceText">
+        <h3 id="entryAvatarSelectedTitle">اختر صورة</h3>
+        <p>اضغط على أي صورة من الأعلى لمعاينتها.</p>
+        <span class="entryAvatarOr">أو</span>
+        <label id="uploadEntryAvatarBtn" class="entryAvatarUploadLabel">
+          <input id="entryAvatarAdminInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/*">
+          <span>رفع صورة من الجهاز</span>
+        </label>
+        <small>تُقصّ الصورة مربعاً وتُضغط تلقائياً.</small>
+      </div>
+      <div class="entryAvatarSelectedActions">
+        <button id="promoteSelectedEntryAvatar" type="button">اجعلها الأولى</button>
+        <button id="deleteSelectedEntryAvatar" type="button" class="danger">حذف الصورة</button>
+      </div>
+    </section>
+
+    <div id="entryAvatarUploadStatus" class="entryAvatarUploadStatus" aria-live="polite"></div>
+
+    <footer class="entryAvatarManagerFooter">
+      <button id="cancelEntryAvatarManager" type="button" class="secondary">إلغاء</button>
+      <button id="saveEntryAvatarManager" type="button" class="primary">حفظ وإغلاق</button>
+    </footer>
+  </div>
+</div>
+
+<div id="adminFreeBadgeModal" class="adminBadgeModal hidden">
+  <div class="adminBadgeCard">
+    <button id="closeAdminBadgeModal" class="adminBadgeClose">×</button>
+    <small>شارات مجانية من الإدارة</small>
+    <h2>منح شارة متحركة</h2>
+    <p>المستخدم: <b id="adminBadgeTargetName">—</b></p>
+    <div id="adminBadgeChoices" class="adminBadgeChoices"></div>
+    <button id="removeAdminBadgeBtn" class="removeAdminBadgeBtn">إزالة الشارة الحالية</button>
+    <div class="adminBadgeHint">تظهر شارة واحدة فقط قرب الاسم، وتبقى عند التنقل بين الغرف، وتختفي عند خروج المستخدم من الموقع.</div>
+  </div>
+</div>
+
+
+<div id="remoteAdminLogin" class="remoteAdminLogin hidden" role="dialog" aria-modal="true" aria-labelledby="remoteAdminLoginTitle">
+  <form id="remoteAdminLoginForm" class="remoteAdminLoginCard">
+    <div class="remoteAdminCrown">👑</div>
+    <h2 id="remoteAdminLoginTitle">ربط لوحة الإدارة بالدردشة</h2>
+    <p>اكتب رمز المالك مرة واحدة لفتح الحفظ السحابي والتحكم المباشر.</p>
+    <input id="remoteAdminCode" type="password" autocomplete="current-password" placeholder="رمز الإدارة" required>
+    <button id="remoteAdminLoginButton" type="submit">دخول وربط اللوحة</button>
+    <small id="remoteAdminLoginStatus"></small>
+  </form>
+</div>
+
+<script src="admin-design.js?v=176"></script>
+</body>
+</html>
