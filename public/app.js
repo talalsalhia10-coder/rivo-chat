@@ -60,21 +60,8 @@ const state={
    requestSeq:0,
    window:{maximized:false,minimized:false,previous:null,z:420}
  },
- privateUnread:{ahmed:2,samar:1,noor:0,ali:0},
- privateChats:{
-   ahmed:[
-     {from:'ahmed',text:'هلا، شلونك؟',time:'12:05'},
-     {from:'me',text:'هلا أحمد، بخير الحمد لله.',time:'12:06'},
-     {from:'ahmed',text:'شفت الصور الجديدة، كلش حلوة.',time:'12:07'}
-   ],
-   samar:[
-     {from:'samar',text:'مرحبا، ممكن أسألك عن التصوير؟',time:'11:42'}
-   ],
-   noor:[
-     {from:'noor',text:'شكراً على الهدية ❤️',time:'10:06'}
-   ],
-   ali:[]
- },
+ privateUnread:{},
+ privateChats:{},
  rooms:[
   {id:'general',name:'العامة',icon:'🌐',count:128,cams:4,mics:6,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في ريفو — الاحترام أساس الدردشة.',announcementOn:true},
   {id:'iraq',name:'العراق',icon:'🇮🇶',count:188,cams:2,mics:6,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة العراق.',announcementOn:true},
@@ -1497,6 +1484,7 @@ function appendRoomMessage(message){
  const entry={...message,room:message.room||state.room,createdAt:message.createdAt||Date.now()};
  state.messages.push(entry);
  pruneRoomConversation(entry.room);
+ try{window.RivoPersistRoomMessages?.(entry.room)}catch(_){}
  return entry;
 }
 function startFreshRoomConversation(roomId=state.room){
@@ -1621,7 +1609,7 @@ function moderatorLogin(){
  startFreshChatSession();close('moderatorLoginModal');close('loginModal');hideEntryScreen();$('#moderatorCodeInput').value='';renderAll();notifyAdminLive('rivo-moderator-token-used',{tokenId:token.id,time:Date.now()});toast('تم الدخول كمراقب: '+token.name);
 }
 
-function usersInRoom(){let a=state.users.filter(u=>u.room===state.room&&!isHiddenStaff(u));if(state.user&&!isHiddenStaff(state.user)&&!a.some(u=>u.id===state.user.id))a=[state.user,...a];return a}
+function usersInRoom(){let a=state.users.filter(u=>u.room===state.room&&!isHiddenStaff(u)&&!u.isHistoryOnly);if(state.user&&!isHiddenStaff(state.user)&&!a.some(u=>u.id===state.user.id))a=[state.user,...a];return a}
 function renderUsers(){
  const q=$('#userSearch').value.trim();
  const a=sortUsersByHierarchy(usersInRoom().filter(u=>String(u.name||'').includes(q)));
@@ -1641,7 +1629,7 @@ function renderUsers(){
   showMenu(x.dataset.user,e);
  });
 }
-function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble">🔊 ${esc(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user),u=publicMessageUser(realUser);const safeText=esc(m.text);const emojiOnly=/^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
+function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble">🔊 ${esc(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user)||m.author,u=publicMessageUser(realUser);const safeText=esc(m.text);const emojiOnly=/^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
 function renderHeader(){
  const r=room(),u=state.user;
  const setText=(id,value)=>{const el=$(id);if(el)el.textContent=value};
@@ -2145,4 +2133,4 @@ window.addEventListener('storage',e=>{
 });
 notifyAdminLive('rivo-chat-ready',{room:state.room,preview:new URLSearchParams(location.search).has('adminPreview')});
 
-window.addEventListener('beforeunload',()=>{state.activeNameGifts={}});
+// لا نمسح حالة الجلسة عند تحديث الصفحة؛ يعاد ربطها تلقائياً بعد الاتصال.

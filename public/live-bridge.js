@@ -3,9 +3,15 @@
 
   if (new URLSearchParams(location.search).has("demo")) return;
 
-  const LIVE_IDENTITY_KEY = "rivo_live_identity_v156";
+  const LIVE_IDENTITY_KEY = "rivo_live_identity_v158";
+  const LEGACY_IDENTITY_KEY = "rivo_live_identity_v156";
+  const PERSIST_IDENTITY_KEY = "rivo_live_identity_persistent_v1";
+  const ACTIVE_ROOM_KEY = "rivo_live_active_room_v1";
+  const MESSAGE_SNAPSHOT_KEY = "rivo_live_message_snapshots_v1";
+  const ROOM_CUTOFFS_KEY = "rivo_live_room_cutoffs_v1";
   const BADGE_TOKEN_KEY = "rivo_badge_session_token_v1";
-  const PROFILE_KEY = "rivo_live_profile_v156";
+  const PROFILE_KEY = "rivo_live_profile_v158";
+  const LEGACY_PROFILE_KEY = "rivo_live_profile_v156";
   const DEVICE_KEY = "rivo_guest_device_v1";
   const OWNER_STORAGE_KEY = "rivo_staff_identity_owner_v1";
   const MOD_STORAGE_KEY = "rivo_staff_identity_moderator_v1";
@@ -71,6 +77,11 @@
     pendingPrivate: null,
     roomControls: { publicMicEnabled: true, privateMicEnabled: false },
     roomsTimer: null,
+    heartbeatTimer: null,
+    connectTimeout: null,
+    lastPongAt: 0,
+    connectSerial: 0,
+    ignoreHistoryOnce: false,
     googlePrepared: false
   };
 
@@ -129,19 +140,86 @@
     try { localStorage.setItem(PROFILE_KEY, JSON.stringify(profile)); } catch {}
   }
   function loadProfile() {
-    try { return safeParse(localStorage.getItem(PROFILE_KEY) || "null", null); } catch { return null; }
+    try {
+      const current = safeParse(localStorage.getItem(PROFILE_KEY) || "null", null);
+      if (current) return current;
+      const legacy = safeParse(localStorage.getItem(LEGACY_PROFILE_KEY) || "null", null);
+      if (legacy) saveProfile(legacy);
+      return legacy;
+    } catch { return null; }
+  }
+  function identityIsUsable(identity) {
+    if (!identity?.type || !identity?.clientId) return false;
+    const expiresAt = Number(identity.expiresAt || 0);
+    return expiresAt <= 0 || expiresAt > Date.now() + 30_000;
   }
   function saveIdentity(identity) {
     live.identity = identity;
-    try { sessionStorage.setItem(LIVE_IDENTITY_KEY, JSON.stringify(identity)); } catch {}
+    const text = JSON.stringify(identity);
+    try { sessionStorage.setItem(LIVE_IDENTITY_KEY, text); } catch {}
+    try { localStorage.setItem(PERSIST_IDENTITY_KEY, text); } catch {}
+  }
+  function loadIdentity() {
+    const candidates = [];
+    try { candidates.push(safeParse(sessionStorage.getItem(LIVE_IDENTITY_KEY) || "null", null)); } catch {}
+    try { candidates.push(safeParse(localStorage.getItem(PERSIST_IDENTITY_KEY) || "null", null)); } catch {}
+    try { candidates.push(safeParse(sessionStorage.getItem(LEGACY_IDENTITY_KEY) || "null", null)); } catch {}
+    const identity = candidates.find(identityIsUsable) || null;
+    if (identity) saveIdentity(identity);
+    return identity;
   }
   function clearIdentity() {
     live.identity = null;
     try {
       sessionStorage.removeItem(LIVE_IDENTITY_KEY);
+      sessionStorage.removeItem(LEGACY_IDENTITY_KEY);
       sessionStorage.removeItem(BADGE_TOKEN_KEY);
+      localStorage.removeItem(PERSIST_IDENTITY_KEY);
     } catch {}
   }
+  function saveActiveRoom(roomId = live.roomId) {
+    try { localStorage.setItem(ACTIVE_ROOM_KEY, roomId || "lobby"); } catch {}
+  }
+  function loadActiveRoom() {
+    try { return String(localStorage.getItem(ACTIVE_ROOM_KEY) || "lobby"); } catch { return "lobby"; }
+  }
+  function readSnapshots() {
+    try { return safeParse(localStorage.getItem(MESSAGE_SNAPSHOT_KEY) || "{}", {}) || {}; } catch { return {}; }
+  }
+  function saveRoomSnapshot(roomId = state.room) {
+    if (!roomId) return;
+    const snapshots = readSnapshots();
+    snapshots[roomId] = state.messages
+      .filter((message) => message.room === roomId)
+      .slice(-13)
+      .map((message) => ({ ...message }));
+    try { localStorage.setItem(MESSAGE_SNAPSHOT_KEY, JSON.stringify(snapshots)); } catch {}
+  }
+  function restoreRoomSnapshot(roomId = state.room) {
+    const messages = readSnapshots()[roomId];
+    if (!Array.isArray(messages) || !messages.length) return false;
+    state.messages = messages.map((message) => ({ ...message, room: roomId }));
+    return true;
+  }
+  function clearRoomSnapshot(roomId) {
+    if (!roomId) return;
+    const snapshots = readSnapshots();
+    delete snapshots[roomId];
+    try { localStorage.setItem(MESSAGE_SNAPSHOT_KEY, JSON.stringify(snapshots)); } catch {}
+  }
+  function readRoomCutoffs() {
+    try { return safeParse(localStorage.getItem(ROOM_CUTOFFS_KEY) || "{}", {}) || {}; } catch { return {}; }
+  }
+  function getRoomCutoff(roomId = state.room) {
+    return Number(readRoomCutoffs()[roomId] || 0);
+  }
+  function setRoomCutoff(roomId = state.room, timestamp = Date.now()) {
+    if (!roomId) return;
+    const cutoffs = readRoomCutoffs();
+    cutoffs[roomId] = Number(timestamp || Date.now());
+    try { localStorage.setItem(ROOM_CUTOFFS_KEY, JSON.stringify(cutoffs)); } catch {}
+  }
+  window.RivoPersistRoomMessages = saveRoomSnapshot;
   function getDeviceId() {
     let id = "";
     try { id = localStorage.getItem(DEVICE_KEY) || ""; } catch {}
@@ -150,6 +228,23 @@
       try { localStorage.setItem(DEVICE_KEY, id); } catch {}
     }
     return id;
+  }
+  function updateGoogleSessionUI() {
+    const session = window.RivoGoogleAuth?.loadSession?.() || null;
+    const box = byId("entryGoogleSession");
+    const email = byId("entryGoogleEmail");
+    const title = byId("entryGoogleButtonTitle");
+    const hint = byId("entryGoogleButtonHint");
+    if (box) box.classList.toggle("hidden", !session);
+    if (email) email.textContent = session?.email || "حساب Google";
+    if (title) title.textContent = session ? "الدخول بالحساب المسجل" : "تسجيل الدخول بحساب Google";
+    if (hint) hint.textContent = session ? "لن تحتاج إلى اختيار الحساب مرة أخرى" : "حساب ثابت ومزايا إضافية";
+  }
+  function changeGoogleAccount() {
+    window.RivoGoogleAuth?.clearSession?.();
+    if (live.identity?.type === "google") clearIdentity();
+    updateGoogleSessionUI();
+    toast("تم فصل حساب Google. اختر حساباً آخر عند تسجيل الدخول");
   }
 
   function mapRoom(item) {
@@ -293,65 +388,118 @@
     return `${protocol}//${location.host}/api/rooms/${encodeURIComponent(live.roomId)}/ws?${params}`;
   }
 
+  function stopHeartbeat() {
+    clearInterval(live.heartbeatTimer);
+    live.heartbeatTimer = null;
+  }
+  function startHeartbeat(socket) {
+    stopHeartbeat();
+    live.lastPongAt = Date.now();
+    live.heartbeatTimer = setInterval(() => {
+      if (live.socket !== socket || socket.readyState !== WebSocket.OPEN) return;
+      if (Date.now() - live.lastPongAt > 55_000) {
+        try { socket.close(4000, "Connection heartbeat timeout"); } catch {}
+        return;
+      }
+      try { socket.send(JSON.stringify({ type: "ping", at: Date.now() })); } catch {}
+    }, 20_000);
+  }
   function closeSocket(reason = "switch") {
-    live.closing = true;
     clearTimeout(live.reconnectTimer);
-    try { live.socket?.close(1000, reason); } catch {}
+    clearTimeout(live.connectTimeout);
+    stopHeartbeat();
+    const socket = live.socket;
     live.socket = null;
     live.connected = false;
-    setTimeout(() => { live.closing = false; }, 50);
+    if (socket) {
+      try { socket.close(1000, reason); } catch {}
+    }
   }
 
   async function connect(roomId = live.roomId) {
-    if (!live.identity) return;
+    if (!live.identity || !identityIsUsable(live.identity)) return;
+    const serial = ++live.connectSerial;
     closeSocket("reconnect");
     live.roomId = roomId === "general" ? "lobby" : roomId;
     state.room = live.roomId;
-    state.messages = [];
+    saveActiveRoom(live.roomId);
     state.stage = [];
-    startFreshRoomConversation(live.roomId);
+    if (!state.messages.some((message) => message.room === live.roomId)) {
+      if (live.ignoreHistoryOnce) {
+        clearRoomSnapshot(live.roomId);
+        setRoomCutoff(live.roomId, Date.now());
+        startFreshRoomConversation(live.roomId);
+      } else if (!restoreRoomSnapshot(live.roomId)) {
+        startFreshRoomConversation(live.roomId);
+      }
+    }
     renderAll();
-    setConnection("connecting", "جاري الاتصال");
+    setConnection("connecting", live.reconnectAttempts ? "إعادة الاتصال…" : "جاري الاتصال");
 
     let socket;
     try {
       socket = new WebSocket(buildSocketUrl());
     } catch (error) {
       setConnection("disconnected", "تعذر الاتصال");
-      toast(error.message || "تعذر فتح الاتصال");
+      scheduleReconnect();
       return;
     }
     live.socket = socket;
+    clearTimeout(live.connectTimeout);
+    live.connectTimeout = setTimeout(() => {
+      if (live.socket === socket && socket.readyState !== WebSocket.OPEN) {
+        try { socket.close(4000, "Connection timeout"); } catch {}
+      }
+    }, 15_000);
 
     socket.addEventListener("open", () => {
+      clearTimeout(live.connectTimeout);
+      if (live.socket !== socket || serial !== live.connectSerial) return;
       live.reconnectAttempts = 0;
+      live.lastPongAt = Date.now();
       setConnection("connected", "متصل");
-      send({ type: "room-radio-state-request" });
+      startHeartbeat(socket);
+      try { socket.send(JSON.stringify({ type: "room-radio-state-request" })); } catch {}
     });
 
     socket.addEventListener("message", (event) => {
+      if (live.socket !== socket) return;
       const data = safeParse(event.data, null);
-      if (data) handleEvent(data);
+      if (!data) return;
+      if (data.type === "pong") live.lastPongAt = Date.now();
+      handleEvent(data);
     });
 
     socket.addEventListener("close", (event) => {
+      if (live.socket !== socket) return;
+      live.socket = null;
+      clearTimeout(live.connectTimeout);
+      stopHeartbeat();
       live.connected = false;
-      setConnection("disconnected", "غير متصل");
-      if (live.closing || !live.identity) return;
+      setConnection("disconnected", navigator.onLine === false ? "بانتظار الإنترنت" : "انقطع الاتصال — نعيده الآن");
+      if (!live.identity) return;
       if ([4003, 4004].includes(event.code)) {
         toast(event.reason || "تم إنهاء الجلسة بواسطة الإدارة");
         logoutLive(false);
         return;
       }
-      const delay = Math.min(12000, 900 * (2 ** live.reconnectAttempts++));
-      clearTimeout(live.reconnectTimer);
-      live.reconnectTimer = setTimeout(() => connect(live.roomId), delay);
+      scheduleReconnect();
     });
 
-    socket.addEventListener("error", () => setConnection("disconnected", "خطأ في الاتصال"));
+    socket.addEventListener("error", () => {
+      if (live.socket === socket) setConnection("disconnected", "تعذر الاتصال — نعيد المحاولة");
+    });
+  }
+  function scheduleReconnect(immediate = false) {
+    if (!live.identity || !identityIsUsable(live.identity)) return;
+    clearTimeout(live.reconnectTimer);
+    const delay = immediate ? 80 : Math.min(12_000, 700 * (2 ** live.reconnectAttempts++));
+    live.reconnectTimer = setTimeout(() => {
+      if (!live.socket || live.socket.readyState === WebSocket.CLOSED) connect(live.roomId);
+    }, delay);
   }
 
-  function messageUserFromPayload(message) {
+  function messageUserFromPayload(message, historyOnly = false) {
     let user = state.users.find((u) => u.id === message.clientId);
     if (!user && message.clientId) {
       user = mapUser({
@@ -364,25 +512,67 @@
         isGuest: message.isGuest,
         badge: message.badge
       });
+      user.isHistoryOnly = historyOnly;
       state.users.push(user);
     }
     return user;
   }
+  function authorFromMessage(message, historyOnly = false) {
+    const user = messageUserFromPayload(message, historyOnly);
+    return user ? { ...user } : {
+      id: message.clientId || "history-user",
+      name: cleanName(message.nickname) || "مستخدم",
+      avatar: message.avatar || "guest",
+      role: message.role || "user",
+      plan: message.isVip ? "vip" : "user",
+      authType: message.isGuest ? "guest" : "google",
+      verified: Boolean(message.verified),
+      vip: Boolean(message.isVip)
+    };
+  }
+  function mapHistoryMessage(message) {
+    return {
+      id: message.id || `${message.clientId || "user"}-${message.createdAt || Date.now()}-${message.body || ""}`,
+      room: state.room,
+      user: message.clientId,
+      author: authorFromMessage(message, true),
+      text: message.body || "",
+      color: normalizeColor(message.color),
+      time: nowTime(message.createdAt),
+      createdAt: Number(message.createdAt || Date.now())
+    };
+  }
+  function hydrateHistory(messages = []) {
+    const cutoff = getRoomCutoff(state.room);
+    const local = state.messages.filter((message) => message.room === state.room && !message.isRoomWelcome && Number(message.createdAt || 0) >= cutoff);
+    const serverMessages = messages.filter((message) => Number(message.createdAt || 0) >= cutoff).map(mapHistoryMessage);
+    const merged = new Map();
+    for (const message of [...serverMessages, ...local]) {
+      const key = message.id || `${message.user || "user"}-${message.createdAt || 0}-${message.text || ""}`;
+      merged.set(key, { ...message, room: state.room });
+    }
+    const values = [...merged.values()].sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0)).slice(-12);
+    state.messages = [roomWelcomeMessage(state.room), ...values];
+    saveRoomSnapshot(state.room);
+  }
 
   function appendLiveMessage(message) {
-    messageUserFromPayload(message);
+    const author = authorFromMessage(message, false);
     if (message.presenceEvent) {
-      appendRoomMessage({ type: "system", room: state.room, text: message.body, createdAt: message.createdAt });
+      appendRoomMessage({ id: message.id, type: "system", room: state.room, text: message.body, createdAt: message.createdAt });
     } else {
       appendRoomMessage({
+        id: message.id,
         room: state.room,
         user: message.clientId,
+        author,
         text: message.body,
         color: normalizeColor(message.color),
         time: nowTime(message.createdAt),
         createdAt: message.createdAt
       });
     }
+    saveRoomSnapshot(state.room);
     renderMessages();
     requestAnimationFrame(() => { const box = byId("messages"); if (box) box.scrollTop = box.scrollHeight; });
   }
@@ -426,6 +616,10 @@
     if (!badge) return;
     const targetId = data.targetClientId || data.clientId;
     applyBadge(targetId, data.badge);
+    if (targetId && targetId === state.user?.id) {
+      state.inbox.alerts = (Number(state.inbox.alerts) || 0) + 1;
+      renderHeader();
+    }
     const sender = data.fromNickname || "الإدارة";
     const target = data.targetNickname || state.users.find((u) => u.id === targetId)?.name || "المستخدم";
     byId("giftVisual").textContent = badge.icon;
@@ -445,6 +639,8 @@
     live.privatePeer = peer;
     state.privateTarget = peer.clientId;
     state.privateChats[peer.clientId] ||= [];
+    state.privateUnread[peer.clientId] = 0;
+    updatePrivateBadge();
     byId("privateChatName").textContent = cleanName(peer.nickname) || "مستخدم";
     byId("privateChatAvatar").src = av(peer.avatar || "guest");
     byId("privateChatStatus").textContent = "محادثة خاصة متصلة";
@@ -476,14 +672,22 @@
         live.self = { ...data.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google" };
         live.roomId = data.room?.id || live.roomId;
         state.room = live.roomId;
-        state.messages = [];
+        saveActiveRoom(live.roomId);
         live.roomControls = { ...live.roomControls, ...(data.roomControls || {}) };
         syncUsers(data.users || []);
-        startFreshRoomConversation(live.roomId);
+        if (live.ignoreHistoryOnce) {
+          state.messages = [];
+          startFreshRoomConversation(live.roomId);
+          clearRoomSnapshot(live.roomId);
+          live.ignoreHistoryOnce = false;
+        } else {
+          hydrateHistory(Array.isArray(data.messages) ? data.messages : []);
+        }
         renderMessages();
         hideEntryScreen();
         setConnection("connected", "متصل");
         updateMicButtons();
+        updateGoogleSessionUI();
         requestAnimationFrame(() => { const box = byId("messages"); if (box) box.scrollTop = box.scrollHeight; });
         break;
       }
@@ -567,6 +771,9 @@
       case "room-radio-state":
         handleRadioState(data);
         break;
+      case "pong":
+        live.lastPongAt = Date.now();
+        break;
       default:
         break;
     }
@@ -638,11 +845,19 @@
   function updateMicButtons() {
     const mine = Boolean(state.user && live.micHolder === state.user.id);
     const busy = Boolean(live.micHolder && !mine);
-    [byId("micBtn"), byId("composerMicBtn")].filter(Boolean).forEach((button) => {
+    const topButton = byId("micBtn");
+    const composerButton = byId("composerMicBtn");
+    [topButton, composerButton].filter(Boolean).forEach((button) => {
       button.classList.toggle("liveMicActive", mine);
       button.classList.toggle("liveMicBusy", busy);
-      button.textContent = mine ? "🔴 إيقاف المايك" : busy ? "🎙️ المايك مشغول" : "🎙️ المايك";
     });
+    if (topButton) topButton.textContent = mine ? "🔴 إيقاف المايك" : busy ? "🎙️ المايك مشغول" : "🎙️ المايك";
+    if (composerButton) {
+      const label = composerButton.querySelector("[data-mic-label]");
+      if (label) label.textContent = mine ? "إيقاف" : busy ? "مشغول" : "المايك";
+      composerButton.title = mine ? "إيقاف المايك" : busy ? "المايك مشغول" : "المايك";
+      composerButton.setAttribute("aria-label", composerButton.title);
+    }
   }
 
   function handleRadioState(data) {
@@ -683,6 +898,7 @@
       };
       saveProfile(profile);
       saveIdentity(identity);
+      live.ignoreHistoryOnce = true;
       await fetchRooms(true);
       hideEntryScreen();
       connect(live.roomId);
@@ -733,6 +949,7 @@
     };
     saveProfile(profile);
     saveIdentity(identity);
+    live.ignoreHistoryOnce = true;
     await fetchRooms(true);
     close("googleAuthModal");
     hideEntryScreen();
@@ -765,6 +982,7 @@
     };
     try { localStorage.setItem(role === "owner" ? OWNER_STORAGE_KEY : MOD_STORAGE_KEY, JSON.stringify(panelIdentity)); } catch {}
     saveIdentity(identity);
+    live.ignoreHistoryOnce = true;
     await fetchRooms(false);
     hideEntryScreen();
     connect(live.roomId);
@@ -806,10 +1024,16 @@
       toast("الغرفة ممتلئة الآن. اختر غرفة أخرى.");
       return;
     }
+    clearRoomSnapshot(state.room);
+    clearRoomSnapshot(next);
     state.activeNameGifts = {};
     live.roomId = next;
     state.room = next;
+    saveActiveRoom(next);
+    setRoomCutoff(next, Date.now());
     state.messages = [];
+    startFreshRoomConversation(next);
+    live.ignoreHistoryOnce = true;
     renderAll();
     setSideTab("users");
     await connect(next);
@@ -908,10 +1132,9 @@
     send({ type: "admin-command", action: "set-staff-visible", visible: Boolean(state.user?.isHidden) });
   }
 
-  async function logoutLive(clearGoogle = true) {
+  async function logoutLive(clearGoogle = false) {
     closeSocket("logout");
     clearTimeout(live.reconnectTimer);
-    clearInterval(live.roomsTimer);
     await stopLocalMic();
     try { await live.relay?.destroy(); } catch {}
     live.relay = null;
@@ -922,11 +1145,16 @@
     state.user = null;
     state.users = [];
     state.messages = [];
+    state.privateUnread = {};
+    state.privateChats = {};
+    state.inbox = { messages: 0, alerts: 0 };
     state.activeNameGifts = {};
     state.stage = [];
     renderAll();
+    updatePrivateBadge();
+    updateGoogleSessionUI();
     showEntryScreen();
-    setConnection("disconnected", "غير متصل");
+    setConnection("disconnected", "بانتظار الدخول");
   }
 
   function openAdminPanel() {
@@ -955,7 +1183,8 @@
     logoutChat = logoutLive;
 
     if (byId("sendBtn")) byId("sendBtn").onclick = sendMessageLive;
-    if (byId("logoutBtn")) byId("logoutBtn").onclick = (event) => { event.stopPropagation(); logoutLive(); };
+    if (byId("logoutBtn")) byId("logoutBtn").onclick = (event) => { event.stopPropagation(); logoutLive(false); };
+    if (byId("changeGoogleAccountBtn")) byId("changeGoogleAccountBtn").onclick = changeGoogleAccount;
     if (byId("moderatorEnterBtn")) byId("moderatorEnterBtn").onclick = enterModerator;
     if (byId("ownerIdentitySave")) byId("ownerIdentitySave").onclick = saveOwnerIdentityLive;
     if (byId("visibilityBtn")) byId("visibilityBtn").onclick = (event) => { event.stopPropagation(); toggleVisibilityLive(); };
@@ -983,9 +1212,13 @@
   async function boot() {
     state.users = [];
     state.messages = [];
+    state.privateUnread = {};
+    state.privateChats = {};
+    state.inbox = { messages: 0, alerts: 0 };
     state.activeNameGifts = {};
     state.rooms = [mapRoom({ id: "lobby", name: "العامة", count: 0 })];
-    state.room = "lobby";
+    live.roomId = loadActiveRoom() || "lobby";
+    state.room = live.roomId;
     bindLiveUI();
     const savedProfile = loadProfile();
     if (savedProfile) {
@@ -993,9 +1226,16 @@
       if (savedProfile.avatar) state.entryAvatar = savedProfile.avatar;
       renderEntryAvatarChoices();
     }
+    const restoredIdentity = loadIdentity();
+    updateGoogleSessionUI();
     await fetchRooms(false);
+    live.roomId = state.rooms.some((room) => room.id === live.roomId) ? live.roomId : (state.rooms[0]?.id || "lobby");
+    state.room = live.roomId;
+    if (restoredIdentity && getRoomCutoff(live.roomId) <= 0) setRoomCutoff(live.roomId, Date.now());
+    restoreRoomSnapshot(live.roomId);
     try {
       renderAll();
+      updatePrivateBadge();
     } catch (error) {
       console.error("Rivo initial render recovered", error);
       if (!state.rooms?.length) state.rooms = [mapRoom({ id: "lobby", name: "العامة", count: 0 })];
@@ -1004,9 +1244,30 @@
       try { renderHeader(); } catch {}
     }
     try { syncLiveChrome(); } catch (error) { console.warn("Rivo chrome sync skipped", error); }
-    setConnection("disconnected", "بانتظار الدخول");
     clearInterval(live.roomsTimer);
     live.roomsTimer = setInterval(() => fetchRooms(false), 15000);
+    if (restoredIdentity) {
+      live.identity = restoredIdentity;
+      hideEntryScreen();
+      setConnection("connecting", "استعادة الجلسة…");
+      await connect(live.roomId);
+    } else {
+      setConnection("disconnected", "بانتظار الدخول");
+      showEntryScreen();
+    }
+
+    window.addEventListener("online", () => scheduleReconnect(true));
+    window.addEventListener("offline", () => setConnection("disconnected", "بانتظار الإنترنت"));
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && live.identity && !socketReady()) scheduleReconnect(true);
+    });
+    window.addEventListener("pageshow", (event) => {
+      if (event.persisted && live.identity && !socketReady()) scheduleReconnect(true);
+    });
+    window.addEventListener("pagehide", () => {
+      saveRoomSnapshot(state.room);
+      if (live.identity) saveIdentity(live.identity);
+    });
   }
 
   window.RivoLive = { live, connect, send, logout: logoutLive };

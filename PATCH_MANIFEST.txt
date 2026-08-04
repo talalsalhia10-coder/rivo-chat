@@ -1,15 +1,8 @@
-RivoChat v157 UI + Message Color Fix
-
-Replace these repository files:
-public/index.html
-public/app.js
-public/live-bridge.js
-public/styles.css
-public/sw.js
-src/index.js
-package.json
-
-Add:
-README_AR_v157.txt
-
-Do not delete the other repository files.
+RivoChat v158 patch files
+- public/index.html
+- public/app.js
+- public/live-bridge.js
+- public/styles.css
+- public/sw.js
+- package.json
+- README_AR_v158.txt

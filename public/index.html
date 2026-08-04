@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=157">
+<link rel="stylesheet" href="styles.css?v=158">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -51,7 +51,8 @@
   <img src="assets/entry-avatars/rivo-avatar-young-man-purple.jpg" alt="صورة شخصية لشاب بخلفية بنفسجية" title="صورة شخصية لشاب بخلفية بنفسجية" width="900" height="900" loading="eager" decoding="async">
 </div></div></div>
       </div>
-      <div class="entryLoginChoices"><button id="entryGuestBtn" class="entryGuestBtn" type="button"><span>👤</span><div><b>الدخول كضيف</b><small>من دون تسجيل — حساب مؤقت</small></div></button><button id="entryGoogleBtn" class="entryGoogleBtn" type="button"><span class="googleLetter">G</span><div><b>تسجيل الدخول بحساب Google</b><small>حساب ثابت ومزايا إضافية</small></div></button></div>
+      <div class="entryLoginChoices"><button id="entryGuestBtn" class="entryGuestBtn" type="button"><span>👤</span><div><b>الدخول كضيف</b><small>من دون تسجيل — حساب مؤقت</small></div></button><button id="entryGoogleBtn" class="entryGoogleBtn" type="button"><span class="googleLetter">G</span><div><b id="entryGoogleButtonTitle">تسجيل الدخول بحساب Google</b><small id="entryGoogleButtonHint">حساب ثابت ومزايا إضافية</small></div></button></div>
+      <div id="entryGoogleSession" class="entryGoogleSession hidden"><div><span class="entryGoogleSessionCheck">✓</span><span>أنت مسجل بحساب <b id="entryGoogleEmail"></b></span></div><button id="changeGoogleAccountBtn" type="button">تغيير الحساب</button></div>
       <section class="entrySeoText" aria-label="نبذة عن دردشة ريفو العراقية"><h2>دردشة ريفو العراقية</h2><p>دردشة ريفو العراقية منصة دردشة عربية كتابية للتواصل وتكوين الصداقات، تضم غرفًا عامة ومحادثات خاصة وهدايا ورتبًا ومزايا متقدمة للمستخدمين.</p></section><div class="entryStaffLinks"><button id="entryModeratorBtn" type="button">دخول المراقب باستخدام رمز ⭐</button><button id="entryOwnerBtn" type="button">دخول الإدارة 👑</button></div><div id="entryError" class="entryError hidden"></div>
     </div>
   </div>
@@ -64,7 +65,7 @@
 
 <audio id="globalRadioAudio" preload="metadata" loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v157</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v158</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -77,11 +78,11 @@
     <section class="chat fullChat">
       <div id="messages" class="messages"></div>
       <div class="composerDock">
-        <div class="composerToolbar">
-          <button id="emojiBtn" class="composerToolButton" title="السمايلات المتحركة" aria-label="السمايلات المتحركة">😊</button>
-          <button id="colorBtn" class="composerToolButton colorToolBtn" title="ألوان الخط" aria-label="ألوان الخط"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.15a2.15 2.15 0 0 0 0-4.3h-.8a1.35 1.35 0 0 1 0-2.7H15a6 6 0 0 0 0-12h-3Z"/><circle cx="7.5" cy="10" r="1.35"/><circle cx="9.2" cy="6.8" r="1.35"/><circle cx="13" cy="6.2" r="1.35"/><circle cx="16.2" cy="8.5" r="1.35"/></svg><span id="activeColorDot" class="activeColorDot"></span></button>
-          <button id="composerMicBtn" class="composerToolButton" title="المايك" aria-label="المايك"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M8.5 21h7"/></svg></button>
-          <button id="composerCameraBtn" class="composerToolButton" title="الكاميرا" aria-label="الكاميرا"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l1.4-2h7.2L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></svg></button>
+        <div class="composerToolbar" aria-label="أدوات الرسالة">
+          <button id="emojiBtn" class="composerToolButton" title="الرموز" aria-label="الرموز"><span class="composerEmojiIcon">😊</span><span class="composerToolLabel">رموز</span></button>
+          <button id="colorBtn" class="composerToolButton colorToolBtn" title="ألوان الخط" aria-label="ألوان الخط"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.15a2.15 2.15 0 0 0 0-4.3h-.8a1.35 1.35 0 0 1 0-2.7H15a6 6 0 0 0 0-12h-3Z"/><circle cx="7.5" cy="10" r="1.35"/><circle cx="9.2" cy="6.8" r="1.35"/><circle cx="13" cy="6.2" r="1.35"/><circle cx="16.2" cy="8.5" r="1.35"/></svg><span class="composerToolLabel">اللون</span><span id="activeColorDot" class="activeColorDot"></span></button>
+          <button id="composerMicBtn" class="composerToolButton" title="المايك" aria-label="المايك"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M6.5 11.5a5.5 5.5 0 0 0 11 0M12 17v4M8.5 21h7"/></svg><span class="composerToolLabel" data-mic-label>المايك</span></button>
+          <button id="composerCameraBtn" class="composerToolButton" title="الكاميرا" aria-label="الكاميرا"><svg class="composerToolIcon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l1.4-2h7.2L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Z"/><circle cx="12" cy="13" r="4"/></svg><span class="composerToolLabel">الكاميرا</span></button>
         </div>
         <div class="composerLine">
           <img id="composerAvatar" src="assets/avatars/guest.svg" alt="الصورة">
@@ -287,15 +288,15 @@
 <div id="giftOverlay" class="giftOverlay hidden"><div class="giftScene"><div id="giftVisual" class="giftVisual">🧸</div><div class="giftText"><b id="giftSender"></b><span>أرسل إلى</span><b id="giftReceiver"></b><strong id="giftName"></strong></div></div></div>
 <video id="localVideo" class="hidden" autoplay muted playsinline></video>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="./google-config.js?v=157"></script>
-<script src="./google-auth.js?v=157"></script>
-<script src="./relay-audio.js?v=157"></script>
-<script src="app.js?v=157"></script>
-<script src="./live-bridge.js?v=157"></script>
+<script src="./google-config.js?v=158"></script>
+<script src="./google-auth.js?v=158"></script>
+<script src="./relay-audio.js?v=158"></script>
+<script src="app.js?v=158"></script>
+<script src="./live-bridge.js?v=158"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=157").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=158").catch(() => {});
   });
 }
 </script>
