@@ -838,6 +838,190 @@
     }
   }
 
+  const privateRequestQueue = [];
+  const privateRequestIds = new Set();
+  let activePrivateRequest = null;
+  let privateRequestDecisionPending = false;
+
+  function privateRequestEscape(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[char]));
+  }
+
+  function playPrivateRequestSound() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.11, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.42);
+      gain.connect(ctx.destination);
+      [660, 880].forEach((frequency, index) => {
+        const oscillator = ctx.createOscillator();
+        oscillator.type = "sine";
+        oscillator.frequency.value = frequency;
+        oscillator.connect(gain);
+        oscillator.start(ctx.currentTime + index * 0.12);
+        oscillator.stop(ctx.currentTime + 0.24 + index * 0.12);
+      });
+      setTimeout(() => ctx.close?.(), 700);
+    } catch {}
+  }
+
+  function ensurePrivateRequestModal() {
+    if (!document.getElementById("rivoPrivateRequestStyle")) {
+      const style = document.createElement("style");
+      style.id = "rivoPrivateRequestStyle";
+      style.textContent = `
+        .rivoPrivateRequestOverlay{position:fixed;inset:0;z-index:12000;background:rgba(15,23,42,.6);display:grid;place-items:center;padding:18px;backdrop-filter:blur(6px)}
+        .rivoPrivateRequestOverlay.hidden{display:none!important}
+        .rivoPrivateRequestCard{width:min(470px,94vw);background:#fff;border-radius:25px;padding:25px;box-shadow:0 34px 95px rgba(0,0,0,.34);direction:rtl;text-align:right;position:relative;border-top:6px solid #6d5dfc;animation:rivoPrivateRequestIn .22s ease-out}
+        @keyframes rivoPrivateRequestIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+        .rivoPrivateRequestClose{position:absolute;left:14px;top:13px;width:38px;height:38px;border:0;border-radius:50%;background:#eef2f7;color:#334155;font-size:24px;display:grid;place-items:center;cursor:pointer}
+        .rivoPrivateRequestTitle{margin:0 0 7px;font-size:25px;color:#18233b}
+        .rivoPrivateRequestSubtitle{margin:0 0 19px;color:#6f7b90;line-height:1.7}
+        .rivoPrivateRequestUser{display:flex;align-items:center;gap:13px;padding:14px;border:1px solid #dce5f3;border-radius:18px;background:linear-gradient(135deg,#f8faff,#f2f4ff)}
+        .rivoPrivateRequestAvatar{width:62px;height:62px;border-radius:19px;object-fit:cover;border:3px solid #fff;box-shadow:0 9px 22px rgba(36,51,88,.17)}
+        .rivoPrivateRequestUser b{display:block;font-size:20px;color:#172033}.rivoPrivateRequestUser small{display:block;margin-top:4px;color:#778196}
+        .rivoPrivateRequestQueue{margin:12px 2px 0;color:#755de8;font-weight:800;font-size:12px;min-height:18px}
+        .rivoPrivateRequestStatus{margin:15px 0 0;padding:11px 13px;border-radius:13px;background:#f4f7fb;color:#657087;font-weight:700;min-height:22px}
+        .rivoPrivateRequestStatus.waiting{background:#fff7df;color:#9a6500}.rivoPrivateRequestStatus.success{background:#e9fff4;color:#087a4c}.rivoPrivateRequestStatus.error{background:#fff0f2;color:#b4233f}
+        .rivoPrivateRequestActions{display:grid;grid-template-columns:1.2fr 1fr;gap:10px;margin-top:16px}
+        .rivoPrivateRequestAccept,.rivoPrivateRequestReject{border:0;border-radius:14px;padding:13px 12px;font-weight:900;font-size:16px;cursor:pointer}
+        .rivoPrivateRequestAccept{background:linear-gradient(135deg,#6653f7,#268cf3);color:#fff;box-shadow:0 10px 22px rgba(82,84,224,.25)}
+        .rivoPrivateRequestReject{background:#edf1f6;color:#334155}
+        .rivoPrivateRequestAccept:disabled,.rivoPrivateRequestReject:disabled{opacity:.58;cursor:not-allowed}
+        @media(max-width:520px){.rivoPrivateRequestCard{padding:22px 18px}.rivoPrivateRequestActions{grid-template-columns:1fr}.rivoPrivateRequestAvatar{width:56px;height:56px}}
+      `;
+      document.head.appendChild(style);
+    }
+    let overlay = document.getElementById("rivoPrivateRequestOverlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "rivoPrivateRequestOverlay";
+      overlay.className = "rivoPrivateRequestOverlay hidden";
+      overlay.innerHTML = `<section class="rivoPrivateRequestCard" role="dialog" aria-modal="true" aria-labelledby="rivoPrivateRequestTitle">
+        <button id="rivoPrivateRequestClose" class="rivoPrivateRequestClose" aria-label="رفض وإغلاق">×</button>
+        <h2 id="rivoPrivateRequestTitle" class="rivoPrivateRequestTitle">طلب محادثة خاصة</h2>
+        <p class="rivoPrivateRequestSubtitle">يريد هذا المستخدم فتح محادثة خاصة معك.</p>
+        <div class="rivoPrivateRequestUser"><img id="rivoPrivateRequestAvatar" class="rivoPrivateRequestAvatar" alt=""><div><b id="rivoPrivateRequestName">مستخدم</b><small>محادثة خاصة داخل ريفو</small></div></div>
+        <div id="rivoPrivateRequestQueue" class="rivoPrivateRequestQueue"></div>
+        <div id="rivoPrivateRequestStatus" class="rivoPrivateRequestStatus">اختر قبول أو رفض.</div>
+        <div class="rivoPrivateRequestActions"><button id="rivoPrivateRequestAccept" class="rivoPrivateRequestAccept">قبول وفتح الخاص</button><button id="rivoPrivateRequestReject" class="rivoPrivateRequestReject">رفض</button></div>
+      </section>`;
+      document.body.appendChild(overlay);
+      const reject = () => decidePrivateRequest(false);
+      document.getElementById("rivoPrivateRequestAccept").onclick = () => decidePrivateRequest(true);
+      document.getElementById("rivoPrivateRequestReject").onclick = reject;
+      document.getElementById("rivoPrivateRequestClose").onclick = reject;
+      overlay.addEventListener("click", (event) => { if (event.target === overlay) reject(); });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !overlay.classList.contains("hidden")) reject();
+      });
+    }
+    return overlay;
+  }
+
+  function updatePrivateRequestQueueLabel() {
+    const label = document.getElementById("rivoPrivateRequestQueue");
+    if (!label) return;
+    const count = privateRequestQueue.length;
+    label.textContent = count ? `يوجد ${count} طلب آخر بانتظارك` : "";
+  }
+
+  function setPrivateRequestStatus(message, stateName = "") {
+    const status = document.getElementById("rivoPrivateRequestStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.className = `rivoPrivateRequestStatus ${stateName}`.trim();
+  }
+
+  function setPrivateRequestButtonsDisabled(disabled) {
+    const accept = document.getElementById("rivoPrivateRequestAccept");
+    const reject = document.getElementById("rivoPrivateRequestReject");
+    const close = document.getElementById("rivoPrivateRequestClose");
+    if (accept) accept.disabled = disabled;
+    if (reject) reject.disabled = disabled;
+    if (close) close.disabled = disabled;
+  }
+
+  function showNextPrivateRequest() {
+    if (activePrivateRequest || !privateRequestQueue.length) {
+      updatePrivateRequestQueueLabel();
+      return;
+    }
+    activePrivateRequest = privateRequestQueue.shift();
+    privateRequestDecisionPending = false;
+    const overlay = ensurePrivateRequestModal();
+    const name = cleanName(activePrivateRequest.fromNickname || activePrivateRequest.nickname) || "مستخدم";
+    const avatar = activePrivateRequest.fromAvatar || activePrivateRequest.avatar || "guest";
+    document.getElementById("rivoPrivateRequestName").textContent = name;
+    document.getElementById("rivoPrivateRequestAvatar").src = av(avatar);
+    document.getElementById("rivoPrivateRequestAvatar").alt = `صورة ${name}`;
+    setPrivateRequestStatus("اختر قبول أو رفض.");
+    setPrivateRequestButtonsDisabled(false);
+    updatePrivateRequestQueueLabel();
+    overlay.classList.remove("hidden");
+    playPrivateRequestSound();
+    toast(`طلب محادثة خاصة من ${name}`);
+    setTimeout(() => document.getElementById("rivoPrivateRequestAccept")?.focus(), 80);
+  }
+
+  function enqueuePrivateRequest(data) {
+    const requestId = String(data?.requestId || "");
+    if (!requestId || privateRequestIds.has(requestId)) return;
+    privateRequestIds.add(requestId);
+    privateRequestQueue.push(data);
+    updatePrivateRequestQueueLabel();
+    showNextPrivateRequest();
+  }
+
+  function finishPrivateRequest(showNext = true) {
+    const requestId = String(activePrivateRequest?.requestId || "");
+    if (requestId) privateRequestIds.delete(requestId);
+    activePrivateRequest = null;
+    privateRequestDecisionPending = false;
+    document.getElementById("rivoPrivateRequestOverlay")?.classList.add("hidden");
+    setPrivateRequestButtonsDisabled(false);
+    if (showNext) setTimeout(showNextPrivateRequest, 120);
+  }
+
+  function decidePrivateRequest(accept) {
+    if (!activePrivateRequest || privateRequestDecisionPending) return;
+    privateRequestDecisionPending = true;
+    setPrivateRequestButtonsDisabled(true);
+    if (accept) {
+      setPrivateRequestStatus("جاري فتح المحادثة الخاصة...", "waiting");
+      const sent = send({ type: "private-response", requestId: activePrivateRequest.requestId, accept: true });
+      if (!sent) {
+        privateRequestDecisionPending = false;
+        setPrivateRequestButtonsDisabled(false);
+        setPrivateRequestStatus("تعذر إرسال الموافقة. تحقق من الاتصال وحاول مجدداً.", "error");
+        return;
+      }
+      setTimeout(() => {
+        if (!privateRequestDecisionPending || !activePrivateRequest) return;
+        privateRequestDecisionPending = false;
+        setPrivateRequestButtonsDisabled(false);
+        setPrivateRequestStatus("لم يصل تأكيد فتح المحادثة بعد. يمكنك المحاولة مرة أخرى.", "error");
+      }, 8000);
+    } else {
+      setPrivateRequestStatus("تم رفض طلب المحادثة.", "success");
+      send({ type: "private-response", requestId: activePrivateRequest.requestId, accept: false });
+      setTimeout(() => finishPrivateRequest(true), 360);
+    }
+  }
+
+  function completeAcceptedPrivateRequest() {
+    if (!activePrivateRequest) return;
+    privateRequestDecisionPending = false;
+    setPrivateRequestStatus("تم قبول الطلب وفتح المحادثة.", "success");
+    setTimeout(() => finishPrivateRequest(true), 280);
+  }
+
   async function syncRemoteAdminSettings(showNotice = false) {
     try {
       const response = await fetch("/api/admin/settings/public", { cache: "no-store" });
@@ -921,14 +1105,14 @@
         break;
       case "private-request": {
         live.pendingPrivate = data;
-        const accept = confirm(`${data.fromNickname || "مستخدم"} يطلب محادثة خاصة. هل توافق؟`);
-        send({ type: "private-response", requestId: data.requestId, accept });
+        enqueuePrivateRequest(data);
         break;
       }
       case "private-request-sent":
         toast("تم إرسال طلب المحادثة الخاصة");
         break;
       case "private-started":
+        completeAcceptedPrivateRequest();
         openPrivateSession(data.peer || { clientId: data.with, nickname: "مستخدم", avatar: "guest" });
         break;
       case "private-message":
