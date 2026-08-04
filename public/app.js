@@ -541,20 +541,27 @@ const textShortcutMap=new Map([
  ['و1','ولكمو'],
  ['ي2','يسلمو']
 ]);
-function replaceEmojiShortcuts(value=''){
- return String(value).replace(/(^|[\s،,.!?؟؛:])ص(\d{1,3})(?=$|[\s،,.!?؟؛:])/g,(whole,prefix,number)=>{
-  const emoji=emojiShortcutMap.get(`ص${Number(number)}`);
-  return emoji?`${prefix}${emoji}`:whole;
- });
-}
-function replaceTextShortcuts(value=''){
- return String(value).replace(/(^|[\s،,.!?؟؛:])(س1|س2|و1|ي2)(?=$|[\s،,.!?؟؛:])/g,(whole,prefix,code)=>{
-  const phrase=textShortcutMap.get(code);
-  return phrase?`${prefix}${phrase}`:whole;
- });
+function normalizeShortcutCode(value=''){
+ const arabicDigits='٠١٢٣٤٥٦٧٨٩';
+ const persianDigits='۰۱۲۳۴۵۶۷۸۹';
+ return String(value)
+  .replace(/[٠-٩]/g,d=>String(arabicDigits.indexOf(d)))
+  .replace(/[۰-۹]/g,d=>String(persianDigits.indexOf(d)))
+  .replace(/[ىی]/g,'ي');
 }
 function replaceMessageShortcuts(value=''){
- return replaceTextShortcuts(replaceEmojiShortcuts(value));
+ const text=String(value??'').replace(/[\u200e\u200f\u061c]/g,'');
+ return text.replace(/(^|[^\p{L}\p{N}_])(ص[0-9٠-٩۰-۹]{1,3}|س[12١٢۱۲]|و[1١۱]|[يىی][2٢۲])(?=$|[^\p{L}\p{N}_])/gu,(whole,prefix,rawCode)=>{
+  const code=normalizeShortcutCode(rawCode);
+  const replacement=emojiShortcutMap.get(code)||textShortcutMap.get(code);
+  return replacement?`${prefix}${replacement}`:whole;
+ });
+}
+function replaceEmojiShortcuts(value=''){
+ return replaceMessageShortcuts(value);
+}
+function replaceTextShortcuts(value=''){
+ return replaceMessageShortcuts(value);
 }
 function insertEmojiAtCursor(emoji){
  const input=$('#messageInput');if(!input)return;
