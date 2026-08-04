@@ -92,7 +92,10 @@
     lastPongAt: 0,
     connectSerial: 0,
     ignoreHistoryOnce: false,
-    googlePrepared: false
+    googlePrepared: false,
+    pendingProfilePatch: null,
+    avatarSettingsSync: null,
+    pageLeaving: false
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -121,6 +124,28 @@
     if (managed?.id) return String(managed.id).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 40);
     if (/^[a-z0-9][a-z0-9_-]{0,39}$/i.test(raw)) return raw.toLowerCase();
     return "entry_avatar_1";
+  }
+
+  function avatarSourceKnown(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return true;
+    if (/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/i.test(raw)) return true;
+    if (["owner","guest","lina","girl2","girl3","girl4","man1","avatar6","avatar7","entry1","entry2","entry3","entry4","entry5","entry6"].includes(raw)) return true;
+    return (Array.isArray(state.entryAvatarOptions) ? state.entryAvatarOptions : [])
+      .some((item) => item && (String(item.id) === raw || String(item.src) === raw));
+  }
+
+  async function ensureAvatarSettings(values = []) {
+    const list = Array.isArray(values) ? values : [values];
+    if (!list.some((value) => !avatarSourceKnown(value))) return false;
+    if (!live.avatarSettingsSync) {
+      live.avatarSettingsSync = Promise.resolve(syncRemoteAdminSettings(false))
+        .catch(() => false)
+        .finally(() => { live.avatarSettingsSync = null; });
+    }
+    await live.avatarSettingsSync;
+    try { renderAll(); syncLiveChrome(); } catch {}
+    return true;
   }
   function isGuestUser(user) {
     return Boolean(user?.isGuest) || /(?:^|\s)•?\s*ضيف$/.test(String(user?.nickname || user?.name || ""));
@@ -431,6 +456,7 @@
 
   async function connect(roomId = live.roomId) {
     if (!live.identity || !identityIsUsable(live.identity)) return;
+    live.pageLeaving = false;
     const serial = ++live.connectSerial;
     closeSocket("reconnect");
     live.roomId = roomId === "general" ? "lobby" : roomId;
@@ -473,6 +499,9 @@
       setConnection("connected", "متصل");
       startHeartbeat(socket);
       try { socket.send(JSON.stringify({ type: "room-radio-state-request" })); } catch {}
+      if (live.pendingProfilePatch) {
+        try { socket.send(JSON.stringify({ type: "profile", ...live.pendingProfilePatch })); } catch {}
+      }
     });
 
     socket.addEventListener("message", (event) => {
@@ -490,7 +519,12 @@
       stopHeartbeat();
       live.connected = false;
       setConnection("disconnected", navigator.onLine === false ? "بانتظار الإنترنت" : "انقطع الاتصال — نعيده الآن");
-      if (!live.identity) return;
+      if (!live.identity || live.pageLeaving) return;
+      if (event.code === 4002) {
+        setConnection("disconnected", "تم فتح الحساب في نافذة أخرى");
+        toast(event.reason || "تم فتح هذا الحساب في نافذة أخرى");
+        return;
+      }
       if ([4003, 4004].includes(event.code)) {
         toast(event.reason || "تم إنهاء الجلسة بواسطة الإدارة");
         logoutLive(false);
@@ -631,6 +665,7 @@
     }
     saveProfile({ name: nickname, avatar });
     if (state.user?.id) updateUserPatch(state.user.id, { nickname, avatar });
+    live.pendingProfilePatch = { nickname, avatar };
     if (socketReady()) {
       try { live.socket.send(JSON.stringify({ type: "profile", nickname, avatar })); } catch {}
     }
@@ -1092,6 +1127,7 @@
         break;
       }
       case "init": {
+        await ensureAvatarSettings([data.self?.avatar, ...(Array.isArray(data.users) ? data.users.map((u) => u?.avatar) : [])]);
         live.self = { ...data.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google" };
         live.roomId = data.room?.id || live.roomId;
         state.room = live.roomId;
@@ -1116,12 +1152,19 @@
         break;
       }
       case "presence":
+        await ensureAvatarSettings((data.users || []).map((user) => user?.avatar));
         syncUsers(data.users || []);
         break;
       case "message":
         appendLiveMessage(data.message || {});
         break;
       case "profile-updated":
+        await ensureAvatarSettings(data.avatar);
+        updateUserPatch(data.clientId, data);
+        break;
+      case "profile-saved":
+        live.pendingProfilePatch = null;
+        await ensureAvatarSettings(data.avatar);
         updateUserPatch(data.clientId, data);
         break;
       case "badge-updated":
@@ -1730,6 +1773,15 @@
       showEntryScreen();
     }
 
+    const sendExplicitLeave = (reason = "pagehide") => {
+      if (live.pageLeaving) return;
+      live.pageLeaving = true;
+      const socket = live.socket;
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        try { socket.send(JSON.stringify({ type: "leave", reason, at: Date.now() })); } catch {}
+      }
+    };
+
     window.addEventListener("online", () => scheduleReconnect(true));
     window.addEventListener("offline", () => setConnection("disconnected", "بانتظار الإنترنت"));
     document.addEventListener("visibilitychange", () => {
@@ -1744,7 +1796,9 @@
     window.addEventListener("pagehide", () => {
       saveRoomSnapshot(state.room);
       if (live.identity) saveIdentity(live.identity);
+      sendExplicitLeave("pagehide");
     });
+    window.addEventListener("beforeunload", () => sendExplicitLeave("beforeunload"));
   }
 
   window.RivoLive = { live, connect, send, logout: logoutLive, updateProfile: updateProfileLive };

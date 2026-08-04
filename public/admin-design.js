@@ -19,7 +19,17 @@ const RIVO_ADMIN_AVATAR_MAP={
 const avatarSrc=value=>{
  const source=typeof value==='string'?value.trim():'';
  if(/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/.test(source))return source;
- return RIVO_ADMIN_AVATAR_MAP[source]||`assets/avatars/${source||'guest'}.svg`;
+ if(RIVO_ADMIN_AVATAR_MAP[source])return RIVO_ADMIN_AVATAR_MAP[source];
+ try{
+  const managed=(Array.isArray(config?.entryAvatars)?config.entryAvatars:[]).find(item=>item&&(String(item.id)===source||String(item.src)===source));
+  if(managed?.src)return managed.src;
+ }catch(_){ }
+ try{
+  const saved=JSON.parse(localStorage.getItem('rivoAdminConfigV1')||'{}');
+  const managed=(Array.isArray(saved?.entryAvatars)?saved.entryAvatars:[]).find(item=>item&&(String(item.id)===source||String(item.src)===source));
+  if(managed?.src)return managed.src;
+ }catch(_){ }
+ return `assets/avatars/${source||'guest'}.svg`;
 };
 const CONFIG_KEY='rivoAdminConfigV1';
 const CAMERA_KEY='rivoCameraRequestsV1';
