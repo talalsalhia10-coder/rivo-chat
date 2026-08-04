@@ -65,6 +65,7 @@ const adminFreeBadgeCatalog=[
 ];
 let selectedAdminBadgeUserId=null;
 let activeAdminSessionBadges={};
+let selectedAdminMessageUserId='all';
 
 
 
@@ -351,11 +352,12 @@ function connectAdminSocket(force=false){
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
  socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة');if(data.type==='admin-message-sent')toast(data.message||'تم إرسال الرسالة')};
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
 function renderAdminDesignAll(){
+ ensureAdminMessageUi();
  normalizeAdminData();renderOverview();renderRoomsAdmin();renderUsersAdmin();renderEntryAvatarsAdmin();renderCameraRequests();renderMicRequests();renderRadioAdmin();renderPrivateAdmin();renderPermissionsAdmin();renderModeratorTokens();renderEconomy();renderAnnouncementAdmin();renderSecurity();renderLogs();renderCommunityPanel();requestAnimationFrame(fitChatPreview);
 }
 let config=mergeConfig(readJSON(CONFIG_KEY,null));
@@ -601,6 +603,70 @@ function resendAdminSessionBadges(){
  Object.entries(activeAdminSessionBadges).forEach(([userId,badge])=>sendLiveMessage('rivo-free-badge-grant',{userId,badge}));
 }
 
+function ensureAdminMessageUi(){
+ if(!document.getElementById('rivoAdminMessageStyles')){
+  const style=document.createElement('style');style.id='rivoAdminMessageStyles';style.textContent=`
+  .adminMessageIconBtn{width:38px;height:38px;border:0;border-radius:12px;background:linear-gradient(135deg,#2563eb,#4f8cff);color:#fff;display:grid;place-items:center;font-size:19px;box-shadow:0 7px 16px rgba(37,99,235,.22);flex:0 0 auto}
+  .adminMessageIconBtn:hover{transform:translateY(-1px);filter:brightness(1.05)}
+  .adminBroadcastMessageBtn{width:calc(100% - 18px);margin:6px 9px 8px;border:0;border-radius:11px;padding:10px 12px;background:linear-gradient(135deg,#653cff,#3188ff);color:#fff;font-weight:900;box-shadow:0 8px 18px rgba(73,76,220,.2)}
+  .adminDirectMessageOverlay{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px;backdrop-filter:blur(5px)}
+  .adminDirectMessageCard{width:min(520px,96vw);background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.3);position:relative;direction:rtl}
+  .adminDirectMessageCard h2{margin:0 0 6px;font-size:25px}.adminDirectMessageCard p{margin:0 0 14px;color:#667085}
+  .adminDirectMessageCard textarea{width:100%;min-height:145px;resize:vertical;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font:inherit;outline:none}
+  .adminDirectMessageCard textarea:focus{border-color:#4f7cff;box-shadow:0 0 0 3px rgba(79,124,255,.13)}
+  .adminDirectMessageActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:13px}
+  .adminDirectMessageActions button{border:0;border-radius:12px;padding:12px;font-weight:900}
+  .adminDirectMessageSend{background:linear-gradient(135deg,#5b46f4,#2f8cff);color:#fff}.adminDirectMessageCancel{background:#edf1f6;color:#334155}
+  .adminDirectMessageClose{position:absolute;left:14px;top:13px;width:34px;height:34px;border:0;border-radius:50%;background:#eef2f7;font-size:20px}
+  .adminDirectMessageTarget{display:inline-flex;align-items:center;gap:7px;background:#eef3ff;color:#3157b7;border-radius:999px;padding:7px 11px;font-weight:800;margin-bottom:12px}
+  `;document.head.appendChild(style);
+ }
+ if(!document.getElementById('adminDirectMessageOverlay')){
+  const overlay=document.createElement('div');overlay.id='adminDirectMessageOverlay';overlay.className='adminDirectMessageOverlay hidden';overlay.innerHTML=`<div class="adminDirectMessageCard"><button id="adminDirectMessageClose" class="adminDirectMessageClose">×</button><h2>إرسال رسالة من الإدارة</h2><p>تصل الرسالة فوراً للمستخدم أو لجميع الموجودين في الدردشة.</p><div id="adminDirectMessageTarget" class="adminDirectMessageTarget">👥 الجميع</div><textarea id="adminDirectMessageText" maxlength="500" placeholder="اكتب رسالة الإدارة هنا..."></textarea><div class="adminDirectMessageActions"><button id="adminDirectMessageSend" class="adminDirectMessageSend">إرسال الرسالة</button><button id="adminDirectMessageCancel" class="adminDirectMessageCancel">إلغاء</button></div></div>`;
+  document.body.appendChild(overlay);
+  $('#adminDirectMessageClose').onclick=closeAdminMessagePanel;
+  $('#adminDirectMessageCancel').onclick=closeAdminMessagePanel;
+  $('#adminDirectMessageSend').onclick=sendAdminMessageNow;
+  overlay.onclick=e=>{if(e.target===overlay)closeAdminMessagePanel()};
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.classList.contains('hidden'))closeAdminMessagePanel()});
+ }
+ const panel=$('#communityUsersPanel');
+ if(panel&&!$('#adminBroadcastMessageBtn')){
+  const button=document.createElement('button');button.id='adminBroadcastMessageBtn';button.className='adminBroadcastMessageBtn';button.textContent='📣 رسالة لجميع المتصلين';
+  button.onclick=()=>openAdminMessagePanel('all');
+  panel.insertBefore(button,panel.querySelector('.communityCount')?.nextSibling||panel.firstChild);
+ }
+}
+function openAdminMessagePanel(userId='all'){
+ ensureAdminMessageUi();selectedAdminMessageUserId=userId||'all';
+ const user=selectedAdminMessageUserId==='all'?null:userById(selectedAdminMessageUserId);
+ $('#adminDirectMessageTarget').textContent=user?`💬 إلى ${user.name}`:'📣 إلى جميع المتصلين';
+ $('#adminDirectMessageText').value='';
+ $('#adminDirectMessageOverlay').classList.remove('hidden');
+ setTimeout(()=>$('#adminDirectMessageText')?.focus(),60);
+}
+function closeAdminMessagePanel(){$('#adminDirectMessageOverlay')?.classList.add('hidden')}
+function sendAdminMessageCommand(targetId,body){
+ if(targetId==='all'){
+  let sent=0;
+  for(const socket of presenceSockets.values()){
+   if(socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',body,all:true}));sent++}
+  }
+  if(!sent&&adminSocket?.readyState===WebSocket.OPEN){adminSocket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',body,all:true}));sent=1}
+  return sent>0;
+ }
+ const user=userById(targetId);return sendAdminCommand('send-admin-message',{clientId:targetId,nickname:user?.name||'مستخدم',body});
+}
+function sendAdminMessageNow(){
+ const body=String($('#adminDirectMessageText')?.value||'').trim();
+ if(!body){toast('اكتب الرسالة أولاً');$('#adminDirectMessageText')?.focus();return}
+ const target=selectedAdminMessageUserId||'all';
+ if(!sendAdminMessageCommand(target,body))return;
+ const user=target==='all'?null:userById(target);
+ addLog(user?`أرسلت الإدارة رسالة إلى ${user.name}`:'أرسلت الإدارة رسالة إلى جميع المتصلين');
+ closeAdminMessagePanel();toast(user?`تم إرسال الرسالة إلى ${user.name}`:'تم إرسال الرسالة إلى جميع المتصلين');
+}
+
 function renderCommunityPanel(){normalizeAdminData();
  const q=($('#communitySearchInput')?.value||'').trim();
  const users=sortAdminUsersByHierarchy(config.users.filter(u=>['online','muted'].includes(u.status)&&u.status!=='kicked'&&String(u.name||'').includes(q)));
@@ -617,6 +683,7 @@ function renderCommunityPanel(){normalizeAdminData();
    </span>
    <span class="communityRole">${communityRole(u)}</span>
    ${['owner','moderator'].includes(u.role)?`<button class="communityVisibilityBtn ${u.isHidden?'hiddenState':''}" data-community-visibility="${u.id}" title="إخفاء أو إظهار">${u.isHidden?'🫥':'👁️'}</button>`:''}
+   <button class="adminMessageIconBtn" data-admin-message-user="${u.id}" title="إرسال رسالة إلى المستخدم">💬</button>
    <button class="adminQuickBadgeBtn ${activeAdminSessionBadges[u.id]?'active':''}" data-admin-badge-user="${u.id}" title="منح شارة مجانية">
     <span>${adminBadgeIcon(u.id)}</span><b>شارة</b>
    </button>
@@ -632,12 +699,13 @@ function renderCommunityPanel(){normalizeAdminData();
  </button>`).join('');
 
  $$('[data-community-user]').forEach(row=>row.onclick=e=>{
-   if(e.target.closest('[data-admin-badge-user]')||e.target.closest('[data-community-visibility]'))return;
+   if(e.target.closest('[data-admin-badge-user]')||e.target.closest('[data-admin-message-user]')||e.target.closest('[data-community-visibility]'))return;
    const user=userById(row.dataset.communityUser);
    showSection('users');
    $('#userAdminSearch').value=user?.name||'';
    renderUsersAdmin();
  });
+ $$('[data-admin-message-user]').forEach(button=>button.onclick=e=>{e.stopPropagation();openAdminMessagePanel(button.dataset.adminMessageUser)});
  $$('[data-admin-badge-user]').forEach(button=>button.onclick=e=>{e.stopPropagation();openAdminBadgePanel(button.dataset.adminBadgeUser)});
  $$('[data-community-visibility]').forEach(button=>button.onclick=e=>{e.stopPropagation();toggleStaffVisibility(button.dataset.communityVisibility)});
  $$('[data-community-room]').forEach(b=>b.onclick=()=>{
@@ -1019,6 +1087,7 @@ function renderUsersAdmin(){
   <td><input type="number" min="0" value="${u.coins}" data-coins-user="${u.id}" style="width:90px;border:1px solid #ccd5e1;border-radius:8px;padding:6px"></td>
   <td><span class="statusBadge ${u.status==='muted'?'muted':''} ${u.isHidden?'hiddenStaffStatus':''}">${u.isHidden?'مخفي':u.status==='muted'?'مكتوم':u.status==='offline'?'غير متصل':'متصل'}</span></td>
   <td><div class="rowActions">
+    <button class="adminMessageIconBtn" data-table-message-user="${u.id}" title="إرسال رسالة">💬</button>
     <button class="tableBadgeBtn ${activeAdminSessionBadges[u.id]?'active':''}" data-table-badge-user="${u.id}">${adminBadgeIcon(u.id)} شارة</button>
     ${['owner','moderator'].includes(u.role)?`<button data-user-action="visibility" data-user="${u.id}">${u.isHidden?'👁️ إظهار':'🫥 إخفاء'}</button>`:''}
     <button data-user-action="mute" data-user="${u.id}">${u.status==='muted'?'إلغاء الكتم':'كتم'}</button>
@@ -1029,6 +1098,7 @@ function renderUsersAdmin(){
  $$('[data-role-user]').forEach(s=>s.onchange=()=>changeUserRole(s.dataset.roleUser,s.value));
  $$('[data-coins-user]').forEach(i=>i.onchange=()=>changeUserCoins(i.dataset.coinsUser,+i.value||0));
  $$('[data-user-action]').forEach(b=>b.onclick=()=>userAction(b.dataset.user,b.dataset.userAction));
+ $$('[data-table-message-user]').forEach(b=>b.onclick=()=>openAdminMessagePanel(b.dataset.tableMessageUser));
  $$('[data-table-badge-user]').forEach(b=>b.onclick=()=>openAdminBadgePanel(b.dataset.tableBadgeUser));
 }
 function changeUserRole(id,value){

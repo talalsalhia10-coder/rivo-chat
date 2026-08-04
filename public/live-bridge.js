@@ -658,6 +658,46 @@
     setTimeout(() => byId("privateMessageInput")?.focus(), 70);
   }
 
+  function ensureAdminDirectMessageModal() {
+    if (!document.getElementById("rivoAdminDirectMessageStyle")) {
+      const style = document.createElement("style");
+      style.id = "rivoAdminDirectMessageStyle";
+      style.textContent = `
+      .rivoAdminDirectOverlay{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px;backdrop-filter:blur(5px)}
+      .rivoAdminDirectCard{width:min(500px,94vw);background:#fff;border-radius:23px;padding:24px;box-shadow:0 35px 100px rgba(0,0,0,.34);position:relative;direction:rtl;text-align:right;border-top:7px solid #7257ff}
+      .rivoAdminDirectCard h2{margin:0 0 8px;font-size:25px}.rivoAdminDirectCard p{margin:0;color:#1f2937;font-size:18px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
+      .rivoAdminDirectMeta{display:flex;align-items:center;gap:9px;color:#6b7280;margin-bottom:14px;font-size:13px}.rivoAdminDirectIcon{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#6547f4,#2f94ff);display:grid;place-items:center;color:#fff;font-size:23px}
+      .rivoAdminDirectClose{position:absolute;left:13px;top:12px;width:36px;height:36px;border:0;border-radius:50%;background:#eef2f7;font-size:21px}.rivoAdminDirectOk{width:100%;margin-top:18px;border:0;border-radius:13px;padding:12px;background:linear-gradient(135deg,#6547f4,#2f94ff);color:#fff;font-weight:900}
+      `;
+      document.head.appendChild(style);
+    }
+    let overlay = document.getElementById("rivoAdminDirectOverlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.id = "rivoAdminDirectOverlay";
+      overlay.className = "rivoAdminDirectOverlay hidden";
+      overlay.innerHTML = `<div class="rivoAdminDirectCard"><button id="rivoAdminDirectClose" class="rivoAdminDirectClose">×</button><div class="rivoAdminDirectMeta"><span class="rivoAdminDirectIcon">👑</span><div><b>رسالة خاصة من الإدارة</b><small id="rivoAdminDirectTime" style="display:block"></small></div></div><h2 id="rivoAdminDirectTitle">الإدارة</h2><p id="rivoAdminDirectBody"></p><button id="rivoAdminDirectOk" class="rivoAdminDirectOk">حسناً</button></div>`;
+      document.body.appendChild(overlay);
+      const close = () => overlay.classList.add("hidden");
+      document.getElementById("rivoAdminDirectClose").onclick = close;
+      document.getElementById("rivoAdminDirectOk").onclick = close;
+      overlay.onclick = (event) => { if (event.target === overlay) close(); };
+    }
+    return overlay;
+  }
+
+  function showAdminDirectMessage(message) {
+    const overlay = ensureAdminDirectMessageModal();
+    const title = document.getElementById("rivoAdminDirectTitle");
+    const body = document.getElementById("rivoAdminDirectBody");
+    const time = document.getElementById("rivoAdminDirectTime");
+    if (title) title.textContent = message.senderNickname || "الإدارة";
+    if (body) body.textContent = message.body || "";
+    if (time) time.textContent = nowTime(message.createdAt || Date.now());
+    overlay.classList.remove("hidden");
+    toast("وصلتك رسالة جديدة من الإدارة");
+  }
+
   function handlePrivateMessage(message) {
     const peerId = message.senderId === state.user?.id ? message.recipientId : message.senderId;
     state.privateChats[peerId] ||= [];
@@ -747,6 +787,9 @@
         break;
       case "gift-animation":
         showGiftEvent(data);
+        break;
+      case "admin-direct-message":
+        showAdminDirectMessage(data.message || {});
         break;
       case "private-request": {
         live.pendingPrivate = data;
