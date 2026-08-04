@@ -1,16 +1,16 @@
-const RELEASE = "178-radio-youtube-working";
+const RELEASE = "179-radio-stop-audio-only";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=178",
-  "./app.js?v=178",
-  "./live-bridge.js?v=178",
-  "./google-config.js?v=178",
-  "./google-auth.js?v=178",
-  "./relay-audio.js?v=178",
+  "./styles.css?v=179",
+  "./app.js?v=179",
+  "./live-bridge.js?v=179",
+  "./google-config.js?v=179",
+  "./google-auth.js?v=179",
+  "./relay-audio.js?v=179",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

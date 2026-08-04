@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=178">
+<link rel="stylesheet" href="styles.css?v=179">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -140,6 +140,7 @@
   <header id="radioVideoDragHandle" class="radioVideoHeader">
     <div class="radioVideoHeading"><span>🎬</span><div><b id="radioVideoTitle">فيديو ريفو</b><small id="radioVideoStatus">جاهز للتشغيل</small></div></div>
     <div class="radioVideoActions">
+      <button id="radioVideoAudioOnlyBtn" class="radioAudioOnlyBtn" type="button" title="إخفاء الصورة والاستماع فقط">🎧 صوت فقط</button>
       <button id="radioVideoMinimizeBtn" type="button" title="تصغير">—</button>
       <button id="radioVideoMaximizeBtn" type="button" title="تكبير">□</button>
       <button id="radioVideoCloseBtn" type="button" title="إغلاق الفيديو عندي">×</button>
@@ -148,6 +149,7 @@
   <div id="radioVideoBody" class="radioVideoBody">
     <div id="radioYoutubePlayer" class="radioYoutubePlayer"></div>
     <video id="radioExternalVideo" class="radioExternalVideo hidden" controls playsinline preload="metadata"></video>
+    <div id="radioAudioOnlyCover" class="radioAudioOnlyCover" aria-hidden="true"><span>🎧</span><b>وضع الصوت فقط</b><small>الفيديو مستمر بالصوت ويمكنك إظهار الصورة متى شئت.</small><i class="radioAudioOnlyWaves"><em></em><em></em><em></em><em></em><em></em></i></div>
   </div>
 </section>
 <button id="radioVideoRestoreBtn" class="radioVideoRestoreBtn hidden" type="button">🎬 إرجاع الفيديو</button>
@@ -319,12 +321,12 @@
 <script src="./google-config.js?v=178"></script>
 <script src="./google-auth.js?v=178"></script>
 <script src="./relay-audio.js?v=178"></script>
-<script src="app.js?v=178"></script>
-<script src="./live-bridge.js?v=178"></script>
+<script src="app.js?v=179"></script>
+<script src="./live-bridge.js?v=179"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=178").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=179").catch(() => {});
   });
 }
 </script>

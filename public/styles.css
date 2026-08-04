@@ -1644,3 +1644,61 @@ body.owner .composerToolbar {
 
 /* v178 */
 .radioVideoBody:empty::after{content:"جاري تحميل الفيديو…";color:#fff;font-weight:800}.radioVideoWindow:not(.hidden){animation:rivoVideoWindowIn .22s ease-out}@keyframes rivoVideoWindowIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+
+/* v179 — إيقاف حقيقي للصوت + وضع الصوت فقط + تحسين تحكم الراديو */
+.radioMuteBtn{
+  position:relative;
+  z-index:2;
+  min-width:32px!important;
+  width:32px!important;
+  height:32px!important;
+  border:1px solid rgba(255,255,255,.22)!important;
+  box-shadow:0 5px 14px rgba(19,35,82,.16)!important;
+  touch-action:manipulation;
+}
+.radioMuteBtn:active{transform:scale(.92)}
+.radio input[type=range]{min-height:24px;touch-action:pan-x}
+.radioVideoActions .radioAudioOnlyBtn{
+  width:auto!important;
+  min-width:88px;
+  padding:0 10px!important;
+  font-size:12px!important;
+  font-weight:900;
+  white-space:nowrap;
+}
+.radioVideoBody.audioOnlyMode,
+.radioVideoWindow.audioOnlyMode .radioVideoBody{background:linear-gradient(145deg,#11182a,#25325d)}
+.radioVideoWindow.audioOnlyMode .radioYoutubePlayer,
+.radioVideoWindow.audioOnlyMode .radioYoutubePlayer iframe,
+.radioVideoWindow.audioOnlyMode .radioExternalVideo{
+  opacity:0!important;
+  pointer-events:none!important;
+}
+.radioAudioOnlyCover{
+  position:absolute;
+  inset:0;
+  z-index:4;
+  display:none;
+  place-items:center;
+  align-content:center;
+  gap:8px;
+  padding:24px;
+  text-align:center;
+  color:#fff;
+  background:radial-gradient(circle at 50% 35%,rgba(99,102,241,.42),rgba(8,13,27,.96) 68%);
+}
+.radioVideoWindow.audioOnlyMode .radioAudioOnlyCover{display:grid}
+.radioAudioOnlyCover>span{font-size:44px;filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))}
+.radioAudioOnlyCover>b{font-size:20px}
+.radioAudioOnlyCover>small{max-width:360px;line-height:1.7;color:#dce6ff}
+.radioAudioOnlyWaves{display:flex;align-items:center;justify-content:center;gap:4px;height:32px;margin-top:5px}
+.radioAudioOnlyWaves em{display:block;width:4px;height:9px;border-radius:4px;background:#fff;animation:rivoAudioOnlyWave .7s ease-in-out infinite alternate}
+.radioAudioOnlyWaves em:nth-child(2){height:18px;animation-delay:.1s}.radioAudioOnlyWaves em:nth-child(3){height:27px;animation-delay:.2s}.radioAudioOnlyWaves em:nth-child(4){height:16px;animation-delay:.3s}.radioAudioOnlyWaves em:nth-child(5){height:10px;animation-delay:.4s}
+@keyframes rivoAudioOnlyWave{from{transform:scaleY(.35);opacity:.45}to{transform:scaleY(1);opacity:1}}
+.radioVideoWindow.audioOnlyMode:not(.maximized){min-height:250px}
+@media(max-width:720px){
+  .radioVideoHeader{height:auto;min-height:54px;align-items:flex-start}
+  .radioVideoActions{flex-wrap:wrap;justify-content:flex-end}
+  .radioVideoActions .radioAudioOnlyBtn{order:5;min-width:92px;height:30px}
+  .radioVideoWindow.audioOnlyMode{min-height:230px}
+}

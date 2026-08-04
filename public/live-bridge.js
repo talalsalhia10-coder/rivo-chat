@@ -1097,6 +1097,22 @@
     setTimeout(() => finishPrivateRequest(true), 280);
   }
 
+  function enforceRemoteRadioCommand(settings) {
+    const status = String(settings?.radio?.status || "stopped");
+    try {
+      if (status === "stopped") {
+        window.hardStopRadioMedia?.(true);
+        window.hideRadioVideoWindow?.(true);
+        window.renderRadioUI?.();
+      } else if (status === "paused") {
+        window.forcePauseRadioMedia?.();
+        window.renderRadioUI?.();
+      }
+    } catch (error) {
+      console.warn("Remote radio stop enforcement failed", error);
+    }
+  }
+
   async function syncRemoteAdminSettings(showNotice = false) {
     try {
       const response = await fetch("/api/admin/settings/public", { cache: "no-store" });
@@ -1108,6 +1124,7 @@
       } else if (typeof window.applyExternalAdminConfig === "function") {
         window.applyExternalAdminConfig(showNotice, data.settings);
       }
+      enforceRemoteRadioCommand(data.settings);
       return true;
     } catch (error) {
       console.warn("Admin settings sync failed", error);
@@ -1123,6 +1140,7 @@
           try { localStorage.setItem("rivoAdminConfigV1", JSON.stringify(settings)); } catch {}
           if (typeof window.refreshChatFromAdmin === "function") window.refreshChatFromAdmin(settings, false);
           else if (typeof window.applyExternalAdminConfig === "function") window.applyExternalAdminConfig(false, settings);
+          enforceRemoteRadioCommand(settings);
         }
         break;
       }

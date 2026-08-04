@@ -1,1 +1,1 @@
-Rivo Chat v178 — Radio and YouTube working fix
+Rivo Chat v179 — Remote stop, audio-only and radio controls fix
