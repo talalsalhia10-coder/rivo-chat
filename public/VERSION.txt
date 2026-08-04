@@ -1,1 +1,1 @@
-Rivo Chat v191 — Fixed mobile chat viewport, no whole-page dragging, stable composer and drawers
+Rivo Chat v192 — Mobile video window can be dragged freely, true fullscreen, landscape orientation request, and restore to floating mode

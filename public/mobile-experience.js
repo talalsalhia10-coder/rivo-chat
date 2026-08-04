@@ -1,4 +1,4 @@
-/* Rivo v190 — mobile-first entry and chat experience */
+/* Rivo v192 — mobile-first entry, fixed chat, draggable/fullscreen video */
 (() => {
   'use strict';
 
@@ -50,8 +50,9 @@
     return Boolean(target.closest([
       '.messages', '.scrollList', '.composerToolbar', '.cameraGrid', '.micSeats',
       '.privateMessages', '.privateInboxPanel', '.card', '.picker', '.colorPicker',
-      '.userMenu', '.entryScreen', '.entryAvatarPickerGrid', 'input', 'textarea',
-      'select', 'button', 'a', '[contenteditable="true"]'
+      '.userMenu', '.entryScreen', '.entryAvatarPickerGrid', '.radioVideoWindow',
+      '.radioVideoHeader', 'input', 'textarea', 'select', 'button', 'a',
+      '[contenteditable="true"]'
     ].join(',')));
   }
 

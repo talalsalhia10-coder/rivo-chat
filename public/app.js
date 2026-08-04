@@ -934,6 +934,7 @@ function clearInbox(kind){
 const RIVO_RADIO_VOLUME_KEY='rivo_radio_volume_v1';
 const RIVO_RADIO_MUTED_KEY='rivo_radio_muted_v1';
 const RIVO_RADIO_AUTOPLAY_KEY='rivo_radio_autoplay_v1';
+const RIVO_RADIO_VIDEO_POS_KEY='rivo_radio_video_position_v2';
 let radioYoutubePlayer=null;
 let radioYoutubeReadyPromise=null;
 let radioVideoDragState=null;
@@ -1212,15 +1213,86 @@ async function syncRadioForRoom(){
  if(broadcast.listenerPlaying||radioAutoPlayEnabled())scheduleSavedRadioResume()
  renderRadioUI();
 }
+function radioVideoMobile(){return matchMedia('(max-width:820px)').matches}
+function radioVideoViewport(){
+ const viewport=window.visualViewport;
+ return {left:viewport?.offsetLeft||0,top:viewport?.offsetTop||0,width:viewport?.width||innerWidth,height:viewport?.height||innerHeight};
+}
+function radioVideoFullscreenActive(win=$('#radioVideoWindow')){
+ return Boolean(win&&(document.fullscreenElement===win||document.webkitFullscreenElement===win||win.classList.contains('fullscreenFallback')));
+}
+function setRadioVideoDragPosition(win,left,top,width){
+ if(!win)return;
+ const viewport=radioVideoViewport();
+ const safeWidth=Math.max(260,Math.min(Number(width)||win.getBoundingClientRect().width,viewport.width-10));
+ const maxLeft=viewport.left+Math.max(0,viewport.width-safeWidth);
+ const maxTop=viewport.top+Math.max(0,viewport.height-Math.min(win.offsetHeight||240,viewport.height));
+ const x=Math.max(viewport.left,Math.min(maxLeft,left));
+ const y=Math.max(viewport.top,Math.min(maxTop,top));
+ win.classList.add('mobilePositioned');
+ win.style.setProperty('width',`${safeWidth}px`,'important');
+ win.style.setProperty('left',`${x}px`,'important');
+ win.style.setProperty('top',`${y}px`,'important');
+ win.style.setProperty('right','auto','important');
+ win.style.setProperty('bottom','auto','important');
+}
+function saveRadioVideoPosition(win){
+ if(!radioVideoMobile()||!win||win.classList.contains('maximized')||radioVideoFullscreenActive(win))return;
+ const rect=win.getBoundingClientRect();
+ try{localStorage.setItem(RIVO_RADIO_VIDEO_POS_KEY,JSON.stringify({left:rect.left,top:rect.top,width:rect.width}))}catch(_){ }
+}
+function restoreRadioVideoPosition(win=$('#radioVideoWindow')){
+ if(!radioVideoMobile()||!win||win.classList.contains('maximized')||radioVideoFullscreenActive(win))return;
+ let saved=null;try{saved=JSON.parse(localStorage.getItem(RIVO_RADIO_VIDEO_POS_KEY)||'null')}catch(_){ }
+ if(saved&&Number.isFinite(saved.left)&&Number.isFinite(saved.top))setRadioVideoDragPosition(win,saved.left,saved.top,saved.width);
+}
+function clearRadioVideoInlinePosition(win=$('#radioVideoWindow')){
+ if(!win)return;
+ win.classList.remove('mobilePositioned','dragging');
+ ['left','top','right','bottom','width','height'].forEach(name=>win.style.removeProperty(name));
+}
+function updateRadioFullscreenButton(){
+ const win=$('#radioVideoWindow'),button=$('#radioVideoFullscreenBtn');if(!button)return;
+ const active=radioVideoFullscreenActive(win);
+ button.textContent=active?'↙':'⛶';
+ button.title=active?'الرجوع إلى النافذة':'ملء الشاشة وعرض الفيديو بالعرض';
+ button.setAttribute('aria-label',button.title);
+}
+async function exitRadioVideoFullscreen(){
+ const win=$('#radioVideoWindow');if(!win)return;
+ try{
+  if(document.fullscreenElement&&document.exitFullscreen)await document.exitFullscreen();
+  else if(document.webkitFullscreenElement&&document.webkitExitFullscreen)document.webkitExitFullscreen();
+ }catch(_){ }
+ win.classList.remove('fullscreenFallback');
+ try{screen.orientation?.unlock?.()}catch(_){ }
+ updateRadioFullscreenButton();
+ requestAnimationFrame(()=>restoreRadioVideoPosition(win));
+}
+async function toggleRadioVideoFullscreen(){
+ const win=$('#radioVideoWindow');if(!win)return;
+ if(radioVideoFullscreenActive(win)){await exitRadioVideoFullscreen();return}
+ win.classList.remove('minimized','maximized');
+ let entered=false;
+ try{
+  const request=win.requestFullscreen||win.webkitRequestFullscreen;
+  if(request){await Promise.resolve(request.call(win));entered=true}
+ }catch(_){entered=false}
+ if(!entered)win.classList.add('fullscreenFallback');
+ try{await screen.orientation?.lock?.('landscape')}catch(_){ }
+ updateRadioFullscreenButton();
+}
 function showRadioVideoWindow(userAction=false){
  if(!['youtube','video'].includes(radioType()))return;
  const win=$('#radioVideoWindow'),restore=$('#radioVideoRestoreBtn');if(!win)return;
  state.radioBroadcast.videoClosed=false;win.classList.remove('hidden');restore?.classList.add('hidden');
  if(userAction)win.style.zIndex=String(520+Date.now()%100);
+ requestAnimationFrame(()=>restoreRadioVideoPosition(win));
 }
 function hideRadioVideoWindow(stopped=false){
  const win=$('#radioVideoWindow'),restore=$('#radioVideoRestoreBtn');if(!win)return;
- win.classList.add('hidden');win.classList.remove('minimized','maximized');
+ if(radioVideoFullscreenActive(win))exitRadioVideoFullscreen();
+ win.classList.add('hidden');win.classList.remove('minimized','maximized','fullscreenFallback');
  if(stopped){state.radioBroadcast.videoClosed=false;restore?.classList.add('hidden')}else{state.radioBroadcast.videoClosed=true;restore?.classList.remove('hidden')}
 }
 function initRadioVideoWindow(){
@@ -1229,11 +1301,36 @@ function initRadioVideoWindow(){
  $('#radioVideoRestoreBtn')?.addEventListener('click',()=>showRadioVideoWindow(true));
  $('#radioVideoOpenBtn')?.addEventListener('click',()=>showRadioVideoWindow(true));
  $('#radioVideoAudioOnlyBtn')?.addEventListener('click',toggleRadioAudioOnly);
- $('#radioVideoMinimizeBtn')?.addEventListener('click',()=>{win.classList.toggle('minimized');win.classList.remove('maximized')});
- $('#radioVideoMaximizeBtn')?.addEventListener('click',()=>{win.classList.toggle('maximized');win.classList.remove('minimized');win.style.left='';win.style.top='';win.style.right='';win.style.bottom=''});
- handle.addEventListener('pointerdown',event=>{if(event.target.closest('button')||win.classList.contains('maximized'))return;const rect=win.getBoundingClientRect();radioVideoDragState={id:event.pointerId,x:event.clientX-rect.left,y:event.clientY-rect.top};handle.setPointerCapture?.(event.pointerId);win.style.left=`${rect.left}px`;win.style.top=`${rect.top}px`;win.style.right='auto';win.style.bottom='auto'});
- handle.addEventListener('pointermove',event=>{if(!radioVideoDragState||event.pointerId!==radioVideoDragState.id)return;const maxX=Math.max(0,innerWidth-win.offsetWidth),maxY=Math.max(0,innerHeight-win.offsetHeight);win.style.left=`${Math.max(0,Math.min(maxX,event.clientX-radioVideoDragState.x))}px`;win.style.top=`${Math.max(0,Math.min(maxY,event.clientY-radioVideoDragState.y))}px`});
- const stop=event=>{if(radioVideoDragState&&(!event||event.pointerId===radioVideoDragState.id))radioVideoDragState=null};handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);
+ $('#radioVideoFullscreenBtn')?.addEventListener('click',toggleRadioVideoFullscreen);
+ $('#radioVideoMinimizeBtn')?.addEventListener('click',()=>{win.classList.toggle('minimized');win.classList.remove('maximized');if(win.classList.contains('minimized'))clearRadioVideoInlinePosition(win)});
+ $('#radioVideoMaximizeBtn')?.addEventListener('click',()=>{
+  const maximize=!win.classList.contains('maximized');
+  win.classList.toggle('maximized',maximize);win.classList.remove('minimized');clearRadioVideoInlinePosition(win);
+  if(!maximize)requestAnimationFrame(()=>restoreRadioVideoPosition(win));
+ });
+ handle.addEventListener('pointerdown',event=>{
+  if(event.target.closest('button')||win.classList.contains('maximized')||radioVideoFullscreenActive(win))return;
+  event.preventDefault();
+  const rect=win.getBoundingClientRect();
+  radioVideoDragState={id:event.pointerId,x:event.clientX-rect.left,y:event.clientY-rect.top,width:rect.width};
+  handle.setPointerCapture?.(event.pointerId);win.classList.add('dragging');
+  setRadioVideoDragPosition(win,rect.left,rect.top,rect.width);
+ });
+ handle.addEventListener('pointermove',event=>{
+  if(!radioVideoDragState||event.pointerId!==radioVideoDragState.id)return;
+  event.preventDefault();
+  setRadioVideoDragPosition(win,event.clientX-radioVideoDragState.x,event.clientY-radioVideoDragState.y,radioVideoDragState.width);
+ });
+ const stop=event=>{
+  if(!radioVideoDragState||event&&event.pointerId!==radioVideoDragState.id)return;
+  radioVideoDragState=null;win.classList.remove('dragging');saveRadioVideoPosition(win);
+ };
+ handle.addEventListener('pointerup',stop);handle.addEventListener('pointercancel',stop);
+ document.addEventListener('fullscreenchange',updateRadioFullscreenButton);
+ document.addEventListener('webkitfullscreenchange',updateRadioFullscreenButton);
+ window.addEventListener('resize',()=>{if(!win.classList.contains('hidden')&&!radioVideoFullscreenActive(win))requestAnimationFrame(()=>restoreRadioVideoPosition(win))},{passive:true});
+ window.visualViewport?.addEventListener('resize',()=>{if(!win.classList.contains('hidden')&&!radioVideoFullscreenActive(win))requestAnimationFrame(()=>restoreRadioVideoPosition(win))},{passive:true});
+ updateRadioFullscreenButton();
 }
 function populateRadioRoomSelect(){const select=$('#adminRadioRoom');if(!select)return;select.innerHTML=state.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');select.value=state.radioBroadcast.roomId||state.room}
 function updateRadioScopeAdmin(){const scope=$('#adminRadioScope')?.value||state.radioBroadcast.scope,hidden=scope!=='room';$('#adminRadioRoomWrap')?.classList.toggle('hidden',hidden);$('#adminRadioRoom')?.classList.toggle('hidden',hidden)}
