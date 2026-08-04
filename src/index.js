@@ -2070,6 +2070,39 @@ export class ChatRoom extends DurableObject {
       return;
     }
 
+    if (data.type === "admin-private-reply") {
+      if (!this.rateAllowed(session.privateTimes, 20000, 10)) {
+        this.safeSend(ws, { type: "spam-warning", message: "تمهّل قليلاً قبل إرسال رد آخر إلى الإدارة." });
+        return;
+      }
+      const body = cleanText(data.body, 500);
+      if (!body) return;
+      const message = {
+        id: crypto.randomUUID(),
+        senderId: session.clientId,
+        senderNickname: session.nickname,
+        senderAvatar: session.avatar,
+        recipientId: "owner-main",
+        body,
+        roomId: session.roomId || "lobby",
+        createdAt: Date.now()
+      };
+      let delivered = 0;
+      for (const socket of this.ctx.getWebSockets()) {
+        if (socket.readyState !== WebSocket.OPEN) continue;
+        const targetSession = socket.deserializeAttachment();
+        if (targetSession?.kind !== "admin-control" || targetSession.role !== "owner") continue;
+        this.safeSend(socket, { type: "admin-private-reply", message });
+        delivered += 1;
+      }
+      this.safeSend(ws, {
+        type: "admin-private-reply-sent",
+        delivered: delivered > 0,
+        message: delivered > 0 ? "تم إرسال ردك إلى الإدارة." : "لوحة الإدارة غير متصلة الآن."
+      });
+      return;
+    }
+
     if (data.type === "private-request") {
       const targetId = cleanText(data.to, 80);
       if (!targetId || targetId === session.clientId) return;
