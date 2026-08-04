@@ -458,7 +458,7 @@ function applyExternalAdminConfig(showNotice=false,suppliedConfig=null){
  renderEntryAvatarChoices();
  updateEntryAvatarUI();
  syncSharedMicRequests();syncSharedCameraRequests();
- if(showNotice)toast('تم تطبيق تغييرات الإدارة مباشرة');
+ // تحديثات الإدارة تُطبّق بصمت؛ لا يظهر أي تنبيه للزوار أو المستخدمين.
 }
 function refreshChatFromAdmin(cfg=null,showNotice=false){
  applyExternalAdminConfig(showNotice,cfg);
@@ -516,7 +516,7 @@ function handleAdminLiveMessage(message){
 
  if(message.type==='rivo-admin-config'){
    try{localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(message.payload))}catch(_){}
-   refreshChatFromAdmin(message.payload,true);
+   refreshChatFromAdmin(message.payload,false);
  }
  if(message.type==='rivo-mic-requests'){
    try{localStorage.setItem(RIVO_MIC_REQUESTS_KEY,JSON.stringify(message.payload||[]))}catch(_){}
@@ -2308,7 +2308,7 @@ migrateCachedAccountsV32();applyExternalAdminConfig(false);initUI();bind();rende
 window.addEventListener('message',e=>handleAdminLiveMessage(e.data));
 if(rivoSyncChannel)rivoSyncChannel.onmessage=e=>handleAdminLiveMessage(e.data);
 window.addEventListener('storage',e=>{
- if(e.key===RIVO_ADMIN_CONFIG_KEY)refreshChatFromAdmin(null,true);
+ if(e.key===RIVO_ADMIN_CONFIG_KEY)refreshChatFromAdmin(null,false);
  if(e.key===RIVO_MIC_REQUESTS_KEY)handleAdminLiveMessage({type:'rivo-mic-requests',payload:readSharedMicRequests()});
  if(e.key===RIVO_CAMERA_REQUESTS_KEY)handleAdminLiveMessage({type:'rivo-camera-requests',payload:readSharedCameraRequests()});
 });
