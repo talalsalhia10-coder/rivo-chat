@@ -934,6 +934,9 @@ export class ChatRoom extends DurableObject {
       privateBlocked: flags.privateBlocked,
       badge: sessionBadge,
       joinedAt: Date.now(),
+      lastSeenAt: Date.now(),
+      closing: false,
+      suppressLeave: false,
       lastMessageAt: 0,
       lastVoiceAt: 0,
       publicTimes: [],
@@ -952,6 +955,7 @@ export class ChatRoom extends DurableObject {
 
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment(session);
+    const firstPresenceForClient = !this.hasOtherOpenClient(session.clientId, server);
 
     this.safeSend(server, {
       type: "init",
@@ -964,6 +968,7 @@ export class ChatRoom extends DurableObject {
     });
 
     this.broadcastPresence();
+    if (firstPresenceForClient) this.broadcastPresenceEvent("join", session);
     this.broadcastAdminState();
 
     return new Response(null, {
@@ -1664,7 +1669,8 @@ export class ChatRoom extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) {
       if (ws.readyState !== WebSocket.OPEN) continue;
       const session = ws.deserializeAttachment();
-      if (session?.kind !== "chat" || !session.clientId) continue;
+      if (session?.kind !== "chat" || !session.clientId || session.closing) continue;
+      if (Date.now() - Number(session.lastSeenAt || session.joinedAt || Date.now()) > 75_000) continue;
       if (["owner", "moderator"].includes(session.role) && session.adminVisible === false && !viewerIsStaff && session.clientId !== viewerSession?.clientId) continue;
       if (session.isVip && session.vipStealth && !viewerIsStaff && session.clientId !== viewerSession?.clientId) continue;
 
@@ -1706,7 +1712,8 @@ export class ChatRoom extends DurableObject {
     for (const ws of this.ctx.getWebSockets()) {
       if (ws.readyState !== WebSocket.OPEN) continue;
       const session = ws.deserializeAttachment();
-      if (session?.kind !== "chat" || !session.clientId) continue;
+      if (session?.kind !== "chat" || !session.clientId || session.closing) continue;
+      if (Date.now() - Number(session.lastSeenAt || session.joinedAt || Date.now()) > 75_000) continue;
 
       const user = {
         clientId: session.clientId,
@@ -1802,11 +1809,70 @@ export class ChatRoom extends DurableObject {
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       const session = socket.deserializeAttachment();
-      if (session?.clientId === clientId) {
+      if (session?.clientId === clientId && !session.closing) {
         return { socket, session };
       }
     }
     return null;
+  }
+
+  hasOtherOpenClient(clientId, exceptSocket = null) {
+    if (!clientId) return false;
+    const now = Date.now();
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === exceptSocket || socket.readyState !== WebSocket.OPEN) continue;
+      const session = socket.deserializeAttachment();
+      if (session?.kind !== "chat" || session.clientId !== clientId || session.closing) continue;
+      if (now - Number(session.lastSeenAt || session.joinedAt || now) > 75_000) continue;
+      return true;
+    }
+    return false;
+  }
+
+  broadcastPresenceEvent(kind, session) {
+    if (!session || session.kind !== "chat") return;
+    if (["owner", "moderator"].includes(session.role) && session.adminVisible === false) return;
+    if (session.isVip && session.vipStealth) return;
+    const nickname = cleanNickname(session.nickname) || "مستخدم";
+    const body = kind === "join"
+      ? `دخل ${nickname} إلى الدردشة`
+      : `خرج ${nickname} من الدردشة`;
+    this.broadcast({
+      type: "message",
+      message: {
+        id: crypto.randomUUID(),
+        clientId: session.clientId,
+        nickname,
+        avatar: session.avatar || "guest",
+        body,
+        createdAt: Date.now(),
+        presenceEvent: true,
+        presenceKind: kind
+      }
+    });
+  }
+
+  pruneStaleSessions(now = Date.now(), exceptSocket = null) {
+    const stale = [];
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === exceptSocket || socket.readyState !== WebSocket.OPEN) continue;
+      const session = socket.deserializeAttachment();
+      if (session?.kind !== "chat" || session.closing) continue;
+      if (now - Number(session.lastSeenAt || session.joinedAt || now) <= 75_000) continue;
+      session.closing = true;
+      session.suppressLeave = true;
+      socket.serializeAttachment(session);
+      stale.push({ socket, session });
+    }
+    for (const item of stale) {
+      try { item.socket.close(4000, "Presence timeout"); } catch {}
+    }
+    for (const item of stale) {
+      if (!this.hasOtherOpenClient(item.session.clientId, item.socket)) {
+        this.broadcastPresenceEvent("leave", item.session);
+      }
+    }
+    return stale.length;
   }
 
   endPrivateSession(clientId, message = "انتهت المحادثة الخاصة.", exceptSocket = null, partnerIdHint = "") {
@@ -1918,6 +1984,15 @@ export class ChatRoom extends DurableObject {
       return;
     }
 
+    session.lastSeenAt = Date.now();
+    session.closing = false;
+    ws.serializeAttachment(session);
+    const staleRemoved = this.pruneStaleSessions(session.lastSeenAt, ws);
+    if (staleRemoved) {
+      this.broadcastPresence();
+      this.broadcastAdminState();
+    }
+
     if (session.role === "moderator") {
       const state = await this.getGlobalModeratorState(session.staffClientId, session.roomId || "lobby");
       const moderatorAccount = state.account;
@@ -1934,6 +2009,17 @@ export class ChatRoom extends DurableObject {
 
     if (session.kind === "admin-control") {
       await this.handleAdminCommand(ws, session, data);
+      return;
+    }
+
+    if (data.type === "leave") {
+      session.closing = true;
+      session.suppressLeave = true;
+      ws.serializeAttachment(session);
+      if (!this.hasOtherOpenClient(session.clientId, ws)) this.broadcastPresenceEvent("leave", session);
+      this.broadcastPresence();
+      this.broadcastAdminState();
+      try { ws.close(1000, "User left"); } catch {}
       return;
     }
 
@@ -2607,6 +2693,7 @@ export class ChatRoom extends DurableObject {
         avatar: session.avatar
       });
       this.broadcastPresence();
+      this.broadcastAdminState();
       return;
     }
 
@@ -3377,6 +3464,9 @@ export class ChatRoom extends DurableObject {
         }, ws);
       }
     }
+    if (session?.kind === "chat" && !session.suppressLeave && !this.hasOtherOpenClient(session.clientId, ws)) {
+      this.broadcastPresenceEvent("leave", session);
+    }
     if (session?.kind === "chat" && session.privateWith) {
       this.endPrivateSession(session.clientId, "انتهت المحادثة لأن المستخدم غادر.", ws, session.privateWith);
     } else {
@@ -3421,6 +3511,9 @@ export class ChatRoom extends DurableObject {
           avatar: session.avatar
         }, ws);
       }
+    }
+    if (session?.kind === "chat" && !session.suppressLeave && !this.hasOtherOpenClient(session.clientId, ws)) {
+      this.broadcastPresenceEvent("leave", session);
     }
     if (session?.kind === "chat" && session.privateWith) {
       this.endPrivateSession(session.clientId, "انتهت المحادثة لأن الاتصال انقطع.", ws, session.privateWith);
