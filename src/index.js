@@ -2701,6 +2701,48 @@ export class ChatRoom extends DurableObject {
       ""
     );
 
+    if (action === "send-admin-message") {
+      if (session.role !== "owner") {
+        this.safeSend(ws, { type: "admin-error", message: "إرسال رسائل الإدارة متاح للمالك فقط." });
+        return;
+      }
+      const body = cleanText(data.body, 500);
+      if (!body) {
+        this.safeSend(ws, { type: "admin-error", message: "اكتب نص الرسالة أولاً." });
+        return;
+      }
+      const message = {
+        id: crypto.randomUUID(),
+        senderId: session.staffClientId || "owner-main",
+        senderNickname: "الإدارة",
+        senderAvatar: "owner",
+        recipientId: targetId || "all",
+        body,
+        createdAt: Date.now()
+      };
+      const payload = { type: "admin-direct-message", message };
+      if (targetId) {
+        const target = this.findClient(targetId);
+        if (!target) {
+          this.safeSend(ws, { type: "admin-error", message: "المستخدم غير متصل الآن." });
+          return;
+        }
+        this.safeSend(target.socket, payload);
+        this.safeSend(ws, { type: "admin-message-sent", message: `تم إرسال الرسالة إلى ${target.session.nickname || "المستخدم"}.` });
+      } else {
+        let delivered = 0;
+        for (const socket of this.ctx.getWebSockets()) {
+          if (socket.readyState !== WebSocket.OPEN) continue;
+          const target = socket.deserializeAttachment();
+          if (target?.kind !== "chat") continue;
+          this.safeSend(socket, payload);
+          delivered += 1;
+        }
+        this.safeSend(ws, { type: "admin-message-sent", message: `تم إرسال الرسالة إلى ${delivered} مستخدم.` });
+      }
+      return;
+    }
+
     if (action === "approve-vip-request") {
       if (session.role !== "owner") return;
       const requestId = cleanText(data.requestId, 80);
