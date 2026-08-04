@@ -1,16 +1,16 @@
-const RELEASE = "179-radio-stop-audio-only";
+const RELEASE = "180-audio-autoplay-no-black-window";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=179",
-  "./app.js?v=179",
-  "./live-bridge.js?v=179",
-  "./google-config.js?v=179",
-  "./google-auth.js?v=179",
-  "./relay-audio.js?v=179",
+  "./styles.css?v=180",
+  "./app.js?v=180",
+  "./live-bridge.js?v=180",
+  "./google-config.js?v=180",
+  "./google-auth.js?v=180",
+  "./relay-audio.js?v=180",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

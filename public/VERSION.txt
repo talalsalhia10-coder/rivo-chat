@@ -1,1 +1,1 @@
-Rivo Chat v179 — Remote stop, audio-only and radio controls fix
+Rivo Chat v180 — Direct audio without popup and remembered autoplay
