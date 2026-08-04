@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="دردشة Rivo الجماعية المجانية للتعارف والمحادثة بالصوت والكتابة، مع رسائل خاصة بالموافقة وإدارة آمنة للمجتمع.">
+  <meta name="keywords" content="دردشة جماعية مجانية, دردشة صوتية, شات عربي, Rivo Chat, دردشة ريفو">
+  <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1">
+  <meta name="rivo-version" content="143.3">
+  <link rel="canonical" href="https://chat.rivolove.com/legacy.html">
+  <link rel="alternate" hreflang="ar" href="https://chat.rivolove.com/">
+  <link rel="alternate" hreflang="x-default" href="https://chat.rivolove.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Rivo">
+  <meta property="og:title" content="دردشة Rivo الجماعية المجانية">
+  <meta property="og:description" content="تحدث مع مستخدمي Rivo بالصوت والكتابة في غرف عربية متعددة، وابدأ محادثة خاصة بعد موافقة الطرف الآخر.">
+  <meta property="og:url" content="https://chat.rivolove.com/">
+  <meta property="og:image" content="https://chat.rivolove.com/assets/rivo-social.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="دردشة Rivo الجماعية المجانية">
+  <meta name="twitter:description" content="دردشة صوتية وكتابية مجانية مع مجتمع Rivo.">
+  <meta name="twitter:image" content="https://chat.rivolove.com/assets/rivo-social.jpg">
+  <title>دردشة Rivo الجماعية المجانية | صوت وكتابة</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./legacy/styles.css?v=155">
+
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"WebApplication",
+    "name":"دردشة Rivo الجماعية",
+    "url":"https://chat.rivolove.com/",
+    "applicationCategory":"CommunicationApplication",
+    "operatingSystem":"Web",
+    "isAccessibleForFree":true,
+    "inLanguage":"ar",
+    "description":"دردشة جماعية مجانية بالصوت والكتابة مع رسائل خاصة بالموافقة وإدارة للمجتمع.",
+    "offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+    "publisher":{"@type":"Organization","name":"Rivo","url":"https://rivolove.com/"}
+  }
+  </script>
+</head>
+<body>
+  <noscript><div class="noscript-note">تحتاج دردشة Rivo إلى تفعيل JavaScript في المتصفح.</div></noscript>
+  <div id="joinScreen" class="join-screen">
+    <div class="join-glow glow-one"></div>
+    <div class="join-glow glow-two"></div>
+
+    <section class="join-card">
+      <div class="join-brand">
+        <a class="join-brand-home" href="/" aria-label="العودة إلى موقع Rivo"><img src="./icons/icon-192.png" alt="Rivo" width="62" height="62"></a>
+        <div>
+          <strong>RIVO CHAT</strong>
+          <span>دردشة جماعية مجانية بالصوت والكتابة</span>
+        </div>
+      </div>
+
+      <div class="join-copy">
+        <h1>دردشة Rivo الجماعية المجانية</h1>
+        <p>سجّل بحساب Google لحماية حسابك، ثم اختر اسماً مستعاراً وشخصية للدردشة بالصوت والكتابة.</p>
+      </div>
+
+      <a class="lina-ai-entry join-lina-entry" href="https://rivolove.com/chat/?id=lina" aria-label="التحدث مع لينا الذكاء الاصطناعي">
+        <img src="./assets/lina-instant-poster.webp" alt="لينا الذكاء الاصطناعي">
+        <span><strong>تكلم مع لينا</strong><small>الذكاء الاصطناعي في Rivo</small></span>
+        <b>←</b>
+      </a>
+
+      <form id="joinForm" class="join-form" autocomplete="off">
+        <section id="googleLoginCard" class="google-login-card">
+          <div id="googleSignedOut">
+            <strong>تسجيل الدخول الآمن</strong>
+            <p>يُستخدم حساب Google لتثبيت هويتك فقط. تبقى محادثاتك المحدودة على جهازك وتُحذف تلقائياً.</p>
+            <div id="googleSignInButton" class="google-signin-button"></div>
+            <small id="googleLoginStatus">جاري تجهيز تسجيل Google…</small>
+          </div>
+          <div id="googleSignedIn" class="google-signed-in hidden">
+            <img id="googleUserPicture" alt="" referrerpolicy="no-referrer">
+            <div>
+              <strong id="googleUserName">تم تسجيل الدخول</strong>
+              <small id="googleUserEmail"></small>
+            </div>
+            <button id="googleLogoutButton" type="button">تغيير الحساب</button>
+          </div>
+        </section>
+
+        <label class="field">
+          <span>الاسم المستعار</span>
+          <input id="nicknameInput" type="text" maxlength="24" minlength="2"
+                 placeholder="مثلاً: ابن بغداد" required>
+          <small id="nameHint">من حرفين إلى 24 حرفاً.</small>
+        </label>
+
+        <fieldset class="avatar-picker">
+          <legend>اختر شخصيتك</legend>
+          <div id="avatarGrid" class="avatar-grid character-grid"></div>
+          <small class="character-help">سيظهر رأس الشخصية بجانب رسائلك، وعند تشغيل المايك تظهر الشخصية المتحركة.</small>
+        </fieldset>
+
+        <button id="joinButton" class="join-button" type="submit">
+          <span>دخول الدردشة</span>
+          <b>←</b>
+        </button>
+      </form>
+
+      <div class="join-note">
+        لا تكتب اسمك الحقيقي أو رقم هاتفك. تُحذف الرسائل العامة محلياً بعد 24 ساعة والخاصة بعد 7 أيام.
+      </div>
+
+      <button id="moderatorLoginOpen" class="moderator-entry-button" type="button">
+        <span>★ دخول المراقب</span>
+        <small>استخدم الرمز الخاص الذي أرسلته لك الإدارة</small>
+      </button>
+
+      <button id="vipJoinOpen" class="vip-entry-button" type="button">
+        <span>💎 عضوية VIP — 15$ شهرياً</span>
+        <small>دخول الغرف الممتلئة، التخفي، الهدايا، أولوية المايك ومزايا مميزة</small>
+      </button>
+
+      <section class="group-seo-copy" aria-label="معلومات عن دردشة Rivo الجماعية">
+        <h2>دردشة جماعية مجانية وآمنة</h2>
+        <p>تتيح لك Rivo التحدث في الغرف العامة بالصوت أو الكتابة، والتواصل على الخاص بعد موافقة الطرف الآخر. تُحفظ البيانات الضرورية فقط وتُنظف الرسائل المحلية تلقائياً لتبقى الدردشة خفيفة.</p>
+        <div><span>🎙 صوت مباشر</span><span>💬 كتابة</span><span>🔒 خاص بالموافقة</span><span>🛡 إدارة ومراقبة</span></div>
+        <a href="/">العودة إلى موقع Rivo</a>
+      </section>
+    </section>
+  </div>
+
+  <div id="moderatorLoginModal" class="moderator-login-modal hidden" aria-hidden="true">
+    <div id="moderatorLoginBackdrop" class="moderator-login-backdrop"></div>
+    <form id="moderatorLoginForm" class="moderator-login-sheet" autocomplete="off">
+      <button id="moderatorLoginClose" class="moderator-login-close" type="button" aria-label="إغلاق">✕</button>
+      <div class="moderator-login-icon">★</div>
+      <h2>دخول المراقب</h2>
+      <p>أدخل رمزك الخاص. بعد التحقق ستفتح لوحة المراقب الكاملة وفيها الدردشة والطرد والحظر والهدايا حسب صلاحياتك.</p>
+      <label>
+        <span>رمز المراقب</span>
+        <input id="moderatorCodeInput" type="password" maxlength="120" autocomplete="one-time-code"
+               placeholder="RIVO-MOD-XXXX-XXXX-XXXX" required>
+      </label>
+      <label class="moderator-visible-choice">
+        <input id="moderatorVisibleInput" type="checkbox" checked>
+        <span>إظهاري في قائمة المستخدمين</span>
+      </label>
+      <button id="moderatorLoginSubmit" class="moderator-login-submit" type="submit">التحقق والدخول</button>
+      <div id="moderatorLoginStatus" class="moderator-login-status hidden"></div>
+    </form>
+  </div>
+
+  <div id="chatApp" class="chat-app hidden">
+    <aside id="sidebar" class="sidebar">
+      <header class="brand-row">
+        <div class="brand-mini">
+          <img src="./icons/icon-192.png" alt="" width="42" height="42">
+          <div>
+            <strong>RIVO</strong>
+            <span>دردشة جماعية</span>
+          </div>
+        </div>
+        <button id="closeSidebar" class="icon-button mobile-only" type="button" aria-label="إغلاق">✕</button>
+      </header>
+
+      <nav class="chat-nav" aria-label="أقسام الدردشة">
+        <button id="publicNavButton" class="nav-item active" type="button">
+          <span class="nav-icon">#</span>
+          <span>
+            <strong>العامة</strong>
+            <small>الدردشة الرئيسية</small>
+          </span>
+          <i id="onlineBadge">0</i>
+        </button>
+      </nav>
+
+      <nav class="mobile-tools mobile-only" aria-label="أدوات الدردشة على الهاتف">
+        <a class="mobile-tool-item" href="https://rivolove.com/chat/?id=lina">
+          <span>👧</span><b>تكلم مع لينا</b>
+        </a>
+        <button id="mobileRoomsButton" class="mobile-tool-item" type="button">
+          <span>▦</span><b>الغرف</b>
+        </button>
+        <button id="mobileVipButton" class="mobile-tool-item" type="button">
+          <span>💎</span><b>VIP</b>
+        </button>
+        <button id="mobileInstallButton" class="mobile-tool-item install-mobile-tool" type="button"
+                title="تثبيت Rivo Chat على الهاتف">
+          <span>⬇</span><b>تثبيت التطبيق</b>
+        </button>
+      </nav>
+
+      <section class="online-section">
+        <div class="section-title">
+          <span>المتصلون الآن</span>
+          <b id="onlineCountSide">0</b>
+        </div>
+        <div id="usersList" class="users-list"></div>
+      </section>
+
+      <footer class="profile-footer">
+        <div class="my-avatar-wrap">
+          <img id="myAvatarSide" src="./characters/lina/portrait-small.webp" alt="">
+          <span id="myModeratorBadge" class="my-moderator-star hidden" title="مراقب Rivo">★</span>
+          <span id="myCrownBadge" class="staff-crown hidden" title="الإدارة">
+            <svg viewBox="0 0 64 48" aria-hidden="true">
+              <path d="M8 36 4 11l15 10L32 4l13 17 15-10-4 25H8Z"/>
+              <path class="crown-base" d="M10 36h44l-3 8H13l-3-8Z"/>
+              <circle class="ruby" cx="18" cy="31" r="3"/>
+              <circle class="sapphire" cx="32" cy="27" r="3.5"/>
+              <circle class="emerald" cx="46" cy="31" r="3"/>
+            </svg>
+          </span>
+          <span id="myVipBadge" class="vip-gem-badge vip-gem-self hidden" title="عضو VIP">💎</span>
+        </div>
+        <div>
+          <div class="my-name-role-line">
+            <strong id="myNameSide">زائر</strong>
+            <span id="myModeratorRoleLabel" class="my-moderator-role-label hidden">★ مراقب</span>
+          </div>
+          <span><i></i> متصل</span>
+        </div>
+        <a id="adminPanelButton" class="icon-button admin-panel-button hidden"
+           href="./admin.html" target="_blank" title="لوحة الإدارة" aria-label="لوحة الإدارة">♛</a>
+        <button id="vipStealthButton" class="icon-button vip-stealth-button hidden" type="button"
+                title="تشغيل التخفي" aria-label="تشغيل أو إيقاف تخفي VIP">◉</button>
+        <button id="privateToggleButton" class="icon-button privacy-button open" type="button"
+                title="الخاص مفتوح" aria-label="فتح أو إغلاق الخاص">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path class="privacy-lock-open" d="M7.8 10V7.7a4.2 4.2 0 0 1 7.9-2 .9.9 0 1 1-1.6.8 2.4 2.4 0 0 0-4.5 1.2V10h7.2a2 2 0 0 1 2 2v6.2a2 2 0 0 1-2 2H7.2a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2h.6Zm-.6 1.8a.2.2 0 0 0-.2.2v6.2c0 .1.1.2.2.2h9.6a.2.2 0 0 0 .2-.2V12a.2.2 0 0 0-.2-.2H7.2Z"/>
+            <path class="privacy-lock-closed" d="M8 10V7.4a4 4 0 1 1 8 0V10h.8a2 2 0 0 1 2 2v6.2a2 2 0 0 1-2 2H7.2a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2H8Zm1.8 0h4.4V7.4a2.2 2.2 0 1 0-4.4 0V10Zm-2.6 1.8a.2.2 0 0 0-.2.2v6.2c0 .1.1.2.2.2h9.6a.2.2 0 0 0 .2-.2V12a.2.2 0 0 0-.2-.2H7.2Z"/>
+          </svg>
+        </button>
+        <button id="changeProfileButton" class="icon-button" type="button"
+                title="الصفحة الرئيسية — تغيير الاسم أو الصورة"
+                aria-label="الصفحة الرئيسية وتغيير الاسم أو الصورة">⌂</button>
+      </footer>
+    </aside>
+
+    <div id="sidebarBackdrop" class="sidebar-backdrop hidden"></div>
+
+    <main class="conversation">
+      <header class="conversation-header">
+        <div class="room-info">
+          <button id="openSidebar" class="icon-button mobile-only" type="button" aria-label="القائمة">☰</button>
+          <div id="roomSymbol" class="room-symbol">#</div>
+          <div>
+            <span id="currentRoomBadge" class="current-room-badge">الغرفة: <b id="currentRoomName">العامة</b></span>
+            <h1 id="conversationTitle">العامة</h1>
+            <p id="conversationSubtitle"><span id="onlineCountHeader">0</span> متصل الآن</p>
+          </div>
+        </div>
+
+        <nav class="chat-primary-actions" aria-label="التنقل الرئيسي داخل الدردشة">
+        <button id="primaryRoomsButton" class="chat-primary-action room-primary-action" type="button">
+          <span class="chat-primary-icon" aria-hidden="true">▦</span>
+          <span class="chat-primary-copy">
+            <strong>اختيار غرفة</strong>
+            <small>الغرفة الحالية: <b id="quickCurrentRoomName">العامة</b></small>
+          </span>
+          <span class="chat-primary-arrow" aria-hidden="true">‹</span>
+        </button>
+        <button id="profileHomeButton" class="chat-primary-action home-primary-action" type="button">
+          <span class="chat-primary-icon" aria-hidden="true">⌂</span>
+          <span class="chat-primary-copy">
+            <strong>الصفحة الرئيسية</strong>
+            <small>تغيير الاسم أو الصورة</small>
+          </span>
+          <span class="chat-primary-arrow" aria-hidden="true">‹</span>
+        </button>
+        </nav>
+        <div class="header-actions">
+          <a class="soft-button lina-ai-entry header-lina-entry" href="https://rivolove.com/chat/?id=lina" title="تكلم مع لينا الذكاء الاصطناعي" aria-label="تكلم مع لينا الذكاء الاصطناعي">
+            <img src="./assets/lina-instant-poster.webp" alt=""><b>تكلم مع لينا</b>
+          </a>
+          <button id="roomsMenuButton" class="soft-button rooms-menu-button" type="button"
+                  title="عرض الغرف" aria-label="عرض الغرف">
+            <span>▦</span><b>اختيار غرفة</b>
+          </button>
+          <button id="vipHeaderButton" class="soft-button vip-header-button" type="button"
+                  title="عضوية VIP" aria-label="عضوية VIP">
+            <span>💎</span><b>VIP</b>
+          </button>
+          <a id="moderatorPanelButton" class="soft-button moderator-panel-button hidden"
+             href="./moderator.html" target="_blank" title="فتح لوحة المراقب">
+            <span>★</span><b>لوحة المراقب</b>
+          </a>
+          <button id="backToPublicButton" class="soft-button hidden" type="button">العودة للعامة</button>
+          <button id="roomSoundButton" class="soft-button room-sound-button needs-unlock" type="button"
+                  title="تشغيل أو كتم أصوات المستخدمين">
+            <span id="roomSoundIcon">🔈</span>
+            <b id="roomSoundLabel">شغّل الصوت</b>
+            <i id="remoteAudioCount">0</i>
+          </button>
+          <div id="connectionStatus" class="connection-status connecting">
+            <i></i>
+            <span>جاري الاتصال</span>
+          </div>
+          <button id="installButton" class="soft-button install-app-button" type="button"
+                  title="تثبيت Rivo Chat على الجهاز" aria-label="تثبيت تطبيق Rivo Chat">
+            <span aria-hidden="true">⬇</span><b>تثبيت التطبيق</b>
+          </button>
+        </div>
+      </header>
+
+
+      <section id="presenceStrip" class="presence-strip" aria-label="المتصلون في العامة">
+        <div class="presence-strip-heading">
+          <strong>المتصلون في العامة</strong>
+          <span><b id="presenceCount">0</b> متصل</span>
+        </div>
+        <div id="presenceAvatars" class="presence-avatars" role="list"></div>
+      </section>
+
+      <section id="pinnedNotice" class="pinned-notice hidden" aria-live="polite">
+        <span id="pinnedNoticeIcon">📌</span>
+        <div>
+          <strong id="pinnedNoticeTitle">رسالة مثبتة</strong>
+          <p id="pinnedNoticeText"></p>
+        </div>
+        <button id="dismissPinnedNotice" type="button" aria-label="إخفاء مؤقت">✕</button>
+      </section>
+
+      <section id="messages" class="messages" aria-live="polite"></section>
+
+      <div id="typingBar" class="typing-bar hidden">
+        <span id="typingText"></span>
+      </div>
+
+      <div id="errorBanner" class="error-banner hidden"></div>
+
+      <form id="composer" class="composer" autocomplete="off">
+        <button id="emojiButton" class="composer-action" type="button" title="رموز">☺</button>
+        <textarea id="messageInput" rows="1" maxlength="800"
+                  placeholder="اكتب رسالة إلى العامة…"></textarea>
+        <button id="voiceButton" class="composer-action" type="button"
+                title="تشغيل المايك وإرسال صوتك للغرفة"><svg class="mic-svg" viewBox="0 0 24 24" aria-hidden="true">
+  <path d="M12 15.6a3.6 3.6 0 0 0 3.6-3.6V7.2a3.6 3.6 0 1 0-7.2 0V12a3.6 3.6 0 0 0 3.6 3.6Z"/>
+  <path d="M6.8 11.8a.9.9 0 1 1 1.8 0 3.4 3.4 0 0 0 6.8 0 .9.9 0 1 1 1.8 0 5.22 5.22 0 0 1-4.3 5.12V19h2a.9.9 0 1 1 0 1.8H9.2a.9.9 0 0 1 0-1.8h2v-2.08A5.22 5.22 0 0 1 6.8 11.8Z"/>
+</svg></button>
+        <button id="sendButton" class="send-button" type="submit" aria-label="إرسال">➤</button>
+
+        <div id="emojiPanel" class="emoji-panel hidden">
+          <button type="button">😀</button><button type="button">😂</button>
+          <button type="button">😍</button><button type="button">👍</button>
+          <button type="button">❤️</button><button type="button">👏</button>
+          <button type="button">🔥</button><button type="button">🌹</button>
+          <button type="button">😅</button><button type="button">🤔</button>
+          <button type="button">😎</button><button type="button">👋</button>
+        </div>
+      </form>
+    </main>
+
+
+    <section id="privatePopup" class="private-popup hidden" aria-label="المحادثة الخاصة">
+      <header id="privatePopupHeader" class="private-popup-header">
+        <div class="private-popup-user">
+          <img id="privatePopupAvatar" src="./characters/lina/portrait-small.webp" alt="">
+          <div>
+            <strong id="privatePopupName">الرسائل الخاصة</strong>
+            <span id="privatePopupStatus">اختر مستخدماً من قائمة المتصلين</span>
+          </div>
+        </div>
+
+        <div class="private-popup-actions">
+          <button id="privatePopupMinimize" class="private-window-button" type="button"
+                  title="تصغير النافذة" aria-label="تصغير النافذة">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 12.8h14a.9.9 0 1 1 0 1.8H5a.9.9 0 1 1 0-1.8Z"/>
+            </svg>
+          </button>
+
+          <button id="privatePopupExpand" class="private-window-button" type="button"
+                  title="ملء الشاشة" aria-label="ملء الشاشة">
+            <svg class="expand-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 4h5a.9.9 0 0 1 0 1.8H6.8V9a.9.9 0 0 1-1.8 0V4.9A.9.9 0 0 1 5.9 4H5Zm9 0h5.1a.9.9 0 0 1 .9.9V10a.9.9 0 1 1-1.8 0V5.8H14A.9.9 0 0 1 14 4ZM5 14a.9.9 0 0 1 .9.9v3.3H10a.9.9 0 1 1 0 1.8H5.9a.9.9 0 0 1-.9-.9V14Zm14 0a.9.9 0 0 1 .9.9v4.2a.9.9 0 0 1-.9.9h-5a.9.9 0 1 1 0-1.8h4.1v-3.3a.9.9 0 0 1 .9-.9Z"/>
+            </svg>
+            <svg class="restore-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 4h9a3 3 0 0 1 3 3v9a.9.9 0 1 1-1.8 0V7A1.2 1.2 0 0 0 17 5.8H8A.9.9 0 0 1 8 4Zm-1 4h8a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3Zm0 1.8A1.2 1.2 0 0 0 5.8 11v6A1.2 1.2 0 0 0 7 18.2h8a1.2 1.2 0 0 0 1.2-1.2v-6A1.2 1.2 0 0 0 15 9.8H7Z"/>
+            </svg>
+          </button>
+
+          <button id="privatePopupClose" class="private-window-button close" type="button"
+                  title="إغلاق الخاص" aria-label="إغلاق الخاص">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.3 5a.9.9 0 0 1 1.3 0l4.4 4.4L16.4 5a.9.9 0 1 1 1.3 1.3L13.3 10.7l4.4 4.4a.9.9 0 0 1-1.3 1.3L12 12l-4.4 4.4a.9.9 0 0 1-1.3-1.3l4.4-4.4-4.4-4.4A.9.9 0 0 1 6.3 5Z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="privatePopupBody" class="private-popup-body">
+        <section id="privatePopupMessages" class="private-popup-messages" aria-live="polite">
+          <div class="private-popup-empty">
+            <span>✉</span>
+            <strong>الرسائل الخاصة</strong>
+            <p>اضغط زر الخاص بجانب اسم أي مستخدم متصل.</p>
+          </div>
+        </section>
+
+        <form id="privatePopupForm" class="private-popup-composer" autocomplete="off">
+          <textarea id="privatePopupInput" rows="1" maxlength="800"
+                    placeholder="اختر مستخدماً أولاً" disabled></textarea>
+          <button id="privatePopupSend" type="submit" disabled aria-label="إرسال الرسالة الخاصة">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20.4 3.8a1.7 1.7 0 0 0-1.8-.36L4.7 8.65a1.65 1.65 0 0 0 .08 3.12l5.2 1.72 1.72 5.2a1.65 1.65 0 0 0 3.12.08l5.2-13.9a1.7 1.7 0 0 0-.36-1.8l.74.73Zm-8.3 8.4L7.2 10.58l10.15-3.8-5.25 5.42Zm1.32 1.32 5.42-5.25-3.8 10.15-1.62-4.9Z"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <button id="privatePopupCollapsedButton" class="private-popup-collapsed-button hidden" type="button">
+        <img id="privatePopupCollapsedAvatar" src="./characters/lina/portrait-small.webp" alt="">
+        <span id="privatePopupCollapsedName">الخاص</span>
+        <i id="privatePopupCollapsedUnread" class="hidden">0</i>
+      </button>
+    </section>
+
+      <section id="avatarLivePanel" class="voice-stage-panel hidden" aria-label="الشخصية المباشرة">
+      <header class="avatar-live-header">
+        <div class="speaker-title">
+          <strong id="liveCharacterName">الشخصية المختارة</strong>
+          <span id="liveMicStatus">اضغط تشغيل المايك</span>
+        </div>
+        <button id="closeAvatarStage" class="icon-button" type="button" aria-label="إغلاق اللوحة">✕</button>
+      </header>
+
+      <div id="avatarStage" class="avatar-stage">
+        <canvas id="vrmCanvas" aria-label="نموذج الشخصية ثلاثي الأبعاد"></canvas>
+
+        <div id="avatarFallback" class="avatar-fallback">
+          <img id="liveCharacterPortrait" src="./characters/lina/portrait.webp" alt="الشخصية المختارة">
+        </div>
+
+        <div id="modelLoading" class="model-loading">
+          <span></span>
+          <b>تحميل الشخصية المختارة ثلاثية الأبعاد…</b>
+        </div>
+
+        <div class="speaker-badge">
+          <i></i>
+          <span id="speakerBadgeText">شخصيتك على المايك</span>
+        </div>
+
+        <div class="voice-meter" aria-hidden="true">
+          <i id="voiceMeterFill"></i>
+        </div>
+      </div>
+
+      <div class="avatar-live-controls">
+        <button id="toggleLiveMic" class="live-mic-button" type="button">
+          <span>🎙</span>
+          <b>تشغيل المايك</b>
+        </button>
+        <p id="liveStageNote">صوتك يصل إلى المستخدمين، وتبقى الدردشة والكتابة ظاهرتين.</p>
+      </div>
+    </section>
+  </div>
+
+
+
+  <div id="privateRequestModal" class="professional-modal private-request-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop"></div>
+    <section class="professional-sheet private-request-sheet" role="dialog" aria-modal="true"
+             aria-labelledby="privateRequestTitle">
+      <div class="private-request-avatar-wrap">
+        <img id="privateRequestAvatar" src="./characters/lina/portrait-small.webp" alt="">
+        <span>✉</span>
+      </div>
+      <h2 id="privateRequestTitle">طلب محادثة خاصة</h2>
+      <p><strong id="privateRequestName">مستخدم</strong> يريد التحدث معك على الخاص.</p>
+      <small>بعد الموافقة ستظهر حالة «مشغول» لكما، ولن يستطيع مستخدم ثالث بدء خاص مع أي منكما حتى إنهاء المحادثة.</small>
+      <div class="private-request-actions">
+        <button id="privateRequestReject" class="private-request-reject" type="button">رفض</button>
+        <button id="privateRequestAccept" class="private-request-accept" type="button">موافقة وفتح الخاص</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="userProfileModal" class="professional-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop" data-close-profile="1"></div>
+    <section class="professional-sheet user-profile-sheet" role="dialog" aria-modal="true"
+             aria-labelledby="profileDisplayName">
+      <button id="closeUserProfile" class="professional-close" type="button" aria-label="إغلاق">✕</button>
+      <div class="profile-hero">
+        <div class="profile-avatar-shell">
+          <img id="profileAvatar" src="./characters/lina/portrait-small.webp" alt="">
+          <span id="profileBadge" class="profile-badge-slot"></span>
+        </div>
+        <div>
+          <h2 id="profileDisplayName">مستخدم</h2>
+          <p id="profileRoleText">مستخدم متصل</p>
+          <span id="profileOnlineState" class="profile-online-state">● متصل الآن</span>
+        </div>
+      </div>
+      <div class="profile-facts">
+        <div><span>الخاص</span><strong id="profilePrivateState">مفتوح</strong></div>
+        <div><span>المايك</span><strong id="profileMicState">متاح</strong></div>
+        <div><span>الهدية</span><strong id="profileAwardText">لا توجد</strong></div>
+      </div>
+      <div class="profile-actions">
+        <button id="profilePrivateButton" class="profile-primary" type="button">محادثة خاصة</button>
+        <button id="profileMuteButton" type="button">كتمه عندي</button>
+        <button id="profileReportButton" class="profile-danger" type="button">إبلاغ الإدارة</button>
+      </div>
+    </section>
+  </div>
+
+  <div id="reportModal" class="professional-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop" data-close-report="1"></div>
+    <form id="reportForm" class="professional-sheet report-sheet">
+      <button id="closeReportModal" class="professional-close" type="button" aria-label="إغلاق">✕</button>
+      <h2>إرسال بلاغ إلى الإدارة</h2>
+      <p id="reportTargetText">الإبلاغ عن مستخدم</p>
+      <label>
+        <span>سبب البلاغ</span>
+        <select id="reportReason" required>
+          <option value="abuse">إساءة أو سب</option>
+          <option value="harassment">تحرش أو إزعاج</option>
+          <option value="spam">سبام أو تكرار مزعج</option>
+          <option value="impersonation">انتحال أو اسم مضلل</option>
+          <option value="unsafe">محتوى غير آمن</option>
+          <option value="other">سبب آخر</option>
+        </select>
+      </label>
+      <label>
+        <span>تفاصيل إضافية</span>
+        <textarea id="reportDetails" maxlength="400" rows="4"
+                  placeholder="اكتب وصفاً مختصراً يساعد الإدارة…"></textarea>
+      </label>
+      <button class="report-submit" type="submit">إرسال البلاغ</button>
+    </form>
+  </div>
+
+
+  <div id="roomsModal" class="professional-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop" data-close-rooms="1"></div>
+    <section class="professional-sheet rooms-sheet" role="dialog" aria-modal="true"
+             aria-labelledby="roomsModalTitle">
+      <button id="closeRoomsModal" class="professional-close" type="button" aria-label="إغلاق">✕</button>
+      <div class="rooms-sheet-title">
+        <span>▦</span>
+        <div>
+          <h2 id="roomsModalTitle">اختيار غرفة</h2>
+          <p>اختر غرفة واضحة، ويمكنك العودة إلى العامة في أي وقت.</p>
+        </div>
+      </div>
+      <div class="rooms-capacity-note">كل غرفة تستقبل 20 مستخدماً عادياً. الإدارة والمراقبون وأعضاء VIP يستطيعون الدخول عند الامتلاء.</div>
+      <div id="roomsList" class="rooms-list-live" aria-live="polite">
+        <div class="rooms-loading">جاري تحميل الغرف…</div>
+      </div>
+    </section>
+  </div>
+
+  <div id="vipModal" class="professional-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop" data-close-vip="1"></div>
+    <section class="professional-sheet vip-sheet" role="dialog" aria-modal="true" aria-labelledby="vipModalTitle">
+      <button id="vipModalClose" class="professional-close" type="button" aria-label="إغلاق نافذة VIP" title="إغلاق">✕</button>
+      <div class="vip-hero-gem">💎</div>
+      <h2 id="vipModalTitle">عضوية VIP</h2>
+      <div class="vip-price"><strong>15$</strong><span>شهرياً — عضوية واحدة واضحة</span></div>
+      <div class="vip-benefits">
+        <div><b>✓</b><span>دخول أي غرفة حتى عند وصولها إلى 20 مستخدماً</span></div>
+        <div><b>✓</b><span>وضع التخفي عن قائمة المستخدمين العاديين</span></div>
+        <div><b>✓</b><span>إرسال الهدايا من داخل الدردشة</span></div>
+        <div><b>✓</b><span>أولوية وتحكم محدود بالمايك</span></div>
+        <div><b>✓</b><span>إخراج مستخدم عادي من الغرفة من دون حظره</span></div>
+        <div><b>✓</b><span>جوهرة VIP كبيرة قرب الاسم والصورة والرسائل</span></div>
+      </div>
+      <div id="vipStatusBox" class="vip-status-box">سجّل بحساب Google ثم أرسل طلب العضوية.</div>
+      <button id="vipRequestButton" class="vip-request-button" type="button">طلب عضوية VIP</button>
+      <small>بعد موافقة الإدارة تظهر خطوة الدفع. بوابة الدفع ستُربط لاحقاً، ويمكن للإدارة تفعيل العضوية يدوياً لمدة 30 يوماً.</small>
+    </section>
+  </div>
+
+  <div id="vipGiftModal" class="professional-modal hidden" aria-hidden="true">
+    <div class="professional-modal-backdrop" data-close-vip-gift="1"></div>
+    <section class="professional-sheet vip-gift-sheet" role="dialog" aria-modal="true">
+      <button id="vipGiftClose" class="professional-close" type="button" aria-label="إغلاق">✕</button>
+      <h2>إرسال هدية</h2>
+      <p>إلى <strong id="vipGiftTargetName">المستخدم</strong></p>
+      <div id="vipGiftGrid" class="vip-gift-grid">
+        <button type="button" data-gift="star"><span>⭐</span><b>نجمة</b></button>
+        <button type="button" data-gift="diamond"><span>💎</span><b>جوهرة</b></button>
+        <button type="button" data-gift="ruby"><span>♦️</span><b>ياقوت</b></button>
+        <button type="button" data-gift="heart"><span>❤️</span><b>قلب</b></button>
+        <button type="button" data-gift="emerald"><span>💚</span><b>زمرد</b></button>
+      </div>
+    </section>
+  </div>
+
+  <div id="giftAnimationLayer" class="gift-animation-layer" aria-hidden="true"></div>
+
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <script src="./google-config.js"></script>
+  <script src="./google-auth.js"></script>
+  <script src="./local-data.js"></script>
+  <script src="./voice-config.js"></script>
+  <script src="./voice-room.js?v=143.3"></script>
+  <script src="./relay-audio.js?v=143.3"></script>
+  <script src="./characters.js?v=143.3"></script>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+        "@pixiv/three-vrm": "https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@3.5.3/lib/three-vrm.module.min.js"
+      }
+    }
+  </script>
+  <script src="./legacy/app.js?v=155"></script>
+  <script src="./professional-features.js?v=143.3"></script>
+  <script type="module" src="./avatar-stage.js?v=143.3"></script>
+
+</body>
+</html>

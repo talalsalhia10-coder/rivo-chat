@@ -36,7 +36,7 @@ export class ChatRoom extends BaseChatRoom {
     return super.webSocketMessage(ws, rawMessage);
   }
 
-  handleExpandedVipGift(ws, session, data, gift) {
+  async handleExpandedVipGift(ws, session, data, gift) {
     if (!session.isVip) {
       this.safeSend(ws, { type: "error", message: "إرسال الهدايا من الدردشة خاص بأعضاء VIP." });
       return;
@@ -58,6 +58,7 @@ export class ChatRoom extends BaseChatRoom {
     ws.serializeAttachment(session);
     target.session.badge = gift;
     target.socket.serializeAttachment(target.session);
+    await this.sendBadgeSession(target.socket, target.session.clientId, gift);
     this.broadcast({
       type: "gift-animation",
       badge: gift,
@@ -70,11 +71,11 @@ export class ChatRoom extends BaseChatRoom {
     this.addAdminLog("vip", session.clientId, "vip-gift", targetId, target.session.nickname, gift);
   }
 
-  handleAdminCommand(ws, session, data) {
+  async handleAdminCommand(ws, session, data) {
     const action = cleanText(data?.action, 60);
     const badge = cleanText(data?.badge, 30);
     if (data?.type !== "admin-command" || action !== "set-user-badge" || !EXTRA_GIFTS.has(badge)) {
-      return super.handleAdminCommand(ws, session, data);
+      return await super.handleAdminCommand(ws, session, data);
     }
 
     const targetId = cleanText(data.clientId, 80);
@@ -122,13 +123,13 @@ export class ChatRoom extends BaseChatRoom {
       ""
     );
 
-    this.setUserBadge(targetId, badge);
     for (const socket of this.ctx.getWebSockets()) {
       if (socket.readyState !== WebSocket.OPEN) continue;
       const target = socket.deserializeAttachment();
       if (target?.kind === "chat" && target.clientId === targetId) {
         target.badge = badge;
         socket.serializeAttachment(target);
+        await this.sendBadgeSession(socket, targetId, badge);
       }
     }
 

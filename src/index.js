@@ -2,8 +2,8 @@ import { DurableObject } from "cloudflare:workers";
 
 const MAX_MESSAGE_LENGTH = 800;
 const MAX_NAME_LENGTH = 24;
-const MAX_HISTORY = 50;
-const MAX_STORED_MESSAGES = 50;
+const MAX_HISTORY = 0;
+const MAX_STORED_MESSAGES = 12;
 const PUBLIC_RETENTION_MS = 24 * 60 * 60 * 1000;
 const RESOLVED_REPORT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 const MAX_REPORTS = 500;
@@ -348,7 +348,7 @@ export default {
       return json({
         ok: true,
         service: "rivo-group-chat",
-        version: "25.0.0",
+        version: "155.0.0",
         googleLoginConfigured: Boolean(env.GOOGLE_CLIENT_ID && env.SESSION_SECRET),
         time: new Date().toISOString()
       });
@@ -800,6 +800,7 @@ export class ChatRoom extends DurableObject {
     const adminToken = cleanText(url.searchParams.get("adminToken"), 512);
     const staffSessionToken = cleanText(url.searchParams.get("staffSessionToken"), 5000);
     const authToken = cleanText(url.searchParams.get("authToken"), 5000);
+    const badgeToken = cleanText(url.searchParams.get("badgeToken"), 5000);
     const adminVisible = url.searchParams.get("adminVisible") !== "0";
 
     const verifiedStaff = await verifyStaffSessionToken(
@@ -877,6 +878,11 @@ export class ChatRoom extends DurableObject {
     }
 
     const flags = this.getUserFlags(clientId);
+    const badgeIdentity = await verifySignedToken(badgeToken, this.env.SESSION_SECRET);
+    const sessionBadge = (
+      badgeIdentity?.type === "badge" &&
+      badgeIdentity?.sub === clientId
+    ) ? cleanText(badgeIdentity.badge, 30) : "";
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
 
@@ -903,7 +909,7 @@ export class ChatRoom extends DurableObject {
       adminVisible: role === "user" ? true : (staffPreference.exists ? staffPreference.visible : adminVisible),
       micBlocked: flags.micBlocked,
       privateBlocked: flags.privateBlocked,
-      badge: this.getUserBadge(clientId),
+      badge: sessionBadge,
       joinedAt: Date.now(),
       lastMessageAt: 0,
       lastVoiceAt: 0,
@@ -1653,6 +1659,8 @@ export class ChatRoom extends DurableObject {
         privateBlocked: Boolean(session.privateBlocked),
         privateBusy: Boolean(session.privateWith),
         badge: session.badge || "",
+        isGuest: Boolean(session.isGuest),
+        verified: Boolean(session.googleUid && !session.isGuest && session.role === "user"),
         joinedAt: Number(session.joinedAt || Date.now())
       };
 
@@ -1691,6 +1699,8 @@ export class ChatRoom extends DurableObject {
         privateBlocked: Boolean(session.privateBlocked),
         privateBusy: Boolean(session.privateWith),
         badge: session.badge || "",
+        isGuest: Boolean(session.isGuest),
+        verified: Boolean(session.googleUid && !session.isGuest && session.role === "user"),
         roomId: session.roomId || "lobby",
         roomName: session.roomName || "العامة",
         joinedAt: Number(session.joinedAt || Date.now())
@@ -1706,6 +1716,27 @@ export class ChatRoom extends DurableObject {
       a.joinedAt - b.joinedAt ||
       a.nickname.localeCompare(b.nickname, "ar")
     );
+  }
+
+  async createBadgeSessionToken(clientId, badge) {
+    if (!clientId || !this.env.SESSION_SECRET) return "";
+    return await createSessionToken({
+      type: "badge",
+      sub: clientId,
+      badge: cleanText(badge, 30),
+      exp: Date.now() + 12 * 60 * 60 * 1000
+    }, this.env.SESSION_SECRET);
+  }
+
+  async sendBadgeSession(socket, clientId, badge) {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const token = badge ? await this.createBadgeSessionToken(clientId, badge) : "";
+    this.safeSend(socket, {
+      type: "badge-session",
+      clientId,
+      badge: cleanText(badge, 30),
+      token
+    });
   }
 
   safeSend(ws, payload) {
@@ -1878,12 +1909,17 @@ export class ChatRoom extends DurableObject {
     }
 
     if (session.kind === "admin-control") {
-      this.handleAdminCommand(ws, session, data);
+      await this.handleAdminCommand(ws, session, data);
       return;
     }
 
     if (data.type === "ping") {
       this.safeSend(ws, { type: "pong", at: Date.now() });
+      return;
+    }
+
+    if (data.type === "admin-command" && ["owner", "moderator"].includes(session.role)) {
+      await this.handleAdminCommand(ws, session, data);
       return;
     }
 
@@ -1919,6 +1955,7 @@ export class ChatRoom extends DurableObject {
       }
       target.session.badge = gift;
       target.socket.serializeAttachment(target.session);
+      await this.sendBadgeSession(target.socket, target.session.clientId, gift);
       this.broadcast({
         type: "gift-animation",
         badge: gift,
@@ -2535,6 +2572,8 @@ export class ChatRoom extends DurableObject {
       avatar: session.avatar,
       role: session.role || "user",
       isVip: Boolean(session.isVip),
+      isGuest: Boolean(session.isGuest),
+      verified: Boolean(session.googleUid && !session.isGuest && session.role === "user"),
       badge: session.badge || "",
       body,
       createdAt: now
@@ -2577,7 +2616,7 @@ export class ChatRoom extends DurableObject {
     this.broadcast({ type: "message", message });
   }
 
-  handleAdminCommand(ws, session, data) {
+  async handleAdminCommand(ws, session, data) {
     if (data.type === "ping") {
       this.safeSend(ws, { type: "pong", at: Date.now() });
       return;
@@ -3031,7 +3070,7 @@ export class ChatRoom extends DurableObject {
     if (action === "update-staff-name") {
       if (session.role !== "owner") return;
       const name = cleanNickname(data.name);
-      if (!name || name.length < 2) return;
+      if (!name || (name.length < 2 && name !== "__rivo_crown_only__")) return;
       this.setStaffPreference(session.role, session.staffClientId, { name });
       session.staffName = name;
       ws.serializeAttachment(session);
@@ -3055,8 +3094,6 @@ export class ChatRoom extends DurableObject {
       const badge = cleanText(data.badge, 30);
       if (!allowed.has(badge)) return;
 
-      this.setUserBadge(targetId, badge);
-
       for (const socket of this.ctx.getWebSockets()) {
         if (socket.readyState !== WebSocket.OPEN) continue;
         const target = socket.deserializeAttachment();
@@ -3064,6 +3101,7 @@ export class ChatRoom extends DurableObject {
         if (target?.kind === "chat" && target.clientId === targetId) {
           target.badge = badge;
           socket.serializeAttachment(target);
+          await this.sendBadgeSession(socket, targetId, badge);
         }
       }
 

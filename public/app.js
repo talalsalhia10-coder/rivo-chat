@@ -1,4968 +1,2129 @@
-(() => {
-  "use strict";
+const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
+const isDirectAvatarSource=value=>typeof value==='string'&&/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/.test(value);
+const RIVO_LIVE_AVATAR_MAP={
+ entry1:'assets/entry-avatars/rivo-avatar-young-man-purple.jpg',
+ entry2:'assets/entry-avatars/rivo-avatar-young-woman-purple.jpg',
+ entry3:'assets/entry-avatars/rivo-avatar-man-blue-hoodie.jpg',
+ entry4:'assets/entry-avatars/rivo-avatar-young-man-light.jpg',
+ entry5:'assets/entry-avatars/rivo-avatar-woman-denim.jpg',
+ entry6:'assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg',
+ lina:'characters/lina/portrait-small.webp',girl2:'characters/girl2/portrait-small.webp',girl3:'characters/girl3/portrait-small.webp',girl4:'characters/girl4/portrait-small.webp',man1:'characters/man1/portrait-small.webp',avatar6:'characters/avatar6/portrait-small.webp',avatar7:'characters/avatar7/portrait-small.webp',
+ owner:'assets/avatars/owner.svg',guest:'assets/avatars/guest.svg'
+};
+const av=n=>isDirectAvatarSource(n)?n:(RIVO_LIVE_AVATAR_MAP[n]||`assets/avatars/${n||'guest'}.svg`);
+const state={
+ room:'general', user:null, target:null, color:'#111827', guestAvatar:'guest', localStream:null,
+ inbox:{messages:3,alerts:2},
+ activeNameGifts:{},
+ privateMessagesEnabled:true,
+ privateTarget:null,
+ privateMedia:{mic:false,camera:false,paidOnly:true},
+ economyConfig:{giftsEnabled:true,vipEnabled:true,verifyEnabled:true},
+ adminFeatures:{guestEntry:true,googleForMedia:true,crownProtection:true,antiSpam:true,maxMessageLength:500},
+ planConfig:{
+  plus:{label:'Plus',icon:'➕',price:10,days:30,enabled:true,accessCode:'PLUS-4826'},
+  vip:{label:'VIP',icon:'💎',price:20,days:30,enabled:true,accessCode:'VIP-7391'},
+  primo:{label:'بريمو',icon:'🔷',price:30,days:30,enabled:true,accessCode:'PRIMO-9154'}
+ },
+ permissionConfig:{
+  usage:{
+   guest:{publicMessages:true,privateChat:false,gifts:false,roomMic:'off',roomCamera:'off',privateMic:'off',privateCamera:'off',priority:0},
+   user:{publicMessages:true,privateChat:true,gifts:true,roomMic:'request',roomCamera:'request',privateMic:'off',privateCamera:'off',priority:0},
+   plus:{publicMessages:true,privateChat:true,gifts:true,roomMic:'request',roomCamera:'request',privateMic:'request',privateCamera:'off',priority:1},
+   vip:{publicMessages:true,privateChat:true,gifts:true,roomMic:'direct',roomCamera:'request',privateMic:'direct',privateCamera:'request',priority:2},
+   primo:{publicMessages:true,privateChat:true,gifts:true,roomMic:'direct',roomCamera:'direct',privateMic:'direct',privateCamera:'direct',priority:3},
+   moderator:{publicMessages:true,privateChat:true,gifts:true,roomMic:'direct',roomCamera:'direct',privateMic:'direct',privateCamera:'direct',priority:4},
+   owner:{publicMessages:true,privateChat:true,gifts:true,roomMic:'direct',roomCamera:'direct',privateMic:'direct',privateCamera:'direct',priority:5}
+  },
+  admin:{}
+ },
+ privateWindow:{maximized:false,minimized:false,previous:null,z:400},
+ radioBroadcast:{
+   status:'stopped',
+   scope:'all',
+   roomId:'general',
+   title:'موسيقى ريفو التجريبية',
+   source:'assets/audio/rivo-radio-demo.wav',
+   listenerPlaying:false,
+   loadedSource:''
+ },
+ roomMic:{
+   requests:[],
+   approvals:{},
+   requestSeq:0
+ },
+ roomCamera:{
+   requests:[],
+   approvals:{},
+   activeUser:null,
+   stream:null,
+   requestSeq:0,
+   window:{maximized:false,minimized:false,previous:null,z:420}
+ },
+ privateUnread:{ahmed:2,samar:1,noor:0,ali:0},
+ privateChats:{
+   ahmed:[
+     {from:'ahmed',text:'هلا، شلونك؟',time:'12:05'},
+     {from:'me',text:'هلا أحمد، بخير الحمد لله.',time:'12:06'},
+     {from:'ahmed',text:'شفت الصور الجديدة، كلش حلوة.',time:'12:07'}
+   ],
+   samar:[
+     {from:'samar',text:'مرحبا، ممكن أسألك عن التصوير؟',time:'11:42'}
+   ],
+   noor:[
+     {from:'noor',text:'شكراً على الهدية ❤️',time:'10:06'}
+   ],
+   ali:[]
+ },
+ rooms:[
+  {id:'general',name:'العامة',icon:'🌐',count:128,cams:4,mics:6,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في ريفو — الاحترام أساس الدردشة.',announcementOn:true},
+  {id:'iraq',name:'العراق',icon:'🇮🇶',count:188,cams:2,mics:6,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة العراق.',announcementOn:true},
+  {id:'syria',name:'سوريا',icon:'🇸🇾',count:96,cams:2,mics:5,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة سوريا.',announcementOn:true},
+  {id:'lebanon',name:'لبنان',icon:'🇱🇧',count:74,cams:2,mics:5,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة لبنان.',announcementOn:true},
+  {id:'jordan',name:'الأردن',icon:'🇯🇴',count:121,cams:2,mics:5,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة الأردن.',announcementOn:true},
+  {id:'oman',name:'عُمان',icon:'🇴🇲',count:48,cams:1,mics:4,camOn:true,micOn:true,music:false,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة عُمان.',announcementOn:true},
+  {id:'saudi',name:'السعودية',icon:'🇸🇦',count:133,cams:2,mics:5,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة السعودية.',announcementOn:true},
+  {id:'kuwait',name:'الكويت',icon:'🇰🇼',count:61,cams:2,mics:4,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة الكويت.',announcementOn:true},
+  {id:'turkey',name:'تركيا',icon:'🇹🇷',count:83,cams:2,mics:5,camOn:true,micOn:true,music:true,avatars:false,lina:false,announcement:'أهلاً بكم في غرفة تركيا.',announcementOn:true},
+  {id:'poets',name:'شعراء',icon:'✒️',count:39,cams:1,mics:6,camOn:true,micOn:true,music:false,avatars:false,lina:false,announcement:'أهلاً بأصحاب الشعر والكلمة الجميلة.',announcementOn:true}
+ ],
+ users:[
+  {id:'owner',name:'الإدارة',avatar:'owner',room:'general',bio:'مالك ريفو',authType:'owner',coins:99999,role:'owner',plan:'owner',isHidden:false,vip:true,verified:false,giftValue:4200,friends:210,level:50},
+  {id:'ahmed',name:'أحمد',avatar:'ahmed',room:'general',bio:'مسجل بحساب Google',authType:'google',coins:420,role:'user',plan:'user',vip:false,verified:true,giftValue:1380,friends:98,level:12},
+  {id:'samar',name:'سمر',avatar:'samar',room:'general',bio:'مسجلة بحساب Google',authType:'google',coins:280,role:'user',plan:'user',vip:false,verified:true,giftValue:710,friends:64,level:9},
+  {id:'ali',name:'علي',avatar:'ali',room:'general',bio:'مسجل بحساب Google',authType:'google',coins:150,role:'user',plan:'user',vip:false,verified:true,giftValue:250,friends:42,level:6},
+  {id:'noor',name:'نور',avatar:'noor',room:'general',bio:'مسجلة بحساب Google',authType:'google',coins:520,role:'user',plan:'user',vip:false,verified:true,giftValue:2150,friends:121,level:16},
+  {id:'mira',name:'ميرا',avatar:'mira',room:'iraq',bio:'مسجلة بحساب Google',authType:'google',coins:210,role:'user',plan:'user',vip:false,verified:true,giftValue:330,friends:37,level:7},
+  {id:'guest1',name:'زائر بغداد',avatar:'guest',room:'general',bio:'ضيف',authType:'guest',coins:0,role:'guest',plan:'guest',vip:false,verified:false,giftValue:0,friends:0,level:1}
+ ],
+ freeAdminBadgeCatalog:[
+  {id:'free_star',name:'نجمة ذهبية',icon:'⭐',style:'gold'},
+  {id:'free_shining_star',name:'نجمة مضيئة',icon:'🌟',style:'shine'},
+  {id:'free_sparkles',name:'بريق جميل',icon:'✨',style:'sparkle'},
+  {id:'free_flower',name:'زهرة جميلة',icon:'🌸',style:'flower'},
+  {id:'free_butterfly',name:'فراشة ملونة',icon:'🦋',style:'butterfly'},
+  {id:'free_heart',name:'قلب مميز',icon:'💖',style:'heart'},
+  {id:'free_fire',name:'شعلة حماس',icon:'🔥',style:'fire'},
+  {id:'free_medal',name:'وسام تقدير',icon:'🏅',style:'medal'}
+ ],
+ roleGiftCatalog:{
+  plus:[
+   {id:'plus_star',name:'نجمة بلس المضيئة',icon:'🌟',price:25,level:3},
+   {id:'plus_blossom',name:'زهرة بلس',icon:'🌸',price:35,level:3},
+   {id:'plus_music',name:'نغمة بلس',icon:'🎵',price:45,level:3},
+   {id:'plus_balloon',name:'بالون بلس',icon:'🎈',price:55,level:3}
+  ],
+  vip:[
+   {id:'vip_butterfly',name:'فراشة VIP',icon:'🦋',price:80,level:4},
+   {id:'vip_heart',name:'قلب VIP البنفسجي',icon:'💜',price:100,level:4},
+   {id:'vip_rose',name:'وردة VIP الفاخرة',icon:'🌹',price:130,level:5},
+   {id:'vip_disco',name:'كرة VIP اللامعة',icon:'🪩',price:160,level:5}
+  ],
+  primo:[
+   {id:'primo_wings',name:'أجنحة بريمو',icon:'🪽',price:250,level:6},
+   {id:'primo_orb',name:'كرة بريمو السحرية',icon:'🔮',price:350,level:6},
+   {id:'primo_dragon',name:'تنين بريمو',icon:'🐉',price:500,level:7},
+   {id:'primo_galaxy',name:'مجرة بريمو',icon:'🌌',price:800,level:8}
+  ],
+  moderator:[
+   {id:'mod_shield',name:'درع المراقب',icon:'🛡️',price:0,level:6},
+   {id:'mod_lightning',name:'برق الحماية',icon:'⚡',price:0,level:6},
+   {id:'mod_eagle',name:'نسر المراقبة',icon:'🦅',price:0,level:7},
+   {id:'mod_medal',name:'وسام المراقب',icon:'🏅',price:0,level:7}
+  ]
+ },
+ messages:[],
+ stage:[],
+ gifts:[
+  ['kiss','قبلة','💋',5,1],['heart','قلب حب','❤️',10,1],['love','أحبك جداً','💞',20,1],['teddy','دبدوب فاخر','🧸',30,2],['hearts','غيمة قلوب','💗',50,2],['ring','خاتم حب','💍',80,2],['cake','كعكة احتفال','🎂',100,2],['fireworks','ألعاب نارية','🎆',150,3],['horse','حصان عربي','🐎',200,3],['car','سيارة فاخرة','🏎️',300,3],['tiger','نمر متحرك','🐅',500,4],['lion','أسد ملكي','🦁',750,4],['yacht','يخت فاخر','🛥️',1000,5],['plane','طائرة خاصة','✈️',1500,5],['palace','قصر ريفو','🏰',2500,6],['dragon','تنين ذهبي','🐉',4000,7],['galaxy','مجرة ريفو','🌌',7500,8]
+ ].map(x=>({id:x[0],name:x[1],icon:x[2],price:x[3],level:x[4]}))
+};
 
-  const CHARACTERS = Array.isArray(window.RIVO_CHARACTERS) ? window.RIVO_CHARACTERS : [];
-  const ROOM_KEY = "rivo_active_room_v1";
-  const DEFAULT_ROOM = "lobby";
-  const ROOM_CAPACITY = 20;
-  const PROFILE_KEY = "rivo_group_profile_v1";
-  const DEMO_MESSAGES_KEY = "rivo_group_demo_messages_v1";
-  const DEMO_PRIVATE_MESSAGES_KEY = "rivo_group_private_messages_v1";
-  const CLIENT_ID_KEY = "rivo_group_client_id_v1";
-  const LEGACY_STAFF_IDENTITY_KEY = "rivo_staff_identity_v1";
-  const OWNER_STAFF_IDENTITY_KEY = "rivo_staff_identity_owner_v1";
-  const MODERATOR_STAFF_IDENTITY_KEY = "rivo_staff_identity_moderator_v1";
-  const DEMO_SETTINGS_KEY = "rivo_demo_room_controls_v1";
-  const DEMO_MIC_BLOCKS_KEY = "rivo_demo_mic_blocks_v1";
-  const DEMO_PRIVATE_BLOCKS_KEY = "rivo_demo_private_blocks_v1";
-  const PENDING_AVATAR_KEY = "rivo_pending_avatar_v2";
-  const LOCAL_PUBLIC_LIMIT = 200;
-  const LOCAL_PRIVATE_LIMIT = 300;
+const RIVO_ADMIN_CONFIG_KEY='rivoAdminConfigV1';
+const RIVO_CAMERA_REQUESTS_KEY='rivoCameraRequestsV1';
+const RIVO_MIC_REQUESTS_KEY='rivoMicRequestsV1';
+const RIVO_SYNC_CHANNEL='rivoAdminLiveSyncV1';
+let rivoSyncChannel=null;
+try{rivoSyncChannel=new BroadcastChannel(RIVO_SYNC_CHANNEL)}catch(_){}
 
-  const $ = (id) => document.getElementById(id);
-  const els = {
-    joinScreen: $("joinScreen"),
-    chatApp: $("chatApp"),
-    joinForm: $("joinForm"),
-    nicknameInput: $("nicknameInput"),
-    joinButton: $("joinButton"),
-    avatarGrid: $("avatarGrid"),
-    googleLoginCard: $("googleLoginCard"),
-    googleSignedOut: $("googleSignedOut"),
-    googleSignedIn: $("googleSignedIn"),
-    googleSignInButton: $("googleSignInButton"),
-    googleLoginStatus: $("googleLoginStatus"),
-    googleUserPicture: $("googleUserPicture"),
-    googleUserName: $("googleUserName"),
-    googleUserEmail: $("googleUserEmail"),
-    googleLogoutButton: $("googleLogoutButton"),
-    moderatorLoginOpen: $("moderatorLoginOpen"),
-    moderatorLoginModal: $("moderatorLoginModal"),
-    moderatorLoginBackdrop: $("moderatorLoginBackdrop"),
-    moderatorLoginForm: $("moderatorLoginForm"),
-    moderatorLoginClose: $("moderatorLoginClose"),
-    moderatorCodeInput: $("moderatorCodeInput"),
-    moderatorVisibleInput: $("moderatorVisibleInput"),
-    moderatorLoginSubmit: $("moderatorLoginSubmit"),
-    moderatorLoginStatus: $("moderatorLoginStatus"),
-    messages: $("messages"),
-    composer: $("composer"),
-    messageInput: $("messageInput"),
-    sendButton: $("sendButton"),
-    emojiButton: $("emojiButton"),
-    emojiPanel: $("emojiPanel"),
-    voiceButton: $("voiceButton"),
-    usersList: $("usersList"),
-    onlineBadge: $("onlineBadge"),
-    onlineCountSide: $("onlineCountSide"),
-    onlineCountHeader: $("onlineCountHeader"),
-    presenceStrip: $("presenceStrip"),
-    presenceAvatars: $("presenceAvatars"),
-    presenceCount: $("presenceCount"),
-    roomsMenuButton: $("roomsMenuButton"),
-    primaryRoomsButton: $("primaryRoomsButton"),
-    profileHomeButton: $("profileHomeButton"),
-    quickCurrentRoomName: $("quickCurrentRoomName"),
-    roomsModal: $("roomsModal"),
-    closeRoomsModal: $("closeRoomsModal"),
-    roomsList: $("roomsList"),
-    currentRoomBadge: $("currentRoomBadge"),
-    currentRoomName: $("currentRoomName"),
-    vipJoinOpen: $("vipJoinOpen"),
-    vipHeaderButton: $("vipHeaderButton"),
-    vipModal: $("vipModal"),
-    vipModalClose: $("vipModalClose"),
-    vipStatusBox: $("vipStatusBox"),
-    vipRequestButton: $("vipRequestButton"),
-    myVipBadge: $("myVipBadge"),
-    vipStealthButton: $("vipStealthButton"),
-    vipGiftModal: $("vipGiftModal"),
-    vipGiftClose: $("vipGiftClose"),
-    vipGiftGrid: $("vipGiftGrid"),
-    vipGiftTargetName: $("vipGiftTargetName"),
-    connectionStatus: $("connectionStatus"),
-    errorBanner: $("errorBanner"),
-    typingBar: $("typingBar"),
-    typingText: $("typingText"),
-    myAvatarSide: $("myAvatarSide"),
-    myNameSide: $("myNameSide"),
-    changeProfileButton: $("changeProfileButton"),
-    sidebar: $("sidebar"),
-    openSidebar: $("openSidebar"),
-    closeSidebar: $("closeSidebar"),
-    sidebarBackdrop: $("sidebarBackdrop"),
-    installButton: $("installButton"),
-    mobileRoomsButton: $("mobileRoomsButton"),
-    mobileVipButton: $("mobileVipButton"),
-    mobileInstallButton: $("mobileInstallButton"),
-    avatarLivePanel: $("avatarLivePanel"),
-    closeAvatarStage: $("closeAvatarStage"),
-    avatarStage: $("avatarStage"),
-    avatarFallback: $("avatarFallback"),
-    liveCharacterPortrait: $("liveCharacterPortrait"),
-    liveCharacterName: $("liveCharacterName"),
-    liveMicStatus: $("liveMicStatus"),
-    toggleLiveMic: $("toggleLiveMic"),
-    voiceMeterFill: $("voiceMeterFill"),
-    modelLoading: $("modelLoading"),
-    speakerBadgeText: $("speakerBadgeText"),
-    liveStageNote: $("liveStageNote"),
-    roomSoundButton: $("roomSoundButton"),
-    roomSoundIcon: $("roomSoundIcon"),
-    roomSoundLabel: $("roomSoundLabel"),
-    remoteAudioCount: $("remoteAudioCount"),
-    publicNavButton: $("publicNavButton"),
-    privateNavButton: $("privateNavButton"),
-    privateNavStatus: $("privateNavStatus"),
-    privateUnreadBadge: $("privateUnreadBadge"),
-    privateToggleButton: $("privateToggleButton"),
-    roomSymbol: $("roomSymbol"),
-    conversationTitle: $("conversationTitle"),
-    conversationSubtitle: $("conversationSubtitle"),
-    backToPublicButton: $("backToPublicButton"),
-    privatePopup: $("privatePopup"),
-    privatePopupHeader: $("privatePopupHeader"),
-    privatePopupBody: $("privatePopupBody"),
-    privatePopupAvatar: $("privatePopupAvatar"),
-    privatePopupName: $("privatePopupName"),
-    privatePopupStatus: $("privatePopupStatus"),
-    privatePopupMessages: $("privatePopupMessages"),
-    privatePopupForm: $("privatePopupForm"),
-    privatePopupInput: $("privatePopupInput"),
-    privatePopupSend: $("privatePopupSend"),
-    privatePopupMinimize: $("privatePopupMinimize"),
-    privatePopupExpand: $("privatePopupExpand"),
-    privatePopupClose: $("privatePopupClose"),
-    privatePopupCollapsedButton: $("privatePopupCollapsedButton"),
-    privatePopupCollapsedAvatar: $("privatePopupCollapsedAvatar"),
-    privatePopupCollapsedName: $("privatePopupCollapsedName"),
-    privatePopupCollapsedUnread: $("privatePopupCollapsedUnread"),
-    myCrownBadge: $("myCrownBadge"),
-    myModeratorBadge: $("myModeratorBadge"),
-    myModeratorRoleLabel: $("myModeratorRoleLabel"),
-    moderatorPanelButton: $("moderatorPanelButton"),
-    adminPanelButton: $("adminPanelButton"),
-    privateRequestModal: $("privateRequestModal"),
-    privateRequestAvatar: $("privateRequestAvatar"),
-    privateRequestName: $("privateRequestName"),
-    privateRequestAccept: $("privateRequestAccept"),
-    privateRequestReject: $("privateRequestReject")
-  };
 
-  let profile = null;
-  let selectedAvatar = (CHARACTERS.find((item) => item.isDefault) || CHARACTERS[0] || { id: "lina" }).id;
-  let transport = null;
-  let renderedMessageIds = new Set();
-  let lastRenderedDay = "";
-  let typingTimer = null;
-  let typingSent = false;
-  let activeTypers = new Map();
-  let errorTimer = null;
-  let deferredInstallPrompt = null;
-  let micStream = null;
-  let audioContext = null;
-  let micSourceNode = null;
-  let micAnalyser = null;
-  let micFrame = null;
-  let micActive = false;
-  let laughPeaks = [];
-  let lastPeakHigh = false;
-  let localLaughUntil = 0;
-  let remoteLaughUntil = 0;
-  let stageMode = "none";
-  let remoteSpeakerId = "";
-  let lastVoiceBroadcastAt = 0;
-  let voiceRoom = null;
-  let relayAudio = null;
-  let currentUsers = [];
-  const presenceFirstSeen = new Map();
-  let currentMicHolderId = "";
-  let currentMicHolderName = "";
-  let currentMicHolderAvatar = "";
-  let pendingMicClaim = null;
-  let conversationMode = "public";
-  let activePrivateUser = null;
-  let publicMessages = [];
-  let privateMessagesByUser = new Map();
-  let privateUnreadByUser = new Map();
-  let privatePopupExpanded = false;
-  let privatePopupMinimized = false;
-  let privateSessionPeerId = "";
-  let pendingPrivateRequest = null;
-  let outgoingPrivateRequestTo = "";
-  let roomPublicMicEnabled = true;
-  let roomPrivateMicEnabled = false;
-  let myMicBlocked = false;
-  let myPrivateBlocked = false;
-  let localPcmRelay = null;
-  let smoothedVoiceLevel = 0;
-  let remotePcmTimer = null;
-  let googleSession = null;
-  let localCleanupTimer = null;
-  let localPersistCounter = 0;
-  let localCleanupDebounce = null;
-  let activeRoomId = sessionStorage.getItem(ROOM_KEY) || "";
-  let activeRoomName = "العامة";
-  let roomCatalog = [];
-  let roomRefreshTimer = null;
-  let vipRefreshTimer = null;
-  let vipGiftTarget = null;
-  let remoteStreamCount = 0;
-  let relayRemoteCount = 0;
-  let audioUnlockInstalled = false;
-
-  function isStaffMode() {
-    return new URLSearchParams(location.search).get("staff") === "1";
+const RIVO_SCHEMA_VERSION=39;
+const RIVO_ROOM_MESSAGE_LIMIT=12; // آخر 6 رسائل + الست السابقة فقط
+const RIVO_LOCAL_PROFILE_KEY='rivoLocalProfilesV1';
+const defaultEntryAvatars=[
+ {id:'entry_avatar_1',src:'assets/entry-avatars/rivo-avatar-young-man-purple.jpg',alt:'صورة شخصية لشاب بخلفية بنفسجية',title:'صورة شخصية لشاب بخلفية بنفسجية'},
+ {id:'entry_avatar_2',src:'assets/entry-avatars/rivo-avatar-young-woman-purple.jpg',alt:'صورة شخصية لفتاة بخلفية بنفسجية',title:'صورة شخصية لفتاة بخلفية بنفسجية'},
+ {id:'entry_avatar_3',src:'assets/entry-avatars/rivo-avatar-man-blue-hoodie.jpg',alt:'صورة شخصية لشاب يرتدي سترة زرقاء',title:'صورة شخصية لشاب يرتدي سترة زرقاء'},
+ {id:'entry_avatar_4',src:'assets/entry-avatars/rivo-avatar-young-man-light.jpg',alt:'صورة شخصية لشاب بخلفية فاتحة',title:'صورة شخصية لشاب بخلفية فاتحة'},
+ {id:'entry_avatar_5',src:'assets/entry-avatars/rivo-avatar-woman-denim.jpg',alt:'صورة شخصية لفتاة ترتدي سترة جينز',title:'صورة شخصية لفتاة ترتدي سترة جينز'},
+ {id:'entry_avatar_6',src:'assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg',alt:'صورة شخصية لفتاة ترتدي سترة بنفسجية',title:'صورة شخصية لفتاة ترتدي سترة بنفسجية'}
+];
+function normalizeEntryAvatarOptions(list){
+ const fallback=structuredClone(defaultEntryAvatars);
+ if(!Array.isArray(list)||!list.length)return fallback;
+ const normalized=list.filter(Boolean).map((item,index)=>({
+  id:item.id||`entry_avatar_${index+1}`,
+  src:item.src||item.path||'',
+  alt:item.alt||item.title||`صورة شخصية ${index+1}`,
+  title:item.title||item.alt||`صورة شخصية ${index+1}`
+ })).filter(item=>isDirectAvatarSource(item.src));
+ return normalized.length?normalized:fallback;
+}
+const avatarEditor={image:null,scale:1,minScale:1,offsetX:0,offsetY:0,dragging:false,pointerId:null,startX:0,startY:0,originX:0,originY:0,size:320,padding:12,target:'profile'};
+state.entryAvatar=defaultEntryAvatars[0].src;
+state.entryAvatarOptions=structuredClone(defaultEntryAvatars);
+function normalizeDemoAccountTypes(users){
+ return(Array.isArray(users)?users:[]).map(user=>{
+  const u={...user};
+  if(u.id==='owner')return{...u,role:'owner',plan:'owner',vip:true,authType:'owner',isHidden:Boolean(u.isHidden)};
+  if(u.id==='guest1')return{...u,role:'guest',plan:'guest',vip:false,verified:false,authType:'guest',bio:'ضيف'};
+  if(['ahmed','samar','ali','noor','mira'].includes(u.id)){
+   const female=['samar','noor','mira'].includes(u.id);
+   return{
+    ...u,
+    role:'user',
+    plan:'user',
+    vip:false,
+    verified:false,
+    authType:'google',
+    bio:female?'مسجلة بحساب Google':'مسجل بحساب Google'
+   };
   }
+  return u;
+ });
+}
+function migrateCachedAccountsV32(){
+ const cfg=readAdminConfig();
+ if(!cfg||Number(cfg.schemaVersion||0)>=RIVO_SCHEMA_VERSION)return;
+ cfg.schemaVersion=RIVO_SCHEMA_VERSION;
+ cfg.users=normalizeDemoAccountTypes(cfg.users);
+ localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(cfg));
+}
 
-  function googleRequired() {
-    const config = window.RivoGoogleAuth?.config || window.RIVO_GOOGLE_CONFIG || {};
-    return !isLocalDemo() && !isSharedLocalServer() && !isStaffMode() && config.requiredOnCloud !== false;
+function readAdminConfig(){
+ try{return JSON.parse(localStorage.getItem(RIVO_ADMIN_CONFIG_KEY)||'null')}catch(_){return null}
+}
+function readLocalProfiles(){
+ try{return JSON.parse(localStorage.getItem(RIVO_LOCAL_PROFILE_KEY)||'{}')}catch(_){return{}}
+}
+function writeLocalProfiles(map){
+ try{localStorage.setItem(RIVO_LOCAL_PROFILE_KEY,JSON.stringify(map||{}))}catch(_){toast('تعذر حفظ الصورة محلياً')}
+}
+function restoreLocalProfile(user){
+ if(!user||!user.id)return user;
+ const saved=readLocalProfiles()[user.id];
+ if(saved&&saved.avatar)user.avatar=saved.avatar;
+ if(saved&&userAccessRole(user)==='owner'&&Object.prototype.hasOwnProperty.call(saved,'name'))user.name=String(saved.name??'');
+ return user;
+}
+function persistCurrentUserProfile(){
+ if(!state.user||!state.user.id)return;
+ const profiles=readLocalProfiles();
+ profiles[state.user.id]={...(profiles[state.user.id]||{}),avatar:state.user.avatar,...(userAccessRole(state.user)==='owner'?{name:String(state.user.name??'')}:{})};
+ writeLocalProfiles(profiles);
+ const listed=findUser(state.user.id);
+ if(listed)listed.avatar=state.user.avatar;
+ const cfg=readAdminConfig();
+ if(cfg&&Array.isArray(cfg.users)){
+  const saved=cfg.users.find(u=>u.id===state.user.id||u.moderatorTokenId===state.user.moderatorTokenId);
+  if(saved){
+   saved.avatar=state.user.avatar;
+   try{localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(cfg))}catch(_){}
+   notifyAdminLive('rivo-admin-config',cfg);
   }
+ }
+}
+function cropDiameter(){return avatarEditor.size-avatarEditor.padding*2}
+function clampAvatarEditorOffsets(){
+ if(!avatarEditor.image)return;
+ const crop=cropDiameter();
+ const drawW=avatarEditor.image.width*avatarEditor.scale;
+ const drawH=avatarEditor.image.height*avatarEditor.scale;
+ const maxX=Math.max(0,(drawW-crop)/2);
+ const maxY=Math.max(0,(drawH-crop)/2);
+ avatarEditor.offsetX=Math.max(-maxX,Math.min(maxX,avatarEditor.offsetX));
+ avatarEditor.offsetY=Math.max(-maxY,Math.min(maxY,avatarEditor.offsetY));
+}
+function drawAvatarEditor(){
+ const canvas=$('#avatarCropCanvas');
+ if(!canvas)return;
+ const ctx=canvas.getContext('2d');
+ const size=avatarEditor.size;
+ const padding=avatarEditor.padding;
+ const crop=size-padding*2;
+ const cx=size/2, cy=size/2, r=crop/2;
+ ctx.clearRect(0,0,size,size);
+ ctx.fillStyle='#0f172a';
+ ctx.fillRect(0,0,size,size);
+ ctx.save();
+ ctx.beginPath();
+ ctx.arc(cx,cy,r,0,Math.PI*2);
+ ctx.closePath();
+ ctx.clip();
+ ctx.fillStyle='#e2e8f0';
+ ctx.fillRect(0,0,size,size);
+ if(avatarEditor.image){
+  const drawW=avatarEditor.image.width*avatarEditor.scale;
+  const drawH=avatarEditor.image.height*avatarEditor.scale;
+  const x=cx-drawW/2+avatarEditor.offsetX;
+  const y=cy-drawH/2+avatarEditor.offsetY;
+  ctx.drawImage(avatarEditor.image,x,y,drawW,drawH);
+ }else{
+  ctx.fillStyle='#cbd5e1';
+  ctx.fillRect(padding,padding,crop,crop);
+ }
+ ctx.restore();
+ ctx.strokeStyle='#ffffff';
+ ctx.lineWidth=4;
+ ctx.beginPath();
+ ctx.arc(cx,cy,r,0,Math.PI*2);
+ ctx.stroke();
+ ctx.fillStyle='rgba(255,255,255,.88)';
+ ctx.font='700 15px sans-serif';
+ ctx.textAlign='center';
+ ctx.textBaseline='middle';
+ if(!avatarEditor.image){
+  ctx.fillText('اختر صورة لمعاينة القص الدائري',cx,size-22);
+ }else{
+  ctx.fillText('اسحب الصورة لتحريك الوجه',cx,size-22);
+ }
+}
+function resetAvatarEditor(keepCurrent=false){
+ avatarEditor.image=null;
+ avatarEditor.scale=1;
+ avatarEditor.minScale=1;
+ avatarEditor.offsetX=0;
+ avatarEditor.offsetY=0;
+ avatarEditor.dragging=false;
+ const input=$('#avatarUploadInput');
+ if(input&&!keepCurrent)input.value='';
+ const slider=$('#avatarZoomRange');
+ if(slider)slider.value=100;
+ drawAvatarEditor();
+}
+function loadAvatarIntoEditor(src,keepInput=false){
+ const img=new Image();
+ img.onload=()=>{
+  avatarEditor.image=img;
+  avatarEditor.minScale=Math.max(cropDiameter()/img.width,cropDiameter()/img.height);
+  avatarEditor.scale=avatarEditor.minScale;
+  avatarEditor.offsetX=0;
+  avatarEditor.offsetY=0;
+  const slider=$('#avatarZoomRange');
+  if(slider)slider.value=100;
+  if(!keepInput){const input=$('#avatarUploadInput');if(input)input.value='';}
+  drawAvatarEditor();
+ };
+ img.onerror=()=>toast('تعذر قراءة الصورة');
+ img.src=src;
+}
+function openAvatarEditor(target='profile'){
+ avatarEditor.target=target;
+ if(target==='profile'&&!state.user){showEntryScreen();return}
+ open('avatarEditorModal');resetAvatarEditor(true);
+ const source=target==='entry'?state.entryAvatar:state.user?.avatar;
+ if(isDirectAvatarSource(source))loadAvatarIntoEditor(source,true);else drawAvatarEditor();
+}
+function saveAvatarEditorImage(){
+ if(!avatarEditor.image){toast('اختر صورة أولاً');return}
+ const out=document.createElement('canvas');out.width=320;out.height=320;const ctx=out.getContext('2d'),cx=160,cy=160,r=160;
+ ctx.clearRect(0,0,320,320);ctx.save();ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.closePath();ctx.clip();
+ const drawW=avatarEditor.image.width*avatarEditor.scale,drawH=avatarEditor.image.height*avatarEditor.scale;
+ ctx.drawImage(avatarEditor.image,cx-drawW/2+avatarEditor.offsetX,cy-drawH/2+avatarEditor.offsetY,drawW,drawH);ctx.restore();
+ const circularImage=out.toDataURL('image/png');
+ if(avatarEditor.target==='entry'){state.entryAvatar=circularImage;updateEntryAvatarUI();close('avatarEditorModal');toast('تم تجهيز الصورة الدائرية');return}
+ if(!state.user){close('avatarEditorModal');showEntryScreen();return}
+ state.user.avatar=circularImage;persistCurrentUserProfile();close('avatarEditorModal');if($('#profileAvatar'))$('#profileAvatar').src=av(state.user.avatar);renderAll();toast('تم حفظ الصورة الدائرية');
+}
+function startAvatarEditorDrag(clientX,clientY,pointerId=null){
+ if(!avatarEditor.image)return;
+ avatarEditor.dragging=true;
+ avatarEditor.pointerId=pointerId;
+ avatarEditor.startX=clientX;
+ avatarEditor.startY=clientY;
+ avatarEditor.originX=avatarEditor.offsetX;
+ avatarEditor.originY=avatarEditor.offsetY;
+ $('#avatarCropCanvas')?.classList.add('dragging');
+}
+function moveAvatarEditorDrag(clientX,clientY){
+ if(!avatarEditor.dragging)return;
+ avatarEditor.offsetX=avatarEditor.originX+(clientX-avatarEditor.startX);
+ avatarEditor.offsetY=avatarEditor.originY+(clientY-avatarEditor.startY);
+ clampAvatarEditorOffsets();
+ drawAvatarEditor();
+}
+function stopAvatarEditorDrag(){
+ avatarEditor.dragging=false;
+ avatarEditor.pointerId=null;
+ $('#avatarCropCanvas')?.classList.remove('dragging');
+}
+function readSharedMicRequests(){
+ try{return JSON.parse(localStorage.getItem(RIVO_MIC_REQUESTS_KEY)||'[]')}catch(_){return[]}
+}
+function readSharedCameraRequests(){
+ try{return JSON.parse(localStorage.getItem(RIVO_CAMERA_REQUESTS_KEY)||'[]')}catch(_){return []}
+}
+function notifyAdminLive(type,payload){
+ const message={type,payload,source:'chat',time:Date.now()};
+ try{if(window.parent&&window.parent!==window)window.parent.postMessage(message,'*')}catch(_){}
+ try{if(window.opener)window.opener.postMessage(message,'*')}catch(_){}
+ try{rivoSyncChannel?.postMessage(message)}catch(_){}
+}
+function writeSharedMicRequests(items){
+ const clean=Array.isArray(items)?items:[];
+ localStorage.setItem(RIVO_MIC_REQUESTS_KEY,JSON.stringify(clean));
+ notifyAdminLive('rivo-mic-requests',clean);
+}
+function writeSharedCameraRequests(items){
+ const clean=Array.isArray(items)?items:[];
+ localStorage.setItem(RIVO_CAMERA_REQUESTS_KEY,JSON.stringify(clean));
+ notifyAdminLive('rivo-camera-requests',clean);
+}
+function mergeAdminUsers(savedUsers){
+ const currentById=new Map(state.users.map(u=>[u.id,u]));
+ state.users=savedUsers
+  .filter(u=>u.status!=='kicked')
+  .map(saved=>({
+    bio:'مستخدم في ريفو',giftValue:0,friends:0,level:1,status:'online',plan:'user',isHidden:false,
+    ...(currentById.get(saved.id)||{}),
+    ...saved
+  }));
+ state.stage=state.stage.filter(s=>state.users.some(u=>u.id===s.user));
+ Object.keys(state.activeNameGifts).forEach(id=>{if(!state.users.some(u=>u.id===id)&&state.user?.id!==id)delete state.activeNameGifts[id]});
+ if(state.user){
+   const updated=state.users.find(u=>u.id===state.user.id);
+   if(updated)state.user={...state.user,...updated};
+   else if(state.user.id!=='demoUser'&&state.user.id!=='guestLocal')state.user=null;
+ }
+}
+function mergeAdminGifts(savedGifts){
+ const currentById=new Map(state.gifts.map(g=>[g.id,g]));
+ state.gifts=savedGifts.map(saved=>({
+   level:currentById.get(saved.id)?.level||1,
+   ...(currentById.get(saved.id)||{}),
+   ...saved
+ }));
+}
+function applyExternalAdminConfig(showNotice=false,suppliedConfig=null){
+ const cfg=suppliedConfig||readAdminConfig();
+ if(!cfg)return;
 
-  function syncGoogleUi() {
-    if (!els.googleLoginCard) return;
+ if(Array.isArray(cfg.rooms)&&cfg.rooms.length){
+   const currentById=new Map(state.rooms.map(r=>[r.id,r]));
+   state.rooms=cfg.rooms.map(saved=>({
+     cams:0,mics:4,camOn:false,micOn:true,music:false,
+     announcement:'',announcementOn:true,avatars:false,lina:false,count:0,
+     ...(currentById.get(saved.id)||{}),
+     ...saved,
+     avatars:false,lina:false
+   }));
+   if(!state.rooms.some(r=>r.id===state.room))state.room=state.rooms[0].id;
+ }
+ if(Array.isArray(cfg.users))mergeAdminUsers(Number(cfg.schemaVersion||0)<RIVO_SCHEMA_VERSION?normalizeDemoAccountTypes(cfg.users):cfg.users);
+ if(cfg.plans){
+   for(const key of ['plus','vip','primo']){
+    state.planConfig[key]={...state.planConfig[key],...(cfg.plans[key]||{})};
+   }
+ }
+ if(cfg.permissions){
+   for(const role of Object.keys(state.permissionConfig.usage)){
+     state.permissionConfig.usage[role]={...state.permissionConfig.usage[role],...(cfg.permissions.usage?.[role]||{})};
+   }
+   state.permissionConfig.admin={...(cfg.permissions.admin||{})};
+ }
+ if(cfg.private){
+   state.privateMessagesEnabled=cfg.private.enabled!==false;
+   state.privateMedia.mic=Boolean(cfg.private.mic);
+   state.privateMedia.camera=Boolean(cfg.private.camera);
+   state.privateMedia.paidOnly=cfg.private.paidOnly!==false;
+ }
+ if(cfg.radio){
+   const changedSource=state.radioBroadcast.source!==cfg.radio.source;
+   state.radioBroadcast.status=cfg.radio.status||'stopped';
+   state.radioBroadcast.scope=cfg.radio.scope||'all';
+   state.radioBroadcast.roomId=cfg.radio.roomId||state.rooms[0]?.id||'general';
+   state.radioBroadcast.title=cfg.radio.title||'راديو ريفو';
+   state.radioBroadcast.source=cfg.radio.source||'assets/audio/rivo-radio-demo.wav';
+   if(changedSource)state.radioBroadcast.loadedSource='';
+ }
+ if(cfg.economy){
+   state.economyConfig.giftsEnabled=cfg.economy.giftsEnabled!==false;
+   state.economyConfig.vipEnabled=cfg.economy.vipEnabled!==false;
+   state.economyConfig.verifyEnabled=cfg.economy.verifyEnabled!==false;
+   if(Array.isArray(cfg.economy.gifts))mergeAdminGifts(cfg.economy.gifts);
+ }
+ if(cfg.features){
+   state.adminFeatures={...state.adminFeatures,...cfg.features};
+   const guestButton=$('#guestOpen');
+   if(guestButton){
+     guestButton.disabled=state.adminFeatures.guestEntry===false;
+     guestButton.textContent=state.adminFeatures.guestEntry===false?'دخول الضيف مغلق من الإدارة':'الدخول كضيف';
+   }
+ }
+ state.entryAvatarOptions=normalizeEntryAvatarOptions(cfg.entryAvatars||state.entryAvatarOptions);
+ if(!state.entryAvatarOptions.some(item=>item.src===state.entryAvatar))state.entryAvatar=state.entryAvatarOptions[0]?.src||defaultEntryAvatars[0].src;
+ renderEntryAvatarChoices();
+ updateEntryAvatarUI();
+ syncSharedMicRequests();syncSharedCameraRequests();
+ if(showNotice)toast('تم تطبيق تغييرات الإدارة مباشرة');
+}
+function refreshChatFromAdmin(cfg=null,showNotice=false){
+ applyExternalAdminConfig(showNotice,cfg);
+ renderAll();
+ renderPrivateInbox();
+ updatePrivateMediaControls();
+ syncRadioForRoom();
+ renderRadioUI();
+ updatePrivateBadge();
+ const viewport=document.querySelector('.messages');
+ if(viewport)viewport.scrollTop=viewport.scrollHeight;
+ notifyAdminLive('rivo-chat-state',{
+   room:state.room,
+   users:usersInRoom().length,
+   radio:state.radioBroadcast.status,
+   cameraRequests:state.roomCamera.requests.length,
+   micRequests:state.roomMic.requests.length
+ });
+}
 
-    if (isLocalDemo() || isSharedLocalServer() || isStaffMode()) {
-      els.googleLoginCard.classList.add("hidden");
-      els.joinButton.disabled = false;
-      return;
-    }
+function syncSharedMicRequests(supplied=null){
+ const shared=supplied||readSharedMicRequests();
+ if(!Array.isArray(shared))return;
+ state.roomMic.requests=shared;
+ state.roomMic.approvals={};
+ shared.forEach(req=>{
+  if(req.status==='approved')state.roomMic.approvals[`${req.roomId}:${req.userId}`]=true;
+ });
+}
 
-    els.googleLoginCard.classList.remove("hidden");
-    const signedIn = Boolean(googleSession?.googleUid && googleSession?.sessionToken);
-    els.googleSignedOut.classList.toggle("hidden", signedIn);
-    els.googleSignedIn.classList.toggle("hidden", !signedIn);
-    els.joinButton.disabled = googleRequired() && !signedIn;
+function syncSharedCameraRequests(supplied=null){
+ const shared=supplied||readSharedCameraRequests();
+ if(!Array.isArray(shared))return;
+ state.roomCamera.requests=shared;
+ state.roomCamera.approvals={};
+ shared.forEach(req=>{
+   if(req.status==='approved')state.roomCamera.approvals[roomCameraApprovalKey(req.userId,req.roomId)]=true;
+ });
+ renderRoomCameraRequests();
+}
+function handleAdminLiveMessage(message){
+ if(!message||typeof message!=='object')return;
+ if(message.type==='rivo-free-badge-grant'){
+   const user=findUser(message.payload?.userId),badge=message.payload?.badge;
+   if(user&&badge){
+    setActiveNameGift(user.id,{...badge,price:0},'adminBadge');
+    renderAll();createGiftParticles(3,badge.icon||'⭐');
+    toast(`الإدارة منحت ${user.name} ${badge.name||'شارة مجانية'}`);
+   }
+ }
+ if(message.type==='rivo-free-badge-remove'){
+   const userId=message.payload?.userId;
+   if(userId){clearActiveNameGift(userId);renderAll()}
+ }
 
-    if (signedIn) {
-      els.googleUserName.textContent = googleSession.name || "مستخدم Google";
-      els.googleUserEmail.textContent = googleSession.email || "";
-      els.googleUserPicture.src = googleSession.picture || "./icons/icon-192.png";
-    }
+ if(message.type==='rivo-admin-config'){
+   try{localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(message.payload))}catch(_){}
+   refreshChatFromAdmin(message.payload,true);
+ }
+ if(message.type==='rivo-mic-requests'){
+   try{localStorage.setItem(RIVO_MIC_REQUESTS_KEY,JSON.stringify(message.payload||[]))}catch(_){}
+   syncSharedMicRequests(message.payload||[]);
+   const me=state.user?.id;
+   if(me){
+    const approved=state.roomMic.requests.find(r=>r.userId===me&&r.roomId===state.room&&r.status==='approved');
+    if(approved)toast('وافقت الإدارة على المايك؛ اضغط زر المايك للصعود');
+   }
+ }
+ if(message.type==='rivo-camera-requests'){
+   try{localStorage.setItem(RIVO_CAMERA_REQUESTS_KEY,JSON.stringify(message.payload||[]))}catch(_){}
+   syncSharedCameraRequests(message.payload||[]);
+   const me=state.user?.id;
+   if(me){
+     const approved=state.roomCamera.requests.find(r=>r.userId===me&&r.roomId===state.room&&r.status==='approved');
+     if(approved)toast('وافقت الإدارة على الكاميرا؛ اضغط زر الكاميرا للتشغيل');
+   }
+ }
+}
+
+const emojis=['😀','😍','😂','🥰','😎','😭','🤔','😮','🥳','❤️','💞','💋','🧸','🎂','🎆','🌹','🔥','👏','👍','🫶','✨','💜','💙','💚','🪙','💎','🐅','🦁','🏎️','🛥️','✈️','🐉','🌌','😊','😉','🙌','🎉','💐','☕','🍰','🎈','🤍'];
+const colors=['#111827','#dc2626','#ef4444','#f97316','#eab308','#16a34a','#059669','#0891b2','#2563eb','#4f46e5','#7c3aed','#9333ea','#db2777','#be123c','#6b7280','#000000','#8b4513','#0f766e'];
+function room(){return state.rooms.find(r=>r.id===state.room)} function findUser(id){return state.users.find(u=>u.id===id)||(state.user?.id===id?state.user:null)}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function userAccessRole(u=state.user||{}){
+ if(u.role==='owner')return'owner';
+ if(u.role==='moderator')return'moderator';
+ if(u.role==='guest')return'guest';
+ if(['plus','vip','primo'].includes(u.plan))return u.plan;
+ return u.vip?'vip':'user';
+}
+// ترتيب ثابت لقائمة المتصلين: الإدارة، المراقبون، الرتب المدفوعة، المسجلون، ثم الضيوف.
+function userListRank(u={}){
+ const key=userAccessRole(u);
+ return ({owner:0,moderator:1,primo:2,vip:3,plus:4,user:5,guest:6})[key]??5;
+}
+function sortUsersByHierarchy(users=[]){
+ return users.map((u,index)=>({u,index})).sort((a,b)=>{
+  const rankDiff=userListRank(a.u)-userListRank(b.u);
+  if(rankDiff)return rankDiff;
+  const priorityDiff=(Number(b.u.priority)||0)-(Number(a.u.priority)||0);
+  return priorityDiff||a.index-b.index;
+ }).map(item=>item.u);
+}
+function permissionValue(key,u=state.user){
+ const role=userAccessRole(u);
+ return state.permissionConfig.usage[role]?.[key];
+}
+function role(u={}){
+ let s='';
+ const key=userAccessRole(u);
+ if(key==='owner')s+='👑';
+ else if(key==='moderator')s+='⭐';
+ else if(key==='primo')s+='🔷';
+ else if(key==='vip')s+='💎';
+ else if(key==='plus')s+='➕';
+ if(key==='guest')s+=' ضيف';
+ return s
+}
+
+function activeNameGift(userId){
+ return state.activeNameGifts[userId]||null;
+}
+function setActiveNameGift(userId,gift,source='received'){
+ if(!userId||!gift)return;
+ const target=findUser(userId);
+ state.activeNameGifts[userId]={
+  id:gift.id||`gift_${Date.now()}`,
+  name:gift.name||gift.gift||'هدية',
+  icon:gift.icon||'🎁',
+  source,
+  // الشارة مرتبطة بجلسة دخول المستخدم إلى الموقع، وليست مرتبطة بغرفة محددة.
+  grantedAt:Date.now()
+ };
+}
+function clearActiveNameGift(userId){
+ if(userId)delete state.activeNameGifts[userId];
+}
+function giftBadgeHtml(u,scope='chat'){
+ if(!u)return '';
+ const g=activeNameGift(u.id);
+ if(!g)return '';
+ // تبقى الشارة ظاهرة أثناء تنقّل المستخدم بين الغرف، وتختفي فقط عند خروجه من الموقع.
+ const tier=userAccessRole(u);
+ const special=(tier==='moderator'||tier==='vip'||tier==='primo'||tier==='plus')?` ${tier}GiftBadge`:'';
+ const cls=scope==='list'?' listGiftBadge':' chatGiftBadge';
+ const adminClass=g.source==='adminBadge'?' adminGrantedBadge':'';return `<span class="nameGiftBadge${special}${adminClass}${cls}" title="${esc(g.name||'هدية')}"><span class="giftBadgeInner">${g.icon||'🎁'}</span></span>`;
+}
+
+function isRegisteredAccount(u){
+ if(!u)return false;
+ const key=userAccessRole(u);
+ if(['owner','moderator','guest'].includes(key))return false;
+ return !u.isHidden&&u.authType==='google';
+}
+function verifiedBadgeHtml(u,scope='list'){
+ if(!state.economyConfig.verifyEnabled||!isRegisteredAccount(u))return '';
+ const scopeClass=scope==='chat'?' verifiedBadgeChat':' verifiedBadgeList';
+ return `<span class="verifiedBadge${scopeClass}" title="مستخدم مسجل" aria-label="مستخدم مسجل">
+  <svg viewBox="0 0 24 24" aria-hidden="true">
+   <path class="verifiedBadgeShape" d="M12 1.7l2.15 1.77 2.75-.3 1.06 2.56 2.55 1.07-.29 2.75L22 12l-1.78 2.15.29 2.75-2.55 1.07-1.06 2.56-2.75-.3L12 22.3l-2.15-1.77-2.75.3-1.06-2.56-2.55-1.07.29-2.75L2 12l1.78-2.15-.29-2.75 2.55-1.07L7.1 3.17l2.75.3L12 1.7z"/>
+   <path class="verifiedBadgeCheck" d="M8.1 12.2l2.35 2.35 5.45-5.45"/>
+  </svg>
+ </span>`;
+}
+function roleBadgeHtml(u,scope='chat'){
+ const key=userAccessRole(u||{});
+ if(key==='owner'){
+  return `<span class="ownerRoyalCrown ${scope==='list'?'ownerCrownList':'ownerCrownChat'}" title="تاج الإدارة الملكي" aria-label="الإدارة">
+   <span class="ownerCrownAura" aria-hidden="true"></span>
+   <svg viewBox="0 0 76 58" aria-hidden="true">
+    <path class="ownerCrownShadow" d="M10 20 24 33 37 8 50 33 66 19 59 46H16Z"/>
+    <path class="ownerCrownBody" d="M10 18 24 31 37 6 50 31 67 17 59 44H16Z"/>
+    <path class="ownerCrownInner" d="M18 37h40l-2 8H20Z"/>
+    <path class="ownerCrownBand" d="M16 43h43v8H16Z"/>
+    <path class="ownerCrownHighlight" d="M19 39h37"/>
+    <circle class="ownerGem ownerGemBlue" cx="22" cy="45" r="3.4"/>
+    <path class="ownerGem ownerGemPink" d="m37 40 4 5-4 5-4-5Z"/>
+    <circle class="ownerGem ownerGemCyan" cx="53" cy="45" r="3.4"/>
+    <circle class="ownerTipGem ownerTipGemLeft" cx="10" cy="17" r="3"/>
+    <circle class="ownerTipGem ownerTipGemTop" cx="37" cy="6" r="3.2"/>
+    <circle class="ownerTipGem ownerTipGemRight" cx="67" cy="16" r="3"/>
+   </svg>
+   <i class="ownerCrownSpark ownerCrownSparkOne">✦</i><i class="ownerCrownSpark ownerCrownSparkTwo">✦</i>
+  </span>`;
+ }
+ const roleBadges=role(u);
+ return roleBadges?`<span class="nameRoleBadges">${roleBadges}</span>`:'';
+}
+
+function displayNameHtml(u,scope='chat'){
+ const owner=userAccessRole(u||{})==='owner';
+ const raw=String(u?.name??'').trim();
+ const visibleName=raw||(!owner?'مستخدم':'');
+ const nameHtml=visibleName?`<b class="displayName ${scope==='list'?'displayNameList':'displayNameChat'}">${esc(visibleName)}</b>`:'';
+ return `<span class="nameLine ${scope==='list'?'listNameLine':'chatNameLine'} ${owner&&!visibleName?'ownerCrownOnlyLine':''}">${nameHtml}${verifiedBadgeHtml(u,scope)}${giftBadgeHtml(u,scope)}${roleBadgeHtml(u,scope)}</span>`;
+}
+function readableUserName(u){
+ const name=String(u?.name??'').trim();
+ return name||(userAccessRole(u||{})==='owner'?'الإدارة':'مستخدم');
+}
+
+function canManageFreeBadges(){
+ return ['owner','moderator'].includes(userAccessRole(state.user));
+}
+
+function requestFreeBadgeFor(userId){
+ const target=findUser(userId);
+ if(!target){toast('المستخدم غير موجود');return}
+ if(state.user?.id===target.id){toast('اختر مستخدماً آخر لمنحه الشارة');return}
+ state.target=target.id;
+ if(canManageFreeBadges()){
+  openFreeBadgePanel(target.id);
+  return;
+ }
+ state.pendingFreeBadgeTarget=target.id;
+ toast('سجّل دخول الإدارة أو المراقب، وستفتح الشارات لهذا المستخدم مباشرة');
+ open('loginModal');
+}
+
+function freeBadgeById(id){
+ return state.freeAdminBadgeCatalog.find(b=>b.id===id);
+}
+function openFreeBadgePanel(userId=state.target){
+ if(!canManageFreeBadges()){toast('الشارات المجانية للإدارة والمراقب فقط');return}
+ const target=findUser(userId);
+ if(!target){toast('المستخدم غير موجود');return}
+ state.target=target.id;
+ $('#freeBadgeTarget').textContent=target.name;
+ $('#freeBadgeChoices').innerHTML=state.freeAdminBadgeCatalog.map(b=>`<button class="freeBadgeChoice ${b.style}" data-free-badge="${b.id}"><span>${b.icon}</span><b>${esc(b.name)}</b><small>منح مجاناً</small></button>`).join('');
+ $$('[data-free-badge]').forEach(button=>button.onclick=()=>grantFreeBadge(button.dataset.freeBadge));
+ const active=activeNameGift(target.id);
+ $('#activeFreeBadge').innerHTML=active?`<span>${active.icon}</span><div><b>الشارة الظاهرة الآن</b><small>${esc(active.name)}</small></div>`:'<div><b>لا توجد شارة قرب الاسم</b><small>اختر شارة متحركة مجانية.</small></div>';
+ open('freeBadgeModal');
+}
+function grantFreeBadge(badgeId){
+ if(!canManageFreeBadges()){toast('هذه الصلاحية للإدارة أو المراقب فقط');return}
+ const badge=freeBadgeById(badgeId),target=findUser(state.target);
+ if(!badge||!target)return;
+ setActiveNameGift(target.id,{...badge,price:0},'adminBadge');
+ renderAll();
+ openFreeBadgePanel(target.id);
+ createGiftParticles(4,badge.icon);
+ toast(`تم وضع ${badge.name} قرب اسم ${target.name}`);
+}
+function removeFreeBadge(){
+ if(!canManageFreeBadges())return;
+ const target=findUser(state.target);if(!target)return;
+ clearActiveNameGift(target.id);
+ renderAll();
+ openFreeBadgePanel(target.id);
+ toast(`تمت إزالة الشارة من ${target.name}`);
+}
+
+function roleGiftKey(u=state.user){
+ const key=userAccessRole(u||{});
+ return ['plus','vip','primo','moderator'].includes(key)?key:null;
+}
+function roleGiftLabel(key){
+ return ({plus:'Plus ➕',vip:'VIP 💎',primo:'بريمو 🔷',moderator:'المراقب ⭐'})[key]||'';
+}
+function exclusiveRoleGifts(u=state.user){
+ const key=roleGiftKey(u);
+ return key?(state.roleGiftCatalog[key]||[]):[];
+}
+function availableGiftCatalogForSender(){
+ const exclusive=exclusiveRoleGifts(state.user).map(g=>({...g,exclusive:true,exclusiveRole:roleGiftKey(state.user)}));
+ return [...exclusive,...state.gifts];
+}
+function openRoleGiftPanel(){
+ const key=roleGiftKey(state.user);
+ if(!key){toast('هذه اللوحة مخصصة لـ Plus وVIP وبريمو والمراقب');return}
+ const gifts=exclusiveRoleGifts(state.user);
+ $('#roleGiftRole').textContent=roleGiftLabel(key);
+ $('#roleGiftHint').textContent='اختر هدية واحدة فقط تظهر قرب اسمك أثناء تنقلك بين الغرف، وتختفي عند خروجك من الموقع.';
+ $('#roleGiftChoices').innerHTML=gifts.map(g=>`<button class="roleGiftChoice ${key}" data-role-gift="${g.id}"><span>${g.icon}</span><b>${esc(g.name)}</b><small>استخدمها قرب اسمي</small></button>`).join('');
+ $$('[data-role-gift]').forEach(b=>b.onclick=()=>{
+  const gift=gifts.find(g=>g.id===b.dataset.roleGift);
+  setActiveNameGift(state.user.id,gift,'role');
+  renderAll();
+  openRoleGiftPanel();
+  toast(`تم اختيار ${gift.name} قرب اسمك`);
+ });
+ const active=activeNameGift(state.user.id);
+ $('#activeRoleGift').innerHTML=active?`<span>${active.icon}</span><div><b>الهدية الظاهرة الآن</b><small>${esc(active.name)}</small></div>`:'<div><b>لا توجد هدية قرب اسمك الآن</b><small>اختر واحدة من الهدايا الحصرية.</small></div>';
+ open('roleGiftModal');
+}
+function open(id){$('#'+id).classList.remove('hidden')} function close(id){$('#'+id).classList.add('hidden')}
+function toast(t){const d=document.createElement('div');d.className='toastMsg';d.textContent=t;$('#toast').appendChild(d);setTimeout(()=>d.remove(),3200)}
+function clearInbox(kind){
+ if(kind==='messages') state.inbox.messages=0;
+ if(kind==='alerts') state.inbox.alerts=0;
+ renderHeader();
+}
+
+
+
+
+function radioAudio(){
+ return $('#globalRadioAudio');
+}
+function radioTargetRoom(){
+ return state.rooms.find(r=>r.id===state.radioBroadcast.roomId);
+}
+function radioIsInCurrentRoom(){
+ const broadcast=state.radioBroadcast;
+ if(broadcast.status==='stopped') return false;
+ if(!room().music) return false;
+ return broadcast.scope==='all'||broadcast.roomId===state.room;
+}
+function radioScopeText(){
+ const broadcast=state.radioBroadcast;
+ if(broadcast.scope==='all') return 'جميع الغرف';
+ return radioTargetRoom()?.name||'غرفة محددة';
+}
+function prepareRadioSource(){
+ const audio=radioAudio();
+ const source=String(state.radioBroadcast.source||'').trim();
+ if(!audio||!source) return false;
+ if(state.radioBroadcast.loadedSource!==source){
+   audio.pause();
+   audio.src=source;
+   audio.load();
+   state.radioBroadcast.loadedSource=source;
+ }
+ audio.volume=Math.max(0,Math.min(1,(+$('#musicVolume')?.value||30)/100));
+ return true;
+}
+function renderRadioUI(){
+ const broadcast=state.radioBroadcast;
+ const available=radioIsInCurrentRoom();
+ const audio=radioAudio();
+ const title=$('#radioTrack');
+ const stateText=$('#radioState');
+ const badge=$('#radioLiveBadge');
+ const button=$('#radioBtn');
+ const widget=$('#radioWidget');
+
+ if(title) title.textContent=broadcast.status==='stopped'?'لا توجد أغنية':broadcast.title;
+ if(badge) badge.classList.toggle('hidden',broadcast.status!=='playing'||!available);
+ if(widget){
+   widget.classList.toggle('radioBroadcasting',broadcast.status==='playing'&&available);
+   widget.classList.toggle('radioUnavailable',!available);
+ }
+ if(stateText){
+   if(broadcast.status==='stopped') stateText.textContent='لا يوجد بث الآن';
+   else if(broadcast.status==='paused') stateText.textContent=`البث متوقف مؤقتاً · ${radioScopeText()}`;
+   else if(!available) stateText.textContent=`البث يعمل في ${radioScopeText()}`;
+   else stateText.textContent=broadcast.scope==='all'?'يبث في جميع الغرف':`يبث في غرفة ${radioScopeText()}`;
+ }
+ if(button){
+   const listening=Boolean(audio&&!audio.paused&&available&&broadcast.status==='playing');
+   button.textContent=listening?'Ⅱ':'▶';
+   button.disabled=broadcast.status!=='playing'||!available;
+   button.title=listening?'إيقاف الصوت عندي':'تشغيل الراديو عندي';
+ }
+}
+async function startRadioListener(showError=true){
+ const broadcast=state.radioBroadcast;
+ if(broadcast.status!=='playing'){
+   if(showError) toast(broadcast.status==='paused'?'البث متوقف مؤقتاً':'لا يوجد بث الآن');
+   renderRadioUI();
+   return;
+ }
+ if(!radioIsInCurrentRoom()){
+   if(showError) toast(`البث مخصص إلى ${radioScopeText()}`);
+   renderRadioUI();
+   return;
+ }
+ if(!prepareRadioSource()){
+   if(showError) toast('لم يتم تحديد مصدر صوت');
+   return;
+ }
+ try{
+   await radioAudio().play();
+   broadcast.listenerPlaying=true;
+ }catch(e){
+   broadcast.listenerPlaying=false;
+   if(showError) toast('اضغط تشغيل مرة أخرى أو تحقق من رابط الصوت');
+ }
+ updateStaffVisibilityUI();
+ renderRadioUI();
+}
+function pauseRadioListener(){
+ const audio=radioAudio();
+ if(audio) audio.pause();
+ state.radioBroadcast.listenerPlaying=false;
+ renderRadioUI();
+}
+function toggleRadioListener(){
+ const audio=radioAudio();
+ if(!audio||audio.paused) startRadioListener(true);
+ else pauseRadioListener();
+}
+function syncRadioForRoom(){
+ const broadcast=state.radioBroadcast;
+ const audio=radioAudio();
+ if(!audio) return;
+ if(!radioIsInCurrentRoom()||broadcast.status!=='playing'){
+   audio.pause();
+   renderRadioUI();
+   return;
+ }
+ prepareRadioSource();
+ if(broadcast.listenerPlaying){
+   audio.play().catch(()=>{broadcast.listenerPlaying=false;renderRadioUI()});
+ }
+ renderRadioUI();
+}
+function populateRadioRoomSelect(){
+ const select=$('#adminRadioRoom');
+ if(!select) return;
+ select.innerHTML=state.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');
+ select.value=state.radioBroadcast.roomId||state.room;
+}
+function updateRadioScopeAdmin(){
+ const scope=$('#adminRadioScope')?.value||state.radioBroadcast.scope;
+ const wrap=$('#adminRadioRoomWrap');
+ const select=$('#adminRadioRoom');
+ const hidden=scope!=='room';
+ if(wrap) wrap.classList.toggle('hidden',hidden);
+ if(select) select.classList.toggle('hidden',hidden);
+}
+function renderRadioAdminStatus(){
+ const box=$('#adminRadioStatus');
+ if(!box) return;
+ const broadcast=state.radioBroadcast;
+ if(broadcast.status==='stopped'){
+   box.textContent='لا يوجد بث الآن.';
+   box.className='adminRadioStatus stopped';
+   return;
+ }
+ const status=broadcast.status==='playing'?'يبث الآن':'متوقف مؤقتاً';
+ box.textContent=`${status}: ${broadcast.title} — ${radioScopeText()}`;
+ box.className=`adminRadioStatus ${broadcast.status}`;
+}
+function initRadioAdmin(){
+ const broadcast=state.radioBroadcast;
+ populateRadioRoomSelect();
+ $('#adminRadioTitle').value=broadcast.title||'';
+ $('#adminRadioSource').value=broadcast.source||'';
+ $('#adminRadioScope').value=broadcast.scope||'all';
+ $('#adminRadioRoom').value=broadcast.roomId||state.room;
+ updateRadioScopeAdmin();
+ renderRadioAdminStatus();
+}
+async function startRadioBroadcast(){
+ const title=$('#adminRadioTitle').value.trim()||'راديو ريفو';
+ const source=$('#adminRadioSource').value.trim();
+ const scope=$('#adminRadioScope').value;
+ const roomId=$('#adminRadioRoom').value||state.room;
+ if(!source){
+   toast('ضع رابطاً مباشراً للصوت أو استخدم المقطع التجريبي');
+   return;
+ }
+ state.radioBroadcast.title=title;
+ state.radioBroadcast.source=source;
+ state.radioBroadcast.scope=scope;
+ state.radioBroadcast.roomId=roomId;
+ state.radioBroadcast.status='playing';
+ state.radioBroadcast.listenerPlaying=true;
+
+ if(scope==='all') state.rooms.forEach(r=>r.music=true);
+ else{
+   const target=state.rooms.find(r=>r.id===roomId);
+   if(target) target.music=true;
+ }
+
+ prepareRadioSource();
+ await startRadioListener(false);
+ renderHeader();
+ renderRadioAdminStatus();
+ toast(scope==='all'?'بدأ البث في جميع الغرف':`بدأ البث في غرفة ${radioTargetRoom()?.name||''}`);
+}
+function pauseRadioBroadcast(){
+ if(state.radioBroadcast.status==='stopped'){
+   toast('لا يوجد بث لإيقافه');
+   return;
+ }
+ state.radioBroadcast.status='paused';
+ state.radioBroadcast.listenerPlaying=false;
+ radioAudio()?.pause();
+ renderHeader();
+ renderRadioAdminStatus();
+ toast('تم إيقاف البث مؤقتاً');
+}
+function stopRadioBroadcast(){
+ const audio=radioAudio();
+ state.radioBroadcast.status='stopped';
+ state.radioBroadcast.listenerPlaying=false;
+ if(audio){
+   audio.pause();
+   try{audio.currentTime=0}catch(_){}
+ }
+ renderHeader();
+ renderRadioAdminStatus();
+ toast('تم إيقاف بث الراديو');
+}
+
+
+function roomMicApprovalKey(userId,roomId=state.room){return`${roomId}:${userId}`}
+function requestRoomMic(){
+ if(!member('المايك'))return;
+ const r=room();
+ if(!r.micOn||r.mics===0){toast('المايك مغلق في هذه الغرفة');return}
+ const access=permissionValue('roomMic');
+ if(access==='direct'){startRoomMic(true);return}
+ const key=roomMicApprovalKey(state.user.id);
+ if(state.roomMic.approvals[key]){startRoomMic();return}
+ const existing=state.roomMic.requests.find(x=>x.userId===state.user.id&&x.roomId===state.room&&x.status==='pending');
+ if(existing){toast('طلب المايك بانتظار موافقة الإدارة');return}
+ const req={
+  id:`micreq_${++state.roomMic.requestSeq}`,
+  userId:state.user.id,userName:state.user.name,avatar:state.user.avatar,
+  roomId:state.room,roomName:r.name,status:'pending',time:privateTime(),
+  priority:Number(permissionValue('priority'))||0
+ };
+ state.roomMic.requests.unshift(req);
+ state.roomMic.requests.sort((a,b)=>(b.priority||0)-(a.priority||0));
+ writeSharedMicRequests(state.roomMic.requests);
+ toast('تم إرسال طلب المايك إلى الإدارة');
+}
+function startRoomMic(force=false){
+ const r=room();if(!state.user||!r.micOn||r.mics===0)return;
+ const key=roomMicApprovalKey(state.user.id);
+ if(!force&&permissionValue('roomMic')!=='direct'&&!state.roomMic.approvals[key]){requestRoomMic();return}
+ state.stage=state.stage.filter(s=>s.user!==state.user.id);
+ state.stage.unshift({user:state.user.id,mode:'audio',speaking:true});
+ renderStage();toast('صعدت إلى المايك');
+}
+
+function roomCameraApprovalKey(userId,roomId=state.room){
+ return `${roomId}:${userId}`;
+}
+function roomCameraCurrentUser(){
+ return state.user?.id||'';
+}
+function requestRoomCamera(){
+ if(!member('الكاميرا'))return;
+ const access=permissionValue('roomCamera');
+ if(access==='direct'){startRoomCamera(true);return}
+ const r=room();
+ if(!r.camOn||r.cams===0){
+   toast('الكاميرا مغلقة في هذه الغرفة');
+   return;
+ }
+ const userId=roomCameraCurrentUser();
+ const key=roomCameraApprovalKey(userId);
+ if(state.roomCamera.approvals[key]){
+   startRoomCamera();
+   return;
+ }
+ const existing=state.roomCamera.requests.find(x=>x.userId===userId&&x.roomId===state.room&&x.status==='pending');
+ if(existing){
+   toast('طلب الكاميرا بانتظار موافقة الإدارة');
+   return;
+ }
+ const req={
+   id:`camreq_${++state.roomCamera.requestSeq}`,
+   userId,
+   userName:state.user.name,
+   avatar:state.user.avatar,
+   roomId:state.room,
+   roomName:r.name,
+   status:'pending',
+   time:privateTime()
+ };
+ state.roomCamera.requests.unshift(req);writeSharedCameraRequests(state.roomCamera.requests);
+ state.inbox.alerts=(state.inbox.alerts||0)+1;
+ renderHeader();
+ renderRoomCameraRequests();
+ toast('تم إرسال طلب تشغيل الكاميرا إلى الإدارة');
+}
+function renderRoomCameraRequests(){
+ const box=$('#roomCameraRequestList');
+ if(!box) return;
+ const items=state.roomCamera.requests.filter(x=>x.roomId===state.room);
+ box.innerHTML=items.length?items.map(req=>{
+   const statusText=req.status==='pending'?'بانتظار القرار':req.status==='approved'?'تمت الموافقة':'مرفوض';
+   return `<div class="roomCameraRequest ${req.status}">
+     <img src="${av(req.avatar||'guest')}" alt="">
+     <div>
+       <b>${esc(req.userName)}</b>
+       <small>${esc(req.roomName)} · ${esc(req.time)} · ${statusText}</small>
+     </div>
+     <div class="roomCameraRequestActions">
+       ${req.status==='pending'?`
+         <button data-camera-approve="${req.id}">موافقة</button>
+         <button data-camera-deny="${req.id}">رفض</button>
+       `:req.status==='approved'?`
+         <button data-camera-revoke="${req.id}">سحب الإذن</button>
+       `:''}
+     </div>
+   </div>`;
+ }).join(''):'<small>لا توجد طلبات كاميرا حالياً.</small>';
+
+ $$('[data-camera-approve]').forEach(b=>b.onclick=()=>approveRoomCamera(b.dataset.cameraApprove));
+ $$('[data-camera-deny]').forEach(b=>b.onclick=()=>denyRoomCamera(b.dataset.cameraDeny));
+ $$('[data-camera-revoke]').forEach(b=>b.onclick=()=>revokeRoomCamera(b.dataset.cameraRevoke));
+}
+function approveRoomCamera(requestId){
+ const req=state.roomCamera.requests.find(x=>x.id===requestId);
+ if(!req) return;
+ req.status='approved';
+ state.roomCamera.approvals[roomCameraApprovalKey(req.userId,req.roomId)]=true;
+ writeSharedCameraRequests(state.roomCamera.requests);renderRoomCameraRequests();
+ toast(`تمت الموافقة على كاميرا ${req.userName}`);
+ if(state.user?.id===req.userId&&state.room===req.roomId) startRoomCamera();
+}
+function denyRoomCamera(requestId){
+ const req=state.roomCamera.requests.find(x=>x.id===requestId);
+ if(!req) return;
+ req.status='denied';
+ delete state.roomCamera.approvals[roomCameraApprovalKey(req.userId,req.roomId)];
+ writeSharedCameraRequests(state.roomCamera.requests);renderRoomCameraRequests();
+ toast(`تم رفض طلب كاميرا ${req.userName}`);
+}
+function revokeRoomCamera(requestId){
+ const req=state.roomCamera.requests.find(x=>x.id===requestId);
+ if(!req) return;
+ req.status='denied';
+ delete state.roomCamera.approvals[roomCameraApprovalKey(req.userId,req.roomId)];
+ if(state.roomCamera.activeUser===req.userId) stopRoomCamera(true);
+ writeSharedCameraRequests(state.roomCamera.requests);renderRoomCameraRequests();
+ toast(`تم سحب إذن كاميرا ${req.userName}`);
+}
+async function startRoomCamera(force=false){
+ if(!state.user) return;
+ const key=roomCameraApprovalKey(state.user.id);
+ if(!force&&!state.roomCamera.approvals[key]){
+   requestRoomCamera();
+   return;
+ }
+ if(state.roomCamera.stream){
+   showRoomCameraWindow();
+   return;
+ }
+ try{
+   if(!navigator.mediaDevices?.getUserMedia){
+     toast('شغّل النسخة عبر ملف التشغيل حتى تعمل الكاميرا');
+     return;
+   }
+   const stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});
+   state.roomCamera.stream=stream;
+   state.roomCamera.activeUser=state.user.id;
+   state.localStream=stream;
+   state.stage=state.stage.filter(s=>s.user!==state.user.id);
+   state.stage.unshift({user:state.user.id,mode:'camera',speaking:false});
+   showRoomCameraWindow();
+   renderStage();
+   toast('تم تشغيل الكاميرا بعد موافقة الإدارة');
+ }catch(e){
+   toast('اسمح للمتصفح باستخدام الكاميرا');
+ }
+}
+function showRoomCameraWindow(){
+ const win=$('#roomCameraWindow');
+ const video=$('#roomCameraVideo');
+ const placeholder=$('#roomCameraPlaceholder');
+ if(!win) return;
+ $('#roomCameraName').textContent=state.user?.name||'مستخدم';
+ $('#roomCameraAvatar').src=av(state.user?.avatar||'guest');
+ win.classList.remove('hidden','minimized');
+ state.roomCamera.window.minimized=false;
+ if(video&&state.roomCamera.stream){
+   video.srcObject=state.roomCamera.stream;
+   placeholder?.classList.add('hidden');
+ }else{
+   placeholder?.classList.remove('hidden');
+ }
+ if(!win.style.left){
+   win.style.left=Math.max(20,window.innerWidth-500)+'px';
+   win.style.top=Math.max(90,window.innerHeight-500)+'px';
+ }
+ bringRoomCameraFront();
+}
+function stopRoomCamera(fromAdmin=false){
+ const stream=state.roomCamera.stream;
+ if(stream) stream.getTracks().forEach(t=>t.stop());
+ state.roomCamera.stream=null;
+ state.roomCamera.activeUser=null;
+ if(state.localStream===stream) state.localStream=null;
+ const video=$('#roomCameraVideo');
+ if(video) video.srcObject=null;
+ $('#roomCameraWindow')?.classList.add('hidden');
+ state.stage=state.stage.filter(s=>s.user!==state.user?.id);
+ renderStage();
+ if(fromAdmin) toast('أغلقت الإدارة الكاميرا');
+}
+function closeAllRoomCameras(){
+ Object.keys(state.roomCamera.approvals).forEach(k=>{
+   if(k.startsWith(state.room+':')) delete state.roomCamera.approvals[k];
+ });
+ state.roomCamera.requests.forEach(req=>{
+   if(req.roomId===state.room&&req.status==='approved') req.status='denied';
+ });
+ stopRoomCamera(true);writeSharedCameraRequests(state.roomCamera.requests);
+ renderRoomCameraRequests();
+}
+function bringRoomCameraFront(){
+ const win=$('#roomCameraWindow');
+ if(!win) return;
+ state.roomCamera.window.z+=1;
+ win.style.zIndex=state.roomCamera.window.z;
+}
+function toggleRoomCameraMinimize(){
+ const win=$('#roomCameraWindow');
+ if(!win) return;
+ state.roomCamera.window.minimized=!state.roomCamera.window.minimized;
+ win.classList.toggle('minimized',state.roomCamera.window.minimized);
+ $('#roomCameraMinimizeBtn').textContent=state.roomCamera.window.minimized?'▢':'—';
+ bringRoomCameraFront();
+}
+function toggleRoomCameraMaximize(){
+ const win=$('#roomCameraWindow');
+ if(!win) return;
+ if(!state.roomCamera.window.maximized){
+   state.roomCamera.window.previous={
+     left:win.style.left,top:win.style.top,width:win.style.width,height:win.style.height
+   };
+   win.classList.add('maximized');
+   state.roomCamera.window.maximized=true;
+   $('#roomCameraMaximizeBtn').textContent='❐';
+ }else{
+   win.classList.remove('maximized');
+   const p=state.roomCamera.window.previous||{};
+   win.style.left=p.left||'';
+   win.style.top=p.top||'';
+   win.style.width=p.width||'';
+   win.style.height=p.height||'';
+   state.roomCamera.window.maximized=false;
+   $('#roomCameraMaximizeBtn').textContent='□';
+ }
+ bringRoomCameraFront();
+}
+function initRoomCameraDrag(){
+ const win=$('#roomCameraWindow');
+ const handle=$('#roomCameraDragHandle');
+ if(!win||!handle) return;
+
+ let dragging=false,startX=0,startY=0,startLeft=0,startTop=0;
+
+ handle.addEventListener('pointerdown',e=>{
+   if(e.target.closest('button')||state.roomCamera.window.maximized) return;
+   dragging=true;
+   bringRoomCameraFront();
+   const rect=win.getBoundingClientRect();
+   startX=e.clientX;startY=e.clientY;
+   startLeft=rect.left;startTop=rect.top;
+   handle.setPointerCapture(e.pointerId);
+   win.classList.add('dragging');
+   e.preventDefault();
+ });
+ handle.addEventListener('pointermove',e=>{
+   if(!dragging) return;
+   const maxLeft=Math.max(0,window.innerWidth-win.offsetWidth);
+   const maxTop=Math.max(0,window.innerHeight-win.offsetHeight);
+   win.style.left=Math.min(maxLeft,Math.max(0,startLeft+e.clientX-startX))+'px';
+   win.style.top=Math.min(maxTop,Math.max(0,startTop+e.clientY-startY))+'px';
+   win.style.right='auto';
+   win.style.bottom='auto';
+ });
+ const stop=e=>{
+   if(!dragging) return;
+   dragging=false;
+   win.classList.remove('dragging');
+   try{handle.releasePointerCapture(e.pointerId)}catch(_){}
+ };
+ handle.addEventListener('pointerup',stop);
+ handle.addEventListener('pointercancel',stop);
+ win.addEventListener('pointerdown',bringRoomCameraFront);
+}
+
+function privateTime(){
+ return new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
+}
+function totalPrivateUnread(){
+ return Object.values(state.privateUnread||{}).reduce((sum,n)=>sum+(Number(n)||0),0);
+}
+function updatePrivateBadge(){
+ const total=totalPrivateUnread();
+ state.inbox.messages=total;
+ const badge=$('#dmBadge');
+ if(badge){
+   badge.textContent=total;
+   badge.classList.toggle('hidden',total<1);
+   badge.parentElement?.classList.toggle('hasUnread',total>0);
+ }
+}
+function privateChatUsers(){
+ return state.users.filter(u=>u.id!=='owner' && u.role!=='ai' && u.id!==state.user?.id);
+}
+function renderPrivateInbox(){
+ const list=$('#privateConversationList');
+ if(!list) return;
+ const users=privateChatUsers();
+ list.innerHTML=users.map(u=>{
+   const chat=state.privateChats[u.id]||[];
+   const last=chat.at(-1);
+   const unread=state.privateUnread[u.id]||0;
+   return `<button class="privateConversation" data-private-user="${u.id}">
+     <img src="${av(u.avatar)}" alt="">
+     <span class="privateConversationCopy">
+       <b>${esc(u.name)}</b>
+       <small>${last?esc(last.text):'ابدأ محادثة جديدة'}</small>
+     </span>
+     ${unread?`<i>${unread}</i>`:''}
+   </button>`;
+ }).join('');
+ $$('[data-private-user]').forEach(b=>b.onclick=()=>openPrivateChat(b.dataset.privateUser));
+ const toggle=$('#privateMessagesToggle');
+ if(toggle) toggle.checked=state.privateMessagesEnabled;
+ const label=$('#privateReceiveState');
+ if(label) label.textContent=state.privateMessagesEnabled?'مفتوح':'مغلق';
+}
+function openPrivateInbox(){
+ if(!member('الرسائل الخاصة')) return;
+ renderPrivateInbox();
+ $('#privateInboxPanel')?.classList.remove('hidden');
+ updatePrivateBadge();
+}
+function closePrivateInbox(){
+ $('#privateInboxPanel')?.classList.add('hidden');
+}
+function renderPrivateMessages(){
+ const target=findUser(state.privateTarget);
+ const box=$('#privateMessages');
+ if(!target||!box) return;
+ const messages=state.privateChats[target.id]||[];
+ box.innerHTML=messages.length?messages.map(m=>{
+   const mine=m.from==='me'||m.from===state.user?.id;
+   return `<div class="privateMessage ${mine?'mine':'theirs'}">
+     <div>${esc(m.text)}</div><time>${esc(m.time||'')}</time>
+   </div>`;
+ }).join(''):'<div class="privateEmpty">ابدأ المحادثة الخاصة</div>';
+ requestAnimationFrame(()=>box.scrollTop=box.scrollHeight);
+}
+function updatePrivateMediaControls(){
+ const mic=$('#privateMicBtn'),cam=$('#privateCameraBtn');
+ const paidOnly=state.privateMedia.paidOnly;
+ const tier=userAccessRole(state.user||{});
+ const paidTier=['plus','vip','primo','moderator','owner'].includes(tier);
+ const allowedByPlan=!paidOnly||paidTier;
+
+ const apply=(button,enabled,lockedText,availableText)=>{
+   if(!button) return;
+   const locked=!enabled||!allowedByPlan;
+   button.classList.toggle('unlocked',!locked);
+   button.classList.toggle('privateLockedControl',locked);
+   const lock=button.querySelector('i');
+   if(lock) lock.textContent=locked?'🔒':'';
+   const small=button.querySelector('small');
+   if(small){
+     small.textContent=!enabled?lockedText:(!allowedByPlan?'للمشتركين فقط':availableText);
+   }
+   button.dataset.locked=locked?'1':'0';
+ };
+ const micPermission=permissionValue('privateMic');
+ const cameraPermission=permissionValue('privateCamera');
+ apply(mic,state.privateMedia.mic&&micPermission==='direct',micPermission==='request'?'يحتاج موافقة الإدارة':'مغلق لرتبتك','المايك متاح');
+ apply(cam,state.privateMedia.camera&&cameraPermission==='direct',cameraPermission==='request'?'تحتاج موافقة الإدارة':'مغلقة لرتبتك','الكاميرا متاحة');
+}
+function openPrivateChat(userId){
+ if(!member('الرسائل الخاصة')) return;
+ const target=findUser(userId);
+ if(!target) return;
+ state.privateTarget=userId;
+ state.privateChats[userId] ||= [];
+ state.privateUnread[userId]=0;
+ updatePrivateBadge();
+ renderPrivateInbox();
+
+ $('#privateChatName').textContent=target.name;
+ $('#privateChatAvatar').src=av(target.avatar);
+ $('#privateChatStatus').textContent='متصل الآن';
+ renderPrivateMessages();
+ updatePrivateMediaControls();
+
+ const win=$('#privateChatWindow');
+ win.classList.remove('hidden','minimized');
+ state.privateWindow.minimized=false;
+ bringPrivateWindowFront();
+ closePrivateInbox();
+
+ if(!win.style.left){
+   win.style.left=Math.max(18,window.innerWidth-455)+'px';
+   win.style.top=Math.max(90,window.innerHeight-570)+'px';
+ }
+}
+function closePrivateChat(){
+ $('#privateChatWindow')?.classList.add('hidden');
+}
+function bringPrivateWindowFront(){
+ const win=$('#privateChatWindow');
+ if(!win) return;
+ state.privateWindow.z+=1;
+ win.style.zIndex=state.privateWindow.z;
+}
+function togglePrivateMinimize(){
+ const win=$('#privateChatWindow');
+ if(!win) return;
+ state.privateWindow.minimized=!state.privateWindow.minimized;
+ win.classList.toggle('minimized',state.privateWindow.minimized);
+ $('#privateMinimizeBtn').textContent=state.privateWindow.minimized?'▢':'—';
+ bringPrivateWindowFront();
+}
+function togglePrivateMaximize(){
+ const win=$('#privateChatWindow');
+ if(!win) return;
+ if(!state.privateWindow.maximized){
+   state.privateWindow.previous={
+     left:win.style.left,top:win.style.top,width:win.style.width,height:win.style.height
+   };
+   win.classList.add('maximized');
+   state.privateWindow.maximized=true;
+   $('#privateMaximizeBtn').textContent='❐';
+ }else{
+   win.classList.remove('maximized');
+   const p=state.privateWindow.previous||{};
+   win.style.left=p.left||'';
+   win.style.top=p.top||'';
+   win.style.width=p.width||'';
+   win.style.height=p.height||'';
+   state.privateWindow.maximized=false;
+   $('#privateMaximizeBtn').textContent='□';
+ }
+ bringPrivateWindowFront();
+}
+function sendPrivateMessage(){
+ if(!state.privateTarget) return;
+ const input=$('#privateMessageInput');
+ const text=input.value.trim();
+ if(!text) return;
+ state.privateChats[state.privateTarget] ||= [];
+ state.privateChats[state.privateTarget].push({from:'me',text,time:privateTime()});
+ input.value='';
+ renderPrivateMessages();
+ renderPrivateInbox();
+}
+function setPrivateMessagesEnabled(enabled){
+ state.privateMessagesEnabled=Boolean(enabled);
+ renderPrivateInbox();
+ toast(state.privateMessagesEnabled?'تم فتح استقبال الرسائل الخاصة':'تم إغلاق استقبال الرسائل الخاصة');
+}
+function simulatePrivateIncoming(userId,text){
+ if(!state.privateMessagesEnabled) return;
+ state.privateChats[userId] ||= [];
+ state.privateChats[userId].push({from:userId,text,time:privateTime()});
+ if(state.privateTarget!==userId||$('#privateChatWindow').classList.contains('hidden')){
+   state.privateUnread[userId]=(state.privateUnread[userId]||0)+1;
+ }
+ updatePrivateBadge();
+ renderPrivateInbox();
+ if(state.privateTarget===userId) renderPrivateMessages();
+}
+function initPrivateWindowDrag(){
+ const win=$('#privateChatWindow');
+ const handle=$('#privateChatDragHandle');
+ if(!win||!handle) return;
+
+ let dragging=false,startX=0,startY=0,startLeft=0,startTop=0;
+
+ handle.addEventListener('pointerdown',e=>{
+   if(e.target.closest('button')||state.privateWindow.maximized) return;
+   dragging=true;
+   bringPrivateWindowFront();
+   const rect=win.getBoundingClientRect();
+   startX=e.clientX;startY=e.clientY;
+   startLeft=rect.left;startTop=rect.top;
+   handle.setPointerCapture(e.pointerId);
+   win.classList.add('dragging');
+   e.preventDefault();
+ });
+ handle.addEventListener('pointermove',e=>{
+   if(!dragging) return;
+   const maxLeft=Math.max(0,window.innerWidth-win.offsetWidth);
+   const maxTop=Math.max(0,window.innerHeight-win.offsetHeight);
+   const left=Math.min(maxLeft,Math.max(0,startLeft+e.clientX-startX));
+   const top=Math.min(maxTop,Math.max(0,startTop+e.clientY-startY));
+   win.style.left=left+'px';
+   win.style.top=top+'px';
+   win.style.right='auto';
+   win.style.bottom='auto';
+ });
+ const stop=e=>{
+   if(!dragging) return;
+   dragging=false;
+   win.classList.remove('dragging');
+   try{handle.releasePointerCapture(e.pointerId)}catch(_){}
+ };
+ handle.addEventListener('pointerup',stop);
+ handle.addEventListener('pointercancel',stop);
+ win.addEventListener('pointerdown',bringPrivateWindowFront);
+}
+
+function member(action){
+ const map={'إرسال الهدايا':'gifts','الرسائل الخاصة':'privateChat','المايك':'roomMic','الكاميرا':'roomCamera'};
+ const key=map[action];
+ if(!state.user){toast(action+' تحتاج تسجيل الدخول بحساب Google');open('loginModal');return false}
+ if(key){
+   const value=permissionValue(key);
+   if(value===false||value==='off'){toast(action+' غير مسموحة لرتبتك');return false}
+ }
+ if(action==='إرسال الهدايا'&&!state.economyConfig.giftsEnabled){toast('الهدايا مغلقة من الإدارة');return false}
+ if(action==='الرسائل الخاصة'&&!state.privateMessagesEnabled){toast('الرسائل الخاصة مغلقة من الإدارة');return false}
+ return true
+}
+function setSideTab(tab){$$('.sideTabs button').forEach(b=>b.classList.toggle('active',b.dataset.sideTab===tab));$('#usersPanel').classList.toggle('hidden',tab!=='users');$('#roomsPanel').classList.toggle('hidden',tab!=='rooms')}
+function renderRooms(){const q=$('#roomSearch').value.trim();$('#roomsList').innerHTML=state.rooms.filter(r=>r.name.includes(q)).map(r=>`<button class="roomItem ${r.id===state.room?'active':''}" data-room="${r.id}"><span class="roomIcon">${r.icon}</span><span><b>${esc(r.name)}</b><small>${'غرفة '+esc(r.name)}</small></span><span class="roomCount">${r.count}</span></button>`).join('');$$('[data-room]').forEach(b=>b.onclick=()=>switchRoom(b.dataset.room))}
+
+function roomWelcomeMessage(roomId){
+ const r=state.rooms.find(x=>x.id===roomId);
+ return{
+  type:'system',
+  room:roomId,
+  isRoomWelcome:true,
+  text:`أهلاً بك في غرفة ${r?.name||'الدردشة'}. تبدأ الرسائل من لحظة دخولك ولا تظهر لك التعليقات القديمة.`,
+  createdAt:Date.now()
+ };
+}
+function clearRoomConversation(roomId){
+ state.messages=state.messages.filter(m=>m.room!==roomId);
+}
+function pruneRoomConversation(roomId=state.room){
+ const live=state.messages.filter(m=>m.room===roomId&&!m.isRoomWelcome);
+ const overflow=live.length-RIVO_ROOM_MESSAGE_LIMIT;
+ if(overflow<=0)return;
+ const remove=new Set(live.slice(0,overflow));
+ state.messages=state.messages.filter(m=>!remove.has(m));
+}
+function appendRoomMessage(message){
+ const entry={...message,room:message.room||state.room,createdAt:message.createdAt||Date.now()};
+ state.messages.push(entry);
+ pruneRoomConversation(entry.room);
+ return entry;
+}
+function startFreshRoomConversation(roomId=state.room){
+ clearRoomConversation(roomId);
+ state.messages.push(roomWelcomeMessage(roomId));
+ const input=$('#messageInput');
+ if(input)input.value='';
+}
+function startFreshChatSession(){
+ state.messages=[];
+ state.activeNameGifts={};
+ state.privateTarget=null;
+ startFreshRoomConversation(state.room);
+}
+function logoutChat(){
+ if(state.localStream){
+  state.localStream.getTracks().forEach(track=>track.stop());
+  state.localStream=null;
+ }
+ state.user=null;
+ state.stage=[];
+ state.messages=[];
+ state.activeNameGifts={};
+ state.privateTarget=null;
+ state.target=null;
+ state.inbox={messages:0,alerts:0};
+ const input=$('#messageInput');
+ if(input)input.value='';
+ close('profileModal');
+ close('roleGiftModal');
+ close('freeBadgeModal');
+ renderAll();
+ renderPrivateInbox();
+ updatePrivateBadge();
+ showEntryScreen();
+ toast('تم تسجيل الخروج ومسح رسائل الجلسة');
+}
+
+function switchRoom(id){
+ const r=state.rooms.find(x=>x.id===id);
+ if(!r)return;
+ if(r.vipOnly&&(!state.user||!['vip','primo','moderator','owner'].includes(userAccessRole(state.user)))){
+  toast('هذه الغرفة لأعضاء VIP فقط');
+  showStore('vip');
+  open('storeModal');
+  return;
+ }
+ clearRoomConversation(state.room);
+ // الانتقال بين الغرف لا يزيل الشارة؛ تبقى حتى تسجيل الخروج أو إغلاق الموقع.
+ state.room=id;
+ if(state.user)state.user.room=id;
+ startFreshRoomConversation(id);
+ renderAll();
+ syncRadioForRoom();
+ setSideTab('users');
+ $('#messages').scrollTop=$('#messages').scrollHeight;
+}
+
+function isHiddenStaff(u){return Boolean(u?.isHidden)&&['owner','moderator'].includes(userAccessRole(u))}
+function publicMessageUser(u){
+ // وضع التخفي يزيل الإدارة أو المراقب من قائمة المتصلين فقط؛ الرسائل تبقى بهويته المختارة.
+ return u;
+}
+function updateStaffVisibilityUI(){
+ const button=$('#visibilityBtn');
+ const identityButton=$('#ownerIdentityBtn');
+ const staff=state.user&&['owner','moderator'].includes(userAccessRole(state.user));
+ if(button){
+  button.classList.toggle('hidden',!staff);
+  if(staff){
+   button.textContent=state.user.isHidden?'👁️ إظهار':'🫥 مخفي';
+   button.title=state.user.isHidden?'إظهار الحساب في قائمة المستخدمين':'الاختفاء من قائمة المستخدمين مع استمرار الكتابة';
+   button.classList.toggle('hiddenState',Boolean(state.user.isHidden));
   }
+ }
+ if(identityButton)identityButton.classList.toggle('hidden',userAccessRole(state.user||{})!=='owner');
+}
+function ownerIdentityCrownPreview(){
+ return roleBadgeHtml({role:'owner',plan:'owner',authType:'owner'},'list');
+}
+function openOwnerIdentitySettings(){
+ if(userAccessRole(state.user||{})!=='owner')return;
+ const input=$('#ownerDisplayName'),only=$('#ownerCrownOnly'),preview=$('#ownerIdentityPreview');
+ const current=String(state.user?.name??'');
+ if(input)input.value=current;
+ if(only)only.checked=!current.trim();
+ if(input)input.disabled=Boolean(only?.checked);
+ if(preview)preview.innerHTML=ownerIdentityCrownPreview();
+ open('ownerIdentityModal');
+ setTimeout(()=>{if(!only?.checked)input?.focus()},60);
+}
+function updateOwnerIdentityChoice(){
+ const input=$('#ownerDisplayName'),only=$('#ownerCrownOnly');
+ if(input)input.disabled=Boolean(only?.checked);
+ if(!only?.checked)input?.focus();
+}
+function saveOwnerIdentity(){
+ if(userAccessRole(state.user||{})!=='owner')return;
+ const only=Boolean($('#ownerCrownOnly')?.checked);
+ const typed=String($('#ownerDisplayName')?.value??'').trim().slice(0,20);
+ state.user.name=only?'':(typed||'الإدارة');
+ const listed=findUser(state.user.id);if(listed)listed.name=state.user.name;
+ persistCurrentUserProfile();
+ close('ownerIdentityModal');
+ renderAll();
+ toast(only?'تم اعتماد التاج وحده من دون اسم':'تم تغيير اسم الإدارة إلى '+state.user.name);
+}
+function toggleMyVisibility(){
+ if(!state.user||!['owner','moderator'].includes(userAccessRole(state.user)))return;
+ state.user.isHidden=!state.user.isHidden;const listed=findUser(state.user.id);if(listed)listed.isHidden=state.user.isHidden;
+ const cfg=readAdminConfig();if(cfg&&Array.isArray(cfg.users)){const saved=cfg.users.find(u=>u.id===state.user.id||u.moderatorTokenId===state.user.moderatorTokenId);if(saved)saved.isHidden=state.user.isHidden;if(state.user.moderatorTokenId&&Array.isArray(cfg.moderatorTokens)){const token=cfg.moderatorTokens.find(t=>t.id===state.user.moderatorTokenId);if(token)token.isHidden=state.user.isHidden}localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(cfg))}
+ notifyAdminLive('rivo-staff-visibility',{userId:state.user.id,hidden:state.user.isHidden});renderAll();toast(state.user.isHidden?'أنت الآن مخفي عن الزوار':'أنت الآن ظاهر للزوار');
+}
+function moderatorLogin(){
+ const code=String($('#moderatorCodeInput')?.value||'').trim().toUpperCase();if(!code){toast('اكتب رمز المراقب');return}
+ const cfg=readAdminConfig();const token=cfg?.moderatorTokens?.find(t=>String(t.code||'').toUpperCase()===code);if(!token){toast('رمز المراقب غير صحيح');return}
+ if(!token.enabled){toast('هذا الرمز معطّل من الإدارة');return}if(Number(token.expiresAt||0)<=Date.now()){toast('انتهت مدة رمز المراقب');return}
+ const savedUser=cfg.users?.find(u=>u.id===token.userId||u.moderatorTokenId===token.id)||{};
+ state.user={id:token.userId,name:token.name,avatar:savedUser.avatar||'guest',room:savedUser.room||state.room,bio:'مراقب ريفو',authType:'moderator',moderatorTokenId:token.id,isHidden:Boolean(token.isHidden),coins:savedUser.coins||0,role:'moderator',plan:'moderator',vip:false,verified:false,giftValue:0,friends:0,level:1,status:'online'};
+ restoreLocalProfile(state.user);
+ const existing=state.users.find(u=>u.id===state.user.id);if(existing)Object.assign(existing,state.user);else state.users.unshift(state.user);
+ startFreshChatSession();close('moderatorLoginModal');close('loginModal');hideEntryScreen();$('#moderatorCodeInput').value='';renderAll();notifyAdminLive('rivo-moderator-token-used',{tokenId:token.id,time:Date.now()});toast('تم الدخول كمراقب: '+token.name);
+}
 
-  function syncVipUi() {
-    const active = Boolean(profile?.isVip);
-    els.myVipBadge?.classList.toggle("hidden", !active);
-    els.vipStealthButton?.classList.toggle("hidden", !active);
-    els.vipStealthButton?.classList.toggle("active", Boolean(active && profile?.vipStealth));
-    if (els.vipStealthButton) {
-      els.vipStealthButton.title = profile?.vipStealth ? "إيقاف تخفي VIP" : "تشغيل تخفي VIP";
-      els.vipStealthButton.textContent = profile?.vipStealth ? "◉" : "◎";
-    }
-    if (els.vipHeaderButton) {
-      els.vipHeaderButton.classList.toggle("active", active);
-      const label = els.vipHeaderButton.querySelector("b");
-      if (label) label.textContent = active ? "VIP مفعلة" : "VIP";
-    }
-  }
+function usersInRoom(){let a=state.users.filter(u=>u.room===state.room&&!isHiddenStaff(u));if(state.user&&!isHiddenStaff(state.user)&&!a.some(u=>u.id===state.user.id))a=[state.user,...a];return a}
+function renderUsers(){
+ const q=$('#userSearch').value.trim();
+ const a=sortUsersByHierarchy(usersInRoom().filter(u=>String(u.name||'').includes(q)));
+ $('#userCount').textContent=a.length;
+ $('#usersList').innerHTML=a.map(u=>`
+  <div class="userItem highlightedUserItem" data-user="${u.id}">
+   <div class="userMain">
+    <img src="${av(u.avatar)}">
+    <div class="userText userTextProminent">
+     ${displayNameHtml(u,'list')}
+     <small>${esc(u.bio)}</small>
+    </div>
+   </div>
+  </div>`).join('');
+ $$('[data-user]').forEach(x=>x.onclick=e=>showMenu(x.dataset.user,e));
+}
+function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble">🔊 ${esc(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user),u=publicMessageUser(realUser);const safeText=esc(m.text);const emojiOnly=/^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
+function renderHeader(){
+ const r=room(),u=state.user;
+ const setText=(id,value)=>{const el=$(id);if(el)el.textContent=value};
+ const setSrc=(id,value)=>{const el=$(id);if(el)el.src=value};
+ setText('#roomTitle',r.name);
+ setText('#roomCount',r.count);
+ setText('#stageSummary',`${r.cams} كاميرات · ${r.mics} مايكات`);
+ setText('#announcementText',r.announcement);
+ const announcement=$('#announcement');
+ if(announcement) announcement.classList.toggle('hidden',!r.announcementOn);
+ setText('#headerName',isHiddenStaff(u)?'متخفي':u?.name||'زائر');
+ setText('#headerStatus',u?(u.authType==='guest'?'ضيف':u.authType==='google'?'مسجل بحساب Google':'الإدارة'):'غير مسجل');const logoutBtn=$('#logoutBtn');if(logoutBtn)logoutBtn.classList.toggle('hidden',!u);
+ setSrc('#headerAvatar',av(u?.avatar||'guest'));
+ setSrc('#composerAvatar',av(u?.avatar||'guest'));
+ setText('#walletCoins',u?.coins||0);
+ setText('#giftCoins',u?.coins||0);
+ const sideName=$('#sideName');
+ if(sideName){
+  if(userAccessRole(u||{})==='owner')sideName.innerHTML=displayNameHtml(u,'list');
+  else sideName.textContent=isHiddenStaff(u)?'مخفي':u?.name||'زائر';
+ }
+ setText('#sideCoins',u?.coins||0);
+ setSrc('#sideAvatar',av(u?.avatar||'guest'));
+ const dmCount = state.inbox?.messages || 0;
+ const notifCount = state.inbox?.alerts || 0;
+ const dmBadge = $('#dmBadge');
+ const notifBadge = $('#notifBadge');
+ if(dmBadge){
+   dmBadge.textContent = dmCount;
+   dmBadge.classList.toggle('hidden', dmCount < 1);
+   dmBadge.parentElement?.classList.toggle('hasUnread', dmCount > 0);
+ }
+ if(notifBadge){
+   notifBadge.textContent = notifCount;
+   notifBadge.classList.toggle('hidden', notifCount < 1);
+   notifBadge.parentElement?.classList.toggle('hasUnread', notifCount > 0);
+ }
+ const cameraBtn=$('#cameraBtn'),micBtn=$('#micBtn');
+ if(cameraBtn) cameraBtn.disabled=!r.camOn||r.cams===0;
+ if(micBtn) micBtn.disabled=!r.micOn||r.mics===0;
+ renderRadioUI();
+}
+function renderStage(){const r=room(),active=state.stage.filter(s=>findUser(s.user)?.room===state.room);let h='';for(let i=0;i<r.cams;i++){const s=active[i];if(!s){h+=`<div class="cameraSlot empty">خانة كاميرا ${i+1}</div>`;continue}const u=findUser(s.user);if(s.mode==='camera'&&s.user===state.user?.id&&state.localStream)h+=`<div class="cameraSlot"><video class="localFeed" autoplay muted playsinline></video><div class="caption"><b>${esc(u.name)}</b><span>📹 مباشر</span></div></div>`;else h+=`<div class="cameraSlot"><img class="avatarStage" src="${av(u.avatar)}"><div class="caption"><b>${esc(u.name)}</b><span>${s.mode==='avatar'?'شخصية متحركة':'🎙️ صوت فقط'}</span></div></div>`}if(r.cams===0)h='<div class="cameraSlot empty" style="grid-column:1/-1">الكاميرات مغلقة في هذه الغرفة</div>';$('#cameraGrid').style.gridTemplateColumns=`repeat(${Math.max(1,Math.min(4,r.cams||1))},minmax(0,1fr))`;$('#cameraGrid').innerHTML=h;const v=$('.localFeed');if(v&&state.localStream)v.srcObject=state.localStream;$('#micSeats').innerHTML=active.slice(0,r.mics).map(s=>{const u=findUser(s.user);return`<div class="micSeat ${s.speaking?'speaking':''}"><img src="${av(u.avatar)}"><b>${esc(u.name)}</b><span>${s.speaking?'🔊':'🎙️'}</span></div>`}).join('');renderStageAdmin();
+ if($('#privateMicEnabled')) $('#privateMicEnabled').checked=state.privateMedia.mic;
+ if($('#privateCameraEnabled')) $('#privateCameraEnabled').checked=state.privateMedia.camera;
+ if($('#privateMediaPaidOnly')) $('#privateMediaPaidOnly').checked=state.privateMedia.paidOnly;
+}
+function renderStageAdmin(){const a=state.stage.filter(s=>findUser(s.user)?.room===state.room);$('#stageAdmin').innerHTML=a.length?a.map(s=>{const u=findUser(s.user);return`<div class="stageUser"><span>${esc(u.name)} — ${s.mode}</span><button data-kick="${u.id}">إنزال</button></div>`}).join(''):'<small>لا يوجد مستخدمون على المنصة.</small>';$$('[data-kick]').forEach(b=>b.onclick=()=>{state.stage=state.stage.filter(s=>s.user!==b.dataset.kick);renderStage();toast('تم إنزال المستخدم')})}
+function renderAll(){renderRooms();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI()}
+function showMenu(id,e){state.target=id;const target=findUser(id);$('#menuName').textContent=readableUserName(target);const m=$('#userMenu');m.style.top=Math.min(innerHeight-300,e.clientY)+'px';m.style.left=Math.max(10,e.clientX-235)+'px';m.classList.remove('hidden')}
+function showProfile(id){const u=findUser(id);state.target=id;$('#profileAvatar').src=av(u.avatar);$('#profileName').textContent=readableUserName(u);$('#profileBadges').innerHTML=`${verifiedBadgeHtml(u,'list')}${roleBadgeHtml(u,'list')}`;$('#profileBio').textContent=u.bio;$('#profileGiftValue').textContent=u.giftValue;$('#profileFriends').textContent=u.friends;$('#profileLevel').textContent=u.level;const editBtn=$('#profileAvatarEdit');if(editBtn)editBtn.classList.toggle('hidden',!(state.user&&state.user.id===id));open('profileModal')}
+function openGifts(id){if(!member('إرسال الهدايا'))return;state.target=id;const u=findUser(id),catalog=availableGiftCatalogForSender();$('#giftTarget').textContent=u.name;$('#giftCoins').textContent=state.user.coins;$('#giftCatalog').innerHTML=catalog.map(g=>`<div class="giftItem ${g.exclusive?'exclusiveGiftItem '+g.exclusiveRole:''}"><span class="giftIcon">${g.icon}</span><b>${g.name}</b>${g.exclusive?`<em>حصري ${roleGiftLabel(g.exclusiveRole)}</em>`:''}<small>${g.price>0?g.price+' 🪙':'مجانية للمراقب'}</small><button data-gift="${g.id}">إرسال</button></div>`).join('');$$('[data-gift]').forEach(b=>b.onclick=()=>sendGift(b.dataset.gift));open('giftModal')}
+function findSendableGift(id){
+ return availableGiftCatalogForSender().find(x=>x.id===id)||null;
+}
+function sendGift(id){const g=findSendableGift(id),r=findUser(state.target),s=state.user;if(!g||!r||!s)return;if(g.exclusive&&g.exclusiveRole!==roleGiftKey(s)){toast('هذه الهدية غير متاحة لرتبتك');return}if(s.coins<g.price){toast('رصيدك غير كافٍ');return}s.coins-=g.price;r.giftValue+=g.price;setActiveNameGift(r.id,g,'received');appendRoomMessage({type:'gift',room:state.room,sender:s.id,receiver:r.id,gift:g.name,icon:g.icon,price:g.price,time:new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'})});
+ if(state.user&&r.id===state.user.id){state.inbox.alerts+=1}
+ close('giftModal');renderAll();$('#giftVisual').textContent=g.icon;$('#giftSender').textContent=s.name;$('#giftReceiver').textContent=r.name;$('#giftName').textContent=g.name;$('#giftOverlay').classList.remove('hidden');createGiftParticles(g.level,g.icon);giftSound(g.level);setTimeout(()=>{$('#giftOverlay').classList.add('hidden');$('#giftOverlay .giftParticles')?.remove()},5000)}
 
-  function setVipStatus(message, state = "") {
-    if (!els.vipStatusBox) return;
-    els.vipStatusBox.textContent = message;
-    els.vipStatusBox.className = `vip-status-box ${state}`.trim();
-  }
+function createGiftParticles(level=1,icon='❤️'){
+ const overlay=$('#giftOverlay');
+ overlay.querySelector('.giftParticles')?.remove();
+ const wrap=document.createElement('div');wrap.className='giftParticles';
+ const symbols=[icon,icon,'✨','💫','💖','💜'];
+ const amount=Math.min(42,16+level*4);
+ for(let i=0;i<amount;i++){
+  const p=document.createElement('i');
+  p.textContent=symbols[i%symbols.length];
+  p.style.setProperty('--x',(Math.random()*100)+'vw');
+  p.style.setProperty('--d',(1.9+Math.random()*2.4)+'s');
+  p.style.setProperty('--delay',(Math.random()*.8)+'s');
+  p.style.setProperty('--size',(18+Math.random()*28)+'px');
+  wrap.appendChild(p);
+ }
+ overlay.appendChild(wrap);
+}
 
-  async function refreshVipStatus() {
-    const token = googleSession?.sessionToken || profile?.googleSessionToken || "";
-    if (!token || isLocalDemo() || isSharedLocalServer()) {
-      if (profile?.isVip) setVipStatus("عضوية VIP مفعلة على هذا الحساب.", "active");
-      return { active: Boolean(profile?.isVip), status: profile?.isVip ? "active" : "none" };
-    }
-    try {
-      const response = await fetch("/api/vip/me", {
-        method: "POST", headers: { "content-type": "application/json" }, cache: "no-store",
-        body: JSON.stringify({ authToken: token })
-      });
-      if (!response.ok) throw new Error(`vip ${response.status}`);
-      const data = await response.json();
-      const wasActive = Boolean(profile?.isVip);
-      if (profile) {
-        profile.isVip = Boolean(data.active);
-        profile.vipExpiresAt = Number(data.expiresAt || 0);
-        if (!profile.isVip) profile.vipStealth = false;
-        saveProfile(profile);
-        syncVipUi();
-      }
-      if (data.active) {
-        const date = data.expiresAt > 0 ? new Date(data.expiresAt).toLocaleDateString("ar-IQ") : "بدون انتهاء";
-        setVipStatus(`عضوية VIP مفعلة حتى ${date}.`, "active");
-        if (els.vipRequestButton) { els.vipRequestButton.disabled = true; els.vipRequestButton.textContent = "عضوية VIP مفعلة"; }
-      } else if (["requested", "approved", "awaiting_payment"].includes(data.status)) {
-        const text = data.status === "requested" ? "طلبك وصل إلى الإدارة وينتظر المراجعة." : "وافقت الإدارة. الدفع ينتظر ربط بوابة الدفع.";
-        setVipStatus(text, "pending");
-        if (els.vipRequestButton) { els.vipRequestButton.disabled = true; els.vipRequestButton.textContent = "الطلب قيد المعالجة"; }
-      } else {
-        setVipStatus("عضوية واحدة بسعر 15$ شهرياً. أرسل الطلب إلى الإدارة.");
-        if (els.vipRequestButton) { els.vipRequestButton.disabled = false; els.vipRequestButton.textContent = "طلب عضوية VIP"; }
-      }
-      if (profile && wasActive !== Boolean(data.active) && transport?.isReady?.()) {
-        transport.close();
-        connectTransport();
-      }
-      return data;
-    } catch (error) {
-      console.warn("VIP status unavailable", error);
-      setVipStatus("تعذر قراءة حالة العضوية الآن. حاول لاحقاً.");
-      return { active: false, status: "unknown" };
-    }
-  }
-
-  async function openVipModal() {
-    if (!els.vipModal) return;
-    // A previous mobile close may set an inline display value. Always clear it before opening.
-    els.vipModal.style.removeProperty("display");
-    els.vipModal.classList.remove("hidden");
-    els.vipModal.setAttribute("aria-hidden", "false");
-    document.body.classList.add("modal-open");
-    if (!googleSession?.sessionToken && !profile?.googleSessionToken && googleRequired()) {
-      setVipStatus("سجّل الدخول بحساب Google أولاً، ثم أرسل طلب العضوية.");
-      if (els.vipRequestButton) els.vipRequestButton.disabled = true;
-      return;
-    }
-    await refreshVipStatus();
-  }
-
-  function closeVipModal(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    event?.stopImmediatePropagation?.();
-    if (!els.vipModal) return;
-    els.vipModal.classList.add("hidden");
-    els.vipModal.setAttribute("aria-hidden", "true");
-    // Inline display is a final safety net for mobile browsers with stale modal CSS.
-    els.vipModal.style.display = "none";
-    document.body.classList.remove("modal-open");
-  }
-
-  function bindReliableModalClose(target, handler) {
-    if (!target) return;
-    const close = (event) => handler(event);
-    target.addEventListener("pointerdown", close, { capture: true });
-    target.addEventListener("click", close, { capture: true });
-    target.addEventListener("pointerup", close, { capture: true });
-    target.addEventListener("touchstart", close, { capture: true, passive: false });
-    target.addEventListener("touchend", close, { capture: true, passive: false });
-  }
-
-  function installVipCloseSafetyNet() {
-    const closeFromDelegation = (event) => {
-      const target = event.target?.closest?.("#vipModalClose, [data-close-vip='1']");
-      if (!target || !els.vipModal?.contains(target)) return;
-      closeVipModal(event);
-    };
-    // Delegation keeps the X working even if the modal is re-rendered or the browser restores stale nodes.
-    document.addEventListener("pointerdown", closeFromDelegation, true);
-    document.addEventListener("click", closeFromDelegation, true);
-    document.addEventListener("touchstart", closeFromDelegation, { capture: true, passive: false });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !els.vipModal?.classList.contains("hidden")) closeVipModal(event);
+function giftSound(level){
+  try{
+    const c=new(window.AudioContext||window.webkitAudioContext)(), n=c.currentTime;
+    const notes=[523.25,659.25,783.99,1046.5,1318.5];
+    notes.forEach((f,i)=>{
+      const o=c.createOscillator(), g=c.createGain();
+      o.type=i<2?'triangle':'sine';
+      o.frequency.value=f*(1+level*0.01);
+      g.gain.setValueAtTime(0.0001,n+i*0.11);
+      g.gain.exponentialRampToValueAtTime(0.16,n+i*0.11+0.025);
+      g.gain.exponentialRampToValueAtTime(0.0001,n+i*0.11+0.35);
+      o.connect(g).connect(c.destination);
+      o.start(n+i*0.11);
+      o.stop(n+i*0.11+0.38);
     });
-  }
-
-  async function requestVipMembership() {
-    const token = googleSession?.sessionToken || profile?.googleSessionToken || "";
-    if (!token && googleRequired()) { setVipStatus("سجّل الدخول بحساب Google أولاً."); return; }
-    if (isLocalDemo() || isSharedLocalServer()) {
-      setVipStatus("الطلب يعمل بعد رفع الموقع على Cloudflare وتفعيل تسجيل Google.", "pending");
-      return;
-    }
-    els.vipRequestButton.disabled = true;
-    els.vipRequestButton.textContent = "جاري إرسال الطلب…";
-    try {
-      const response = await fetch("/api/vip/request", {
-        method: "POST", headers: { "content-type": "application/json" }, cache: "no-store",
-        body: JSON.stringify({ authToken: token, nickname: profile?.nickname || els.nicknameInput.value || "مستخدم Rivo" })
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "تعذر إرسال الطلب");
-      if (data.status === "active") setVipStatus("عضوية VIP مفعلة بالفعل.", "active");
-      else setVipStatus("تم إرسال طلب VIP إلى لوحة الإدارة.", "pending");
-      els.vipRequestButton.textContent = "تم إرسال الطلب";
-    } catch (error) {
-      setVipStatus(error.message || "تعذر إرسال الطلب.");
-      els.vipRequestButton.disabled = false;
-      els.vipRequestButton.textContent = "إعادة المحاولة";
-    }
-  }
-
-  function openVipGift(user) {
-    if (!profile?.isVip || !user) return;
-    vipGiftTarget = user;
-    if (els.vipGiftTargetName) els.vipGiftTargetName.textContent = user.nickname || "المستخدم";
-    els.vipGiftModal?.classList.remove("hidden");
-    els.vipGiftModal?.setAttribute("aria-hidden", "false");
-  }
-
-  function closeVipGift() {
-    vipGiftTarget = null;
-    els.vipGiftModal?.classList.add("hidden");
-    els.vipGiftModal?.setAttribute("aria-hidden", "true");
-  }
-
-  function sendVipGift(gift) {
-    if (!profile?.isVip || !vipGiftTarget || !transport?.isReady?.()) return;
-    transport.send({ type: "vip-gift", to: vipGiftTarget.clientId, gift });
-    closeVipGift();
-  }
-
-  async function initializeGoogleLogin() {
-    googleSession = window.RivoGoogleAuth?.loadSession?.() || null;
-    syncGoogleUi();
-
-    if (!googleRequired() || googleSession) return;
-
-    let attempts = 0;
-    const tryRender = () => {
-      attempts += 1;
-      const ready = window.RivoGoogleAuth?.renderButton?.(
-        els.googleSignInButton,
-        (session) => {
-          googleSession = session;
-          els.googleLoginStatus.textContent = "تم تسجيل الدخول بنجاح.";
-          syncGoogleUi();
-        },
-        (message) => {
-          els.googleLoginStatus.textContent = message;
-        }
-      );
-
-      if (!ready && attempts < 25 && window.RivoGoogleAuth?.configured?.()) {
-        setTimeout(tryRender, 400);
-      }
-    };
-
-    tryRender();
-  }
-
-  function mergeMessages(...groups) {
-    const map = new Map();
-    for (const group of groups) {
-      for (const message of group || []) {
-        if (!message?.id) continue;
-        map.set(String(message.id), message);
-      }
-    }
-    return [...map.values()]
-      .sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
-  }
-
-  async function hydratePublicLocal() {
-    if (!profile || !window.RivoLocalData) return;
-    const scopeId = profile.googleUid || profile.clientId;
-    try {
-      const local = await window.RivoLocalData.loadPublic(profile);
-      if (!profile || (profile.googleUid || profile.clientId) !== scopeId) return;
-      publicMessages = mergeMessages(local, publicMessages).slice(-LOCAL_PUBLIC_LIMIT);
-      renderCurrentConversation();
-    } catch (error) {
-      console.warn("Local public history unavailable", error);
-    }
-  }
-
-  async function hydratePrivateLocal(userId) {
-    if (!profile || !window.RivoLocalData || !userId) return;
-    const scopeId = profile.googleUid || profile.clientId;
-    try {
-      const local = await window.RivoLocalData.loadPrivate(profile, userId);
-      if (!profile || (profile.googleUid || profile.clientId) !== scopeId) return;
-      const current = getPrivateMessages(userId);
-      setPrivateMessages(userId, mergeMessages(local, current).slice(-LOCAL_PRIVATE_LIMIT));
-      if (activePrivateUser?.clientId === userId) renderPrivatePopup();
-    } catch (error) {
-      console.warn("Local private history unavailable", error);
-    }
-  }
-
-  function scheduleBoundedLocalCleanup() {
-    localPersistCounter += 1;
-    if (localPersistCounter % 25 !== 0) return;
-    clearTimeout(localCleanupDebounce);
-    localCleanupDebounce = setTimeout(() => {
-      if (profile) window.RivoLocalData?.cleanup?.(profile).catch(() => {});
-    }, 1200);
-  }
-
-  function persistPublicMessage(message) {
-    window.RivoLocalData?.savePublic?.(profile, message)
-      .then(scheduleBoundedLocalCleanup)
-      .catch(() => {});
-  }
-
-  function persistPrivateMessage(message) {
-    window.RivoLocalData?.savePrivate?.(profile, message)
-      .then(scheduleBoundedLocalCleanup)
-      .catch(() => {});
-  }
-
-  function startLocalCleanup() {
-    clearInterval(localCleanupTimer);
-    window.RivoLocalData?.requestPersistentStorage?.().catch(() => {});
-    window.RivoLocalData?.cleanup?.(profile).catch(() => {});
-    localCleanupTimer = setInterval(() => {
-      if (profile) window.RivoLocalData?.cleanup?.(profile).catch(() => {});
-    }, 6 * 60 * 60 * 1000);
-  }
-
-  function loadStaffIdentity() {
-    const params = new URLSearchParams(location.search);
-    if (params.get("staff") !== "1") return null;
-
-    try {
-      const requestedRole = params.get("staffRole") === "owner" ? "owner" : (params.get("staffRole") === "moderator" ? "moderator" : "");
-      const key = requestedRole === "owner" ? OWNER_STAFF_IDENTITY_KEY : requestedRole === "moderator" ? MODERATOR_STAFF_IDENTITY_KEY : LEGACY_STAFF_IDENTITY_KEY;
-      const saved = JSON.parse(localStorage.getItem(key) || localStorage.getItem(LEGACY_STAFF_IDENTITY_KEY) || "null");
-      const hasCode = Boolean(saved?.token);
-      const hasSession = Boolean(
-        saved?.staffSessionToken &&
-        Number(saved?.staffExpiresAt || 0) > Date.now()
-      );
-      if ((!hasCode && !hasSession) || !["owner", "moderator"].includes(saved.role)) return null;
-      return {
-        token: String(saved.token || ""),
-        staffSessionToken: String(saved.staffSessionToken || ""),
-        role: saved.role,
-        visible: saved.visible !== false,
-        clientId: String(saved.clientId || ""),
-        name: String(saved.name || "")
-      };
-    } catch {
-      return null;
-    }
-  }
-
-
-  function setModeratorLoginStatus(message = "", isError = true) {
-    if (!els.moderatorLoginStatus) return;
-    els.moderatorLoginStatus.textContent = message;
-    els.moderatorLoginStatus.classList.toggle("hidden", !message);
-    els.moderatorLoginStatus.classList.toggle("success", Boolean(message) && !isError);
-  }
-
-  function openModeratorLogin() {
-    if (!els.moderatorLoginModal) return;
-    setModeratorLoginStatus("");
-    els.moderatorLoginModal.classList.remove("hidden");
-    els.moderatorLoginModal.setAttribute("aria-hidden", "false");
-    setTimeout(() => els.moderatorCodeInput?.focus(), 50);
-  }
-
-  function closeModeratorLogin() {
-    if (!els.moderatorLoginModal) return;
-    els.moderatorLoginModal.classList.add("hidden");
-    els.moderatorLoginModal.setAttribute("aria-hidden", "true");
-    if (els.moderatorCodeInput) els.moderatorCodeInput.value = "";
-    setModeratorLoginStatus("");
-  }
-
-  function setModeratorLoginBusy(busy) {
-    if (!els.moderatorLoginSubmit) return;
-    els.moderatorLoginSubmit.disabled = busy;
-    els.moderatorLoginSubmit.textContent = busy ? "جاري التحقق…" : "التحقق والدخول";
-  }
-
-  async function authenticateModeratorFromMain(code) {
-    if (isLocalDemo()) {
-      throw new Error("شغّل START_RIVO_CHAT.bat أولاً، ثم ادخل من الصفحة التي يفتحها الخادم.");
-    }
-
-    const local = isSharedLocalServer();
-    const endpoint = local ? "/api/local/staff-login" : "/api/auth/staff";
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      cache: "no-store",
-      body: JSON.stringify(local ? { code } : { code, role: "moderator" })
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.role !== "moderator") {
-      throw new Error(data.error || data.message || "رمز المراقب غير صحيح أو متوقف أو منتهي.");
-    }
-
-    return data;
-  }
-
-  async function handleModeratorMainLogin(event) {
-    event.preventDefault();
-    const code = String(els.moderatorCodeInput?.value || "").trim();
-    if (!code) return;
-
-    setModeratorLoginBusy(true);
-    setModeratorLoginStatus("");
-
-    try {
-      const data = await authenticateModeratorFromMain(code);
-      const identity = {
-        token: isSharedLocalServer() ? code : "",
-        staffSessionToken: String(data.staffSessionToken || ""),
-        staffExpiresAt: Number(data.expiresAt || data.sessionExpiresAt || 0),
-        accountExpiresAt: Number(data.accountExpiresAt || 0),
-        role: "moderator",
-        visible: els.moderatorVisibleInput?.checked !== false,
-        clientId: String(data.staffId || ""),
-        name: String(data.name || "مراقب")
-      };
-
-      localStorage.setItem(MODERATOR_STAFF_IDENTITY_KEY, JSON.stringify(identity));
-      setModeratorLoginStatus("تم التحقق. جاري فتح الدردشة…", false);
-
-      const target = new URL("./moderator.html", location.href);
-      target.searchParams.set("fromMain", "1");
-      target.searchParams.set("v", "25.0");
-      target.searchParams.set("t", String(Date.now()));
-      location.assign(target.href);
-    } catch (error) {
-      setModeratorLoginBusy(false);
-      setModeratorLoginStatus(error.message || "تعذر تسجيل دخول المراقب.");
-    }
-  }
-
-  function roleRank(user) {
-    if (user?.role === "owner") return 0;
-    if (user?.role === "moderator") return 1;
-    if (user?.isVip) return 2;
-    return 3;
-  }
-
-  function stableJoinedAt(user) {
-    const explicit = Number(user?.joinedAt || user?.connectedAt || 0);
-    if (Number.isFinite(explicit) && explicit > 0) {
-      presenceFirstSeen.set(user.clientId, explicit);
-      return explicit;
-    }
-
-    if (!presenceFirstSeen.has(user.clientId)) {
-      presenceFirstSeen.set(user.clientId, Date.now() + presenceFirstSeen.size);
-    }
-    return Number(presenceFirstSeen.get(user.clientId));
-  }
-
-  function orderedUniqueUsers(users) {
-    const uniqueByClient = new Map();
-
-    for (const user of Array.isArray(users) ? users : []) {
-      if (!user?.clientId) continue;
-      const normalized = { ...user, joinedAt: stableJoinedAt(user) };
-      const existing = uniqueByClient.get(user.clientId);
-      if (!existing || normalized.joinedAt < existing.joinedAt) {
-        uniqueByClient.set(user.clientId, normalized);
-      }
-    }
-
-    const activeIds = new Set(uniqueByClient.keys());
-    for (const clientId of presenceFirstSeen.keys()) {
-      if (!activeIds.has(clientId)) presenceFirstSeen.delete(clientId);
-    }
-
-    return [...uniqueByClient.values()].sort((a, b) =>
-      roleRank(a) - roleRank(b) ||
-      Number(a.joinedAt || 0) - Number(b.joinedAt || 0) ||
-      String(a.nickname || "").localeCompare(String(b.nickname || ""), "ar")
-    );
-  }
-
-  function canBypassRoomCapacity() {
-    return Boolean(profile?.isVip || ["owner", "moderator"].includes(profile?.role));
-  }
-
-  function roomFallbackCatalog() {
-    return [
-      ["lobby", "العامة"], ["iraq", "العراق"], ["syria", "سوريا"], ["jordan", "الأردن"],
-      ["saudi", "السعودية"], ["kuwait", "الكويت"], ["oman", "عُمان"], ["dubai", "دبي"],
-      ["expats", "المغتربون"], ["artists-poets", "الفنانون والشعراء"]
-    ].map(([id, name], order) => ({ id, name, order, count: 0, ordinaryCount: 0, vipCount: 0, staffCount: 0, capacity: ROOM_CAPACITY, full: false, enabled: true }));
-  }
-
-  function updateRoomUi() {
-    const room = roomCatalog.find((item) => item.id === activeRoomId);
-    activeRoomName = room?.name || activeRoomName || "العامة";
-    if (els.currentRoomName) els.currentRoomName.textContent = activeRoomName;
-    if (els.quickCurrentRoomName) els.quickCurrentRoomName.textContent = activeRoomName;
-    if (conversationMode === "public") {
-      els.conversationTitle.textContent = activeRoomName;
-      els.messageInput.placeholder = `اكتب رسالة إلى ${activeRoomName}…`;
-    }
-    if (els.publicNavButton) {
-      const title = els.publicNavButton.querySelector("strong");
-      if (title) title.textContent = activeRoomName;
-    }
-    if (els.presenceStrip) els.presenceStrip.setAttribute("aria-label", `المتصلون في ${activeRoomName}`);
-    const heading = els.presenceStrip?.querySelector(".presence-strip-heading strong");
-    if (heading) heading.textContent = `المتصلون في ${activeRoomName}`;
-  }
-
-  function renderRoomsMenu() {
-    if (!els.roomsList) return;
-    els.roomsList.textContent = "";
-    const rooms = [...(roomCatalog.length ? roomCatalog : roomFallbackCatalog())]
-      .filter((room) => room.enabled !== false)
-      .sort((a, b) => Number(b.count || 0) - Number(a.count || 0) || Number(a.order || 0) - Number(b.order || 0));
-    for (const room of rooms) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "room-choice-live";
-      if (room.id === activeRoomId) button.classList.add("active");
-      if (room.full) button.classList.add("full");
-      if (canBypassRoomCapacity()) button.classList.add("can-bypass");
-      button.innerHTML = `<span class="room-choice-icon">#</span><span><strong></strong><small></small></span><i></i>`;
-      button.querySelector("strong").textContent = room.name;
-      button.querySelector("small").textContent = `${Number(room.count || 0)} متصل — ${Number(room.ordinaryCount || 0)}/${room.capacity || ROOM_CAPACITY} مستخدم عادي`;
-      button.querySelector("i").textContent = room.full ? (canBypassRoomCapacity() ? "دخول VIP" : "ممتلئة") : `${Math.max(0, (room.capacity || ROOM_CAPACITY) - Number(room.ordinaryCount || 0))} متاح`;
-      button.disabled = Boolean(room.full && !canBypassRoomCapacity());
-      button.addEventListener("click", () => switchRoom(room));
-      els.roomsList.appendChild(button);
-    }
-  }
-
-  async function loadRooms({ assign = false, preferGeneral = false } = {}) {
-    let serverAssignedRoom = "";
-    try {
-      if (isLocalDemo()) {
-        roomCatalog = roomFallbackCatalog();
-      } else {
-        const response = await fetch(`/api/rooms?t=${Date.now()}`, { cache: "no-store" });
-        if (!response.ok) throw new Error(`rooms ${response.status}`);
-        const data = await response.json();
-        roomCatalog = Array.isArray(data.rooms) && data.rooms.length ? data.rooms : roomFallbackCatalog();
-        serverAssignedRoom = (typeof data.assignedRoom === "string" ? data.assignedRoom : data.assignedRoom?.id) || "";
-      }
-    } catch (error) {
-      console.warn("Room list unavailable", error);
-      roomCatalog = roomFallbackCatalog();
-    }
-
-    const enabledRooms = roomCatalog.filter((room) => room.enabled !== false);
-    const generalRoom = enabledRooms.find((room) => room.id === DEFAULT_ROOM);
-    const firstAvailableRoom = enabledRooms.find((room) => !room.full) || enabledRooms[0];
-
-    // Every normal entry starts in العامة when it is available.
-    // Only an explicit ?room= link, staff entry, or a room chosen after entry overrides it.
-    if (preferGeneral) {
-      activeRoomId = generalRoom && !generalRoom.full
-        ? DEFAULT_ROOM
-        : (firstAvailableRoom?.id || DEFAULT_ROOM);
-    } else if (assign && !activeRoomId) {
-      activeRoomId = serverAssignedRoom || firstAvailableRoom?.id || DEFAULT_ROOM;
-    }
-
-    if (!activeRoomId) activeRoomId = firstAvailableRoom?.id || DEFAULT_ROOM;
-    const current = roomCatalog.find((room) => room.id === activeRoomId);
-    if (!current || (current.full && !canBypassRoomCapacity())) {
-      activeRoomId = firstAvailableRoom?.id || DEFAULT_ROOM;
-    }
-    sessionStorage.setItem(ROOM_KEY, activeRoomId);
-    updateRoomUi();
-    renderRoomsMenu();
-    return activeRoomId;
-  }
-
-  async function switchRoom(room) {
-    if (!room || room.id === activeRoomId) { closeRoomsMenu(); return; }
-    if (room.full && !canBypassRoomCapacity()) { showError("هذه الغرفة ممتلئة. اختر غرفة أخرى."); return; }
-    if (privateSessionPeerId) finishPrivateSession("انتهت المحادثة الخاصة بسبب تغيير الغرفة.", true);
-    stopLiveMic();
-    hideCharacterStage();
-    transport?.close();
-    activeRoomId = room.id;
-    activeRoomName = room.name;
-    sessionStorage.setItem(ROOM_KEY, activeRoomId);
-    resetConversationView();
-    updateRoomUi();
-    closeRoomsMenu();
-    connectTransport();
-    await loadRooms();
-  }
-
-  async function openRoomsMenu() {
-    closeSidebar();
-    els.roomsModal?.classList.remove("hidden");
-    els.roomsModal?.setAttribute("aria-hidden", "false");
-    renderRoomsMenu();
-    await loadRooms();
-  }
-
-  function closeRoomsMenu() {
-    els.roomsModal?.classList.add("hidden");
-    els.roomsModal?.setAttribute("aria-hidden", "true");
-  }
-
-  function crownMarkup() {
-    return `<span class="user-role-crown" title="الإدارة">
-      <svg viewBox="0 0 64 48" aria-hidden="true">
-        <path d="M8 36 4 11l15 10L32 4l13 17 15-10-4 25H8Z"/>
-        <path class="crown-base" d="M10 36h44l-3 8H13l-3-8Z"/>
-        <circle class="ruby" cx="18" cy="31" r="3"/>
-        <circle class="sapphire" cx="32" cy="27" r="3.5"/>
-        <circle class="emerald" cx="46" cy="31" r="3"/>
-      </svg>
-    </span>`;
-  }
-
-  function moderatorStarMarkup(extraClass = "") {
-    const className = ["moderator-role-star", extraClass].filter(Boolean).join(" ");
-    return `<span class="${className}" title="مراقب Rivo" aria-label="مراقب Rivo"><i>★</i><b>مراقب</b></span>`;
-  }
-
-  function vipGemMarkup(extraClass = "") {
-    const className = ["vip-role-gem", extraClass].filter(Boolean).join(" ");
-    return `<span class="${className}" title="عضو VIP" aria-label="عضو VIP"><i>💎</i><b>VIP</b></span>`;
-  }
-
-  function ownerRoleMarkup(extraClass = "") {
-    const className = ["owner-role-label", extraClass].filter(Boolean).join(" ");
-    return `<span class="${className}" title="إدارة Rivo" aria-label="إدارة Rivo">الإدارة</span>`;
-  }
-
-  const RIVO_BADGES = {
-    star: { icon: "⭐", label: "نجمة ذهبية" },
-    diamond: { icon: "💎", label: "ماسة زرقاء" },
-    ruby: { icon: "♦️", label: "جوهرة حمراء" },
-    heart: { icon: "❤️", label: "قلب ملكي" },
-        emerald: { icon: "💚", label: "زمردة خضراء" }
-  };
-
-  function badgeMarkup(badgeId, extraClass = "") {
-    const badge = RIVO_BADGES[String(badgeId || "")];
-    if (!badge) return "";
-
-    return `<span class="rivo-award-badge badge-${badgeId} ${extraClass}"
-                  title="${badge.label}" aria-label="${badge.label}">${badge.icon}</span>`;
-  }
-
-  function badgeForClient(clientId, fallback = "") {
-    return currentUsers.find((user) => user.clientId === clientId)?.badge || fallback || "";
-  }
-
-  function firstName(value) {
-    const clean = String(value || "").trim().replace(/\s+/g, " ");
-    return clean ? clean.split(" ")[0] : "مستخدم";
-  }
-
-  function userRoleById(clientId, fallback = "user") {
-    if (profile?.clientId === clientId) return profile.role || fallback;
-    return currentUsers.find((user) => user.clientId === clientId)?.role || fallback;
-  }
-
-  function randomId() {
-    return crypto.randomUUID ? crypto.randomUUID() :
-      `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
-
-  function createVoiceRoom() {
-    if (!window.RivoVoiceRoom) {
-      console.error("RivoVoiceRoom was not loaded");
-      return null;
-    }
-
-    return new window.RivoVoiceRoom({
-      getProfile: () => profile,
-      getTransport: () => transport,
-      onRemoteCount: (count) => {
-        remoteStreamCount = Math.max(0, Number(count || 0));
-        syncRoomAudioCount();
-      },
-      onConnectionState: (_peerId, state) => {
-        if (state === "failed") {
-          showError("تعذر ربط صوت أحد المستخدمين. سيحاول التطبيق الاتصال مجدداً.");
-        }
-      },
-      onError: (message) => showError(message, 6500)
-    });
-  }
-
-  function createRelayAudio() {
-    if (!window.RivoRelayAudio) {
-      console.error("RivoRelayAudio was not loaded");
-      return null;
-    }
-
-    return new window.RivoRelayAudio({
-      getProfile: () => profile,
-      getTransport: () => transport,
-      onRemoteCount: (count) => {
-        relayRemoteCount = Math.max(0, Number(count || 0));
-        syncRoomAudioCount();
-      },
-      onRemoteStart: (event) => {
-        if (micActive || !event) return;
-        const speaker = currentUsers.find((user) => user.clientId === event.from);
-        const character = getCharacter(event.avatar || speaker?.avatar || currentMicHolderAvatar);
-        if (stageMode !== "remote" || remoteSpeakerId !== event.from || els.avatarLivePanel.classList.contains("hidden")) {
-          remoteSpeakerId = event.from || currentMicHolderId || "";
-          showCharacterStage(
-            character,
-            `${event.nickname || speaker?.nickname || currentMicHolderName || "مستخدم"} على المايك`,
-            "يتكلم الآن",
-            "remote"
-          );
-        }
-      },
-      onRemoteLevel: (level, state = {}) => {
-        if (micActive || stageMode !== "remote") return;
-        const normalized = Math.max(0, Math.min(1, Number(level || 0)));
-        const now = performance.now();
-        if (state.laugh) remoteLaughUntil = Math.max(remoteLaughUntil, now + 700);
-        const laugh = Boolean(state.laugh) || now < remoteLaughUntil;
-        const active = Boolean(state.active) || normalized > 0 || laugh;
-
-        window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-          detail: { level: normalized, laugh, active }
-        }));
-        if (normalized > 0.02 && els.liveMicStatus) {
-          els.liveMicStatus.textContent = laugh ? "يضحك الآن" : "يتكلم الآن";
-        }
-      },
-      onRemoteStop: () => {
-        remoteLaughUntil = 0;
-        if (stageMode === "remote") {
-          window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-            detail: { level: 0, laugh: false, active: false }
-          }));
-        }
-      },
-      onError: (message) => showError(message, 7000)
-    });
-  }
-
-  async function unlockRoomAudio() {
-    const results = await Promise.all([
-      relayAudio?.unlock?.().catch(() => false),
-      voiceRoom?.unlockPlayback?.().catch(() => false),
-      localPcmRelay?.unlock?.().catch(() => false)
-    ]);
-
-    return results.some(Boolean);
-  }
-
-  function syncRoomAudioCount() {
-    const remoteMicActive = Boolean(
-      currentMicHolderId &&
-      currentMicHolderId !== profile?.clientId
-    );
-    const visibleCount = Math.max(remoteStreamCount, relayRemoteCount, remoteMicActive ? 1 : 0);
-
-    if (els.remoteAudioCount) els.remoteAudioCount.textContent = String(visibleCount);
-    if (els.roomSoundButton) {
-      els.roomSoundButton.classList.toggle("receiving", visibleCount > 0);
-      els.roomSoundButton.title = visibleCount > 0
-        ? `يوجد ${visibleCount} صوت نشط — اضغط للاستماع أو الكتم`
-        : "اضغط مرة واحدة لتفعيل سماع صوت الغرفة";
-    }
-  }
-
-  function syncRoomSoundButton() {
-    const muted = Boolean(
-      relayAudio?.isMuted?.() ||
-      voiceRoom?.isPlaybackMuted?.() ||
-      localPcmRelay?.isMuted?.()
-    );
-    const unlocked = Boolean(
-      relayAudio?.isUnlocked?.() ||
-      voiceRoom?.isPlaybackUnlocked?.() ||
-      localPcmRelay?.isUnlocked?.()
-    );
-    els.roomSoundButton.classList.toggle("active", unlocked && !muted);
-    els.roomSoundButton.classList.toggle("needs-unlock", !unlocked);
-    els.roomSoundIcon.textContent = !unlocked ? "🔈" : (muted ? "🔇" : "🔊");
-    els.roomSoundLabel.textContent = !unlocked ? "شغّل الصوت" : (muted ? "الصوت مكتوم" : "صوت الغرفة");
-    syncRoomAudioCount();
-  }
-
-  function installFirstGestureAudioUnlock() {
-    if (audioUnlockInstalled) return;
-    audioUnlockInstalled = true;
-
-    const unlockOnce = async () => {
-      const unlocked = await unlockRoomAudio();
-      if (!unlocked) return;
-      relayAudio?.setMuted?.(false);
-      voiceRoom?.setPlaybackMuted?.(false);
-      localPcmRelay?.setMuted?.(false);
-      syncRoomSoundButton();
-      document.removeEventListener("pointerdown", unlockOnce, true);
-      document.removeEventListener("touchstart", unlockOnce, true);
-      document.removeEventListener("keydown", unlockOnce, true);
-    };
-
-    document.addEventListener("pointerdown", unlockOnce, true);
-    document.addEventListener("touchstart", unlockOnce, { capture: true, passive: true });
-    document.addEventListener("keydown", unlockOnce, true);
-  }
-
-
-  function updateMicAvailability() {
-    const myId = profile?.clientId || "";
-    const mine = currentMicHolderId && currentMicHolderId === myId;
-    const busy = currentMicHolderId && !mine;
-    const closed = roomPublicMicEnabled === false;
-    const blocked = myMicBlocked === true;
-
-    if (els.voiceButton) {
-      els.voiceButton.disabled = Boolean(busy || closed || blocked);
-      els.voiceButton.title = busy
-        ? `${currentMicHolderName || "مستخدم آخر"} على المايك`
-        : closed
-          ? "الإدارة أغلقت مايك العامة"
-          : blocked
-            ? "الإدارة منعت المايك عن حسابك"
-            : "تشغيل المايك وإرسال صوتك للغرفة";
-    }
-
-    if (els.toggleLiveMic) {
-      els.toggleLiveMic.disabled = Boolean((busy && stageMode !== "local") || closed || blocked);
-    }
-  }
-
-  function clearPendingMicClaim(result = false) {
-    if (!pendingMicClaim) return;
-    clearTimeout(pendingMicClaim.timer);
-    pendingMicClaim.resolve(result);
-    pendingMicClaim = null;
-  }
-
-  function requestMicClaim() {
-    if (!profile || !transport?.isReady?.()) return Promise.resolve(false);
-
-    if (roomPublicMicEnabled === false) {
-      showError("الإدارة أغلقت مايك العامة.");
-      return Promise.resolve(false);
-    }
-
-    if (myMicBlocked) {
-      showError("الإدارة منعت المايك عن حسابك.");
-      return Promise.resolve(false);
-    }
-
-    if (currentMicHolderId && currentMicHolderId !== profile.clientId) {
-      showError(`${currentMicHolderName || "مستخدم آخر"} على المايك الآن.`);
-      return Promise.resolve(false);
-    }
-
-    // Local mode returns the result directly. This avoids the lost-event timeout
-    // that occurred inside the embedded admin chat iframe.
-    if (typeof transport.claimMicDirect === "function") {
-      const result = transport.claimMicDirect();
-
-      if (!result.ok) {
-        showError(result.message || "تعذر حجز المايك.");
-        return Promise.resolve(false);
-      }
-
-      return Promise.resolve(true);
-    }
-
-    if (pendingMicClaim) return Promise.resolve(false);
-
-    return new Promise((resolve) => {
-      const timer = setTimeout(() => {
-        if (!pendingMicClaim) return;
-        pendingMicClaim = null;
-        showError("تعذر حجز المايك الآن. حاول مرة أخرى.");
-        resolve(false);
-      }, 5000);
-
-      pendingMicClaim = { resolve, timer };
-      transport.send({ type: "mic-claim" });
-    });
-  }
-
-  function releaseMicClaim() {
-    if (!profile || !transport?.isReady?.()) return;
-    if (!currentMicHolderId || currentMicHolderId !== profile.clientId) return;
-    transport.send({ type: "mic-release" });
-  }
-
-  function handleMicDenied(event) {
-    if (!profile || event?.to !== profile.clientId) return;
-    clearPendingMicClaim(false);
-    if (event.message) {
-      showError(event.message);
-      return;
-    }
-    const holder = event.nickname || "مستخدم آخر";
-    showError(`${holder} على المايك الآن. انتظر حتى ينزل.`);
-  }
-
-  function handleMicState(event) {
-    const wasMine = currentMicHolderId && currentMicHolderId === profile?.clientId;
-
-    if (event?.active) {
-      currentMicHolderId = event.clientId || "";
-      currentMicHolderName = event.nickname || "";
-      currentMicHolderAvatar = event.avatar || "";
-    } else {
-      currentMicHolderId = "";
-      currentMicHolderName = "";
-      currentMicHolderAvatar = "";
-    }
-
-    const isMine = currentMicHolderId && currentMicHolderId === profile?.clientId;
-
-    if (isMine && pendingMicClaim) {
-      clearPendingMicClaim(true);
-    }
-
-    if (!event?.active && pendingMicClaim && wasMine) {
-      clearPendingMicClaim(false);
-    }
-
-    updateMicAvailability();
-    syncRoomAudioCount();
-    if (profile?.isVip) renderUsers(currentUsers);
-
-    if (event?.active && currentMicHolderId && currentMicHolderId !== profile?.clientId && !micActive) {
-      const speaker = currentUsers.find((user) => user.clientId === currentMicHolderId);
-      const character = getCharacter(event.avatar || speaker?.avatar);
-      showCharacterStage(
-        character,
-        `${event.nickname || "مستخدم"} على المايك`,
-        "بانتظار الكلام",
-        "remote"
-      );
-    }
-
-    if (!event?.active && stageMode === "remote") {
-      hideCharacterStage();
-    }
-  }
-
-
-  function handleRoomControls(event) {
-    roomPublicMicEnabled = event.publicMicEnabled !== false;
-    roomPrivateMicEnabled = Boolean(event.privateMicEnabled);
-
-    if (!roomPublicMicEnabled && micActive) {
-      stopLiveMic();
-      hideCharacterStage();
-      showError("الإدارة أغلقت مايك العامة.");
-    }
-
-    updateMicAvailability();
-  }
-
-  function handleMyRestrictions(event) {
-    if (!profile || event.clientId !== profile.clientId) return;
-    myMicBlocked = Boolean(event.micBlocked);
-    myPrivateBlocked = Boolean(event.privateBlocked);
-
-    if (myMicBlocked && micActive) {
-      stopLiveMic();
-      hideCharacterStage();
-      showError("الإدارة أوقفت المايك عن حسابك.");
-    }
-
-    if (myPrivateBlocked) {
-      profile.privateOpen = false;
-      syncPrivateToggleUI();
-    }
-
-    updateMicAvailability();
-  }
-
-  function totalPrivateUnread() {
-    let total = 0;
-    for (const value of privateUnreadByUser.values()) total += Number(value || 0);
-    return total;
-  }
-
-  function syncPrivateUnreadUI() {
-    const total = totalPrivateUnread();
-    if (els.privateUnreadBadge) {
-      els.privateUnreadBadge.textContent = String(total);
-      els.privateUnreadBadge.classList.toggle("hidden", total < 1);
-    }
-    if (els.privateNavStatus) {
-      els.privateNavStatus.textContent = total > 0
-        ? `${total} رسالة جديدة`
-        : (activePrivateUser ? `مع ${activePrivateUser.nickname}` : "اختر مستخدماً");
-    }
-
-    const activeUnread = activePrivateUser
-      ? Number(privateUnreadByUser.get(activePrivateUser.clientId) || 0)
-      : total;
-
-    els.privatePopupCollapsedUnread.textContent = String(activeUnread);
-    els.privatePopupCollapsedUnread.classList.toggle("hidden", activeUnread < 1);
-  }
-
-  function syncPrivateToggleUI() {
-    const open = profile?.privateOpen !== false;
-    els.privateToggleButton.classList.toggle("open", open);
-    els.privateToggleButton.classList.toggle("closed", !open);
-    els.privateToggleButton.title = open ? "الخاص مفتوح" : "الخاص مغلق";
-    els.privateToggleButton.setAttribute("aria-label", open ? "إغلاق الخاص" : "فتح الخاص");
-  }
-
-  function setPrivateOpen(open) {
-    if (!profile) return;
-    profile.privateOpen = Boolean(open);
-    saveProfile(profile);
-    syncPrivateToggleUI();
-
-    const own = currentUsers.find((user) => user.clientId === profile.clientId);
-    if (own) own.privateOpen = profile.privateOpen;
-    renderUsers(currentUsers);
-
-    if (transport?.isReady?.()) {
-      transport.send({
-        type: "privacy-setting",
-        privateOpen: profile.privateOpen
-      });
-    }
-
-    showError(profile.privateOpen ? "الخاص أصبح مفتوحاً." : "الخاص أصبح مغلقاً.", 2500);
-  }
-
-  function privateThreadKey(userId) {
-    return String(userId || "");
-  }
-
-  function getPrivateMessages(userId) {
-    return privateMessagesByUser.get(privateThreadKey(userId)) || [];
-  }
-
-  function setPrivateMessages(userId, messages) {
-    const clean = Array.isArray(messages) ? messages : [];
-    privateMessagesByUser.set(privateThreadKey(userId), clean);
-  }
-
-  function otherPrivateUserId(message) {
-    if (!profile || !message) return "";
-    return message.senderId === profile.clientId
-      ? message.recipientId
-      : message.senderId;
-  }
-
-  function privateMessageToRender(message) {
-    return {
-      id: message.id,
-      clientId: message.senderId,
-      nickname: message.senderNickname,
-      avatar: message.senderAvatar,
-      body: message.body,
-      createdAt: message.createdAt,
-      private: true
-    };
-  }
-
-  function updateConversationHeader() {
-    // The main conversation always remains the public room.
-    els.publicNavButton.classList.add("active");
-    els.privateNavButton?.classList.remove("active");
-    els.backToPublicButton.classList.add("hidden");
-    els.roomSoundButton.classList.remove("hidden");
-    els.voiceButton.classList.remove("hidden");
-    els.chatApp.classList.remove("private-mode");
-    els.roomSymbol.textContent = "#";
-    els.conversationTitle.textContent = activeRoomName || "العامة";
-    els.conversationSubtitle.innerHTML = `<span id="onlineCountHeader">${currentUsers.length}</span> متصل الآن`;
-    els.onlineCountHeader = $("onlineCountHeader");
-    els.messageInput.placeholder = `اكتب رسالة إلى ${activeRoomName || "العامة"}…`;
-    syncPrivateUnreadUI();
-  }
-
-  function renderWelcomeCard(kind = "public") {
-    const welcome = document.createElement("div");
-    welcome.className = "welcome-card";
-    welcome.innerHTML = `
-      <div class="welcome-icon">#</div>
-      <h2>أهلاً بك في ${activeRoomName || "العامة"}</h2>
-      <p>تكلم باحترام، ولا تنشر رقم هاتفك أو عنوانك أو معلوماتك الشخصية.</p>
-    `;
-    els.messages.appendChild(welcome);
-  }
-
-  function renderCurrentConversation() {
-    renderedMessageIds = new Set();
-    lastRenderedDay = "";
-    els.messages.textContent = "";
-    renderWelcomeCard("public");
-    publicMessages.forEach(renderMessage);
-    updateConversationHeader();
-    scrollToBottom();
-  }
-
-  function privateTime(value) {
-    try {
-      return new Intl.DateTimeFormat("ar-IQ", {
-        hour: "numeric",
-        minute: "2-digit"
-      }).format(new Date(value));
-    } catch {
-      return "";
-    }
-  }
-
-  function renderPrivatePopupEmpty() {
-    els.privatePopupMessages.innerHTML = `
-      <div class="private-popup-empty">
-        <span>✉</span>
-        <strong>الرسائل الخاصة</strong>
-        <p>اضغط زر الخاص بجانب اسم أي مستخدم متصل.</p>
-      </div>
-    `;
-  }
-
-  function renderPrivatePopup() {
-    els.privatePopupMessages.textContent = "";
-
-    if (!activePrivateUser) {
-      renderPrivatePopupEmpty();
-      els.privatePopupAvatar.src = avatarUrl("lina");
-      els.privatePopupAvatar.alt = "";
-      els.privatePopupName.textContent = "الرسائل الخاصة";
-      els.privatePopupStatus.textContent = "اختر مستخدماً من قائمة المتصلين";
-      els.privatePopupInput.value = "";
-      els.privatePopupInput.disabled = true;
-      els.privatePopupSend.disabled = true;
-      els.privatePopupInput.placeholder = "اختر مستخدماً أولاً";
-      els.privatePopupCollapsedName.textContent = "الخاص";
-      els.privatePopupCollapsedAvatar.src = avatarUrl("lina");
-      syncPrivateUnreadUI();
-      return;
-    }
-
-    els.privatePopupAvatar.src = avatarUrl(activePrivateUser.avatar);
-    els.privatePopupAvatar.alt = "";
-    els.privatePopupName.textContent = activePrivateUser.nickname;
-    els.privatePopupCollapsedName.textContent = activePrivateUser.nickname;
-    els.privatePopupCollapsedAvatar.src = avatarUrl(activePrivateUser.avatar);
-
-    const sessionActive = privateSessionPeerId === activePrivateUser.clientId;
-    const blocked = activePrivateUser.privateOpen === false || !sessionActive;
-    els.privatePopupStatus.textContent = sessionActive
-      ? "مشغولان في محادثة خاصة"
-      : "انتهت المحادثة الخاصة";
-    els.privatePopupInput.disabled = blocked;
-    els.privatePopupSend.disabled = blocked;
-    els.privatePopupInput.placeholder = sessionActive
-      ? `اكتب إلى ${activePrivateUser.nickname}…`
-      : "انتهت المحادثة";
-
-    const thread = getPrivateMessages(activePrivateUser.clientId);
-
-    if (!thread.length) {
-      const empty = document.createElement("div");
-      empty.className = "private-popup-empty compact";
-      empty.innerHTML = `
-        <span>✉</span>
-        <strong>ابدأ المحادثة</strong>
-        <p>الرسائل هنا تظهر لكما فقط.</p>
-      `;
-      els.privatePopupMessages.appendChild(empty);
-    } else {
-      const fragment = document.createDocumentFragment();
-
-      thread.forEach((message) => {
-        const own = message.senderId === profile?.clientId;
-        const row = document.createElement("div");
-        row.className = `private-message-row ${own ? "own" : "other"}`;
-
-        if (!own) {
-          const avatar = document.createElement("img");
-          avatar.src = avatarUrl(message.senderAvatar);
-          avatar.alt = "";
-          row.appendChild(avatar);
-        }
-
-        const content = document.createElement("div");
-        content.className = "private-message-content";
-
-        const bubble = document.createElement("div");
-        bubble.className = "private-message-bubble";
-        bubble.textContent = message.body;
-
-        const time = document.createElement("small");
-        time.textContent = privateTime(message.createdAt);
-
-        content.append(bubble, time);
-        row.appendChild(content);
-        fragment.appendChild(row);
-      });
-
-      els.privatePopupMessages.appendChild(fragment);
-    }
-
-    requestAnimationFrame(() => {
-      els.privatePopupMessages.scrollTop = els.privatePopupMessages.scrollHeight;
-    });
-
-    syncPrivateUnreadUI();
-  }
-
-  function showPrivatePopup() {
-    els.privatePopup.classList.remove("hidden");
-    els.privatePopup.classList.toggle("expanded", privatePopupExpanded);
-    els.privatePopup.classList.toggle("minimized", privatePopupMinimized);
-    els.privatePopupBody.classList.toggle("hidden", privatePopupMinimized);
-    els.privatePopupCollapsedButton.classList.toggle("hidden", !privatePopupMinimized);
-    renderPrivatePopup();
-  }
-
-  function openPrivateHome() {
-    // There is no generic private inbox button. Private chat starts beside a user.
-    closeSidebar();
-  }
-
-  function showPrivateRequestModal(request) {
-    pendingPrivateRequest = request || null;
-    if (!pendingPrivateRequest || !els.privateRequestModal) return;
-    const requestId = pendingPrivateRequest.requestId;
-    const delay = Math.max(1000, Number(pendingPrivateRequest.expiresAt || (Date.now() + 45000)) - Date.now());
-    setTimeout(() => {
-      if (pendingPrivateRequest?.requestId !== requestId) return;
-      pendingPrivateRequest = null;
-      hidePrivateRequestModal();
-      renderUsers(currentUsers);
-      showError("انتهت مهلة طلب المحادثة الخاصة.", 3000);
-    }, delay);
-    els.privateRequestAvatar.src = avatarUrl(pendingPrivateRequest.fromAvatar);
-    els.privateRequestName.textContent = pendingPrivateRequest.fromNickname || "مستخدم";
-    els.privateRequestModal.classList.remove("hidden");
-    els.privateRequestModal.setAttribute("aria-hidden", "false");
-  }
-
-  function hidePrivateRequestModal() {
-    els.privateRequestModal?.classList.add("hidden");
-    els.privateRequestModal?.setAttribute("aria-hidden", "true");
-  }
-
-  function requestPrivateChat(user) {
-    if (!user || user.clientId === profile?.clientId || !transport?.isReady?.()) return;
-    const ownerOverride = profile?.role === "owner";
-    if (privateSessionPeerId) {
-      showError("أنت مشغول في محادثة خاصة حالياً. أنهِها أولاً.");
-      return;
-    }
-    if (pendingPrivateRequest) {
-      showError("لديك طلب محادثة خاصة بانتظار موافقتك أو رفضك.");
-      return;
-    }
-    if (outgoingPrivateRequestTo) {
-      showError("لديك طلب خاص بانتظار الرد.");
-      return;
-    }
-    if (!ownerOverride && (user.privateOpen === false || user.privateBlocked === true)) {
-      showError(`${user.nickname} أغلق الرسائل الخاصة.`);
-      return;
-    }
-    if (user.privateBusy) {
-      showError(`${user.nickname} مشغول في محادثة خاصة الآن.`);
-      return;
-    }
-
-    outgoingPrivateRequestTo = user.clientId;
-    const requestedUserId = user.clientId;
-    transport.send({ type: "private-request", to: user.clientId });
-    setTimeout(() => {
-      if (outgoingPrivateRequestTo !== requestedUserId || privateSessionPeerId) return;
-      outgoingPrivateRequestTo = "";
-      renderUsers(currentUsers);
-      showError("انتهت مهلة طلب المحادثة الخاصة. يمكنك المحاولة من جديد.", 3500);
-    }, 46000);
-    renderUsers(currentUsers);
-    showError(ownerOverride
-      ? `جاري فتح محادثة خاصة مباشرة مع ${user.nickname}…`
-      : `تم إرسال طلب خاص إلى ${user.nickname}. بانتظار الموافقة…`, 4000);
-  }
-
-  function openPrivateChat(user) {
-    requestPrivateChat(user);
-  }
-
-  function startPrivateSession(peer) {
-    if (!peer?.clientId) return;
-    privateSessionPeerId = peer.clientId;
-    outgoingPrivateRequestTo = "";
-    pendingPrivateRequest = null;
-    hidePrivateRequestModal();
-    activePrivateUser = { ...peer, privateBusy: true };
-    privatePopupMinimized = false;
-    privateUnreadByUser.delete(peer.clientId);
-    syncPrivateUnreadUI();
-    hydratePrivateLocal(peer.clientId);
-    showPrivatePopup();
-    els.privatePopup.classList.add("active-session");
-
-    if (transport?.isReady?.()) {
-      transport.send({ type: "private-history-request", with: peer.clientId });
-    }
-    renderUsers(currentUsers);
-    setTimeout(() => els.privatePopupInput.focus(), 100);
-  }
-
-  function finishPrivateSession(message = "انتهت المحادثة الخاصة.", notifyServer = false) {
-    const peerId = privateSessionPeerId;
-    if (notifyServer && peerId && transport?.isReady?.()) {
-      transport.send({ type: "private-end", with: peerId });
-    }
-    privateSessionPeerId = "";
-    outgoingPrivateRequestTo = "";
-    activePrivateUser = null;
-    els.privatePopup.classList.remove("active-session", "expanded", "minimized");
-    els.privatePopup.classList.add("hidden");
-    privatePopupExpanded = false;
-    privatePopupMinimized = false;
-    renderUsers(currentUsers);
-    if (message) showError(message, 3500);
-  }
-
-  function closePrivatePopup() {
-    if (privateSessionPeerId) {
-      finishPrivateSession("تم إنهاء المحادثة الخاصة.", true);
-      return;
-    }
-    els.privatePopup.classList.add("hidden");
-    privatePopupMinimized = false;
-    els.privatePopupBody.classList.remove("hidden");
-    els.privatePopupCollapsedButton.classList.add("hidden");
-  }
-
-  function minimizePrivatePopup() {
-    if (els.privatePopup.classList.contains("hidden")) return;
-    privatePopupMinimized = true;
-    privatePopupExpanded = false;
-    els.privatePopup.classList.remove("expanded");
-    els.privatePopup.classList.add("minimized");
-    els.privatePopupBody.classList.add("hidden");
-    els.privatePopupCollapsedButton.classList.remove("hidden");
-  }
-
-  function restorePrivatePopup() {
-    privatePopupMinimized = false;
-    els.privatePopup.classList.remove("minimized");
-    els.privatePopupBody.classList.remove("hidden");
-    els.privatePopupCollapsedButton.classList.add("hidden");
-    renderPrivatePopup();
-    setTimeout(() => els.privatePopupInput.focus(), 80);
-  }
-
-  function togglePrivatePopupExpanded() {
-    if (privatePopupMinimized) restorePrivatePopup();
-    privatePopupExpanded = !privatePopupExpanded;
-    els.privatePopup.classList.toggle("expanded", privatePopupExpanded);
-    els.privatePopupExpand.title = privatePopupExpanded
-      ? "العودة إلى المربع الصغير"
-      : "ملء الشاشة";
-    els.privatePopupExpand.setAttribute(
-      "aria-label",
-      privatePopupExpanded ? "العودة إلى المربع الصغير" : "ملء الشاشة"
-    );
-    renderPrivatePopup();
-  }
-
-  function switchToPublic() {
-    // Kept for compatibility: the main room is always public.
-    closeSidebar();
-  }
-
-  function handlePrivateHistory(event) {
-    const userId = String(event.with || "");
-    if (!userId) return;
-
-    const merged = mergeMessages(
-      getPrivateMessages(userId),
-      event.messages || []
-    ).slice(-LOCAL_PRIVATE_LIMIT);
-    setPrivateMessages(userId, merged);
-    (event.messages || []).forEach(persistPrivateMessage);
-    if (activePrivateUser?.clientId === userId) {
-      renderPrivatePopup();
-    }
-  }
-
-  function handlePrivateMessage(message) {
-    if (!message?.id || !profile) return;
-
-    const userId = otherPrivateUserId(message);
-    if (!userId) return;
-
-    const thread = getPrivateMessages(userId);
-    if (!thread.some((item) => item.id === message.id)) {
-      thread.push(message);
-      thread.sort((a, b) => Number(a.createdAt) - Number(b.createdAt));
-      setPrivateMessages(userId, thread.slice(-LOCAL_PRIVATE_LIMIT));
-      persistPrivateMessage(message);
-    }
-
-    const popupVisible = !els.privatePopup.classList.contains("hidden");
-    const viewing = activePrivateUser?.clientId === userId &&
-      popupVisible &&
-      !privatePopupMinimized;
-
-    if (viewing) {
-      privateUnreadByUser.delete(userId);
-      renderPrivatePopup();
-    } else if (message.senderId !== profile.clientId) {
-      privateUnreadByUser.set(
-        userId,
-        Number(privateUnreadByUser.get(userId) || 0) + 1
-      );
-      syncPrivateUnreadUI();
-      renderUsers(currentUsers);
-      showError(`رسالة خاصة جديدة من ${message.senderNickname}`, 3500);
-    }
-  }
-
-  function handlePrivateDenied(event) {
-    showError(event.message || "تعذر فتح المحادثة الخاصة.");
-    if (activePrivateUser && event.to === activePrivateUser.clientId) {
-      activePrivateUser.privateOpen = false;
-      renderPrivatePopup();
-      renderUsers(currentUsers);
-    }
-  }
-
-  function handlePrivateRequest(event) {
-    if (!event?.requestId || privateSessionPeerId) {
-      if (event?.requestId && transport?.isReady?.()) {
-        transport.send({ type: "private-response", requestId: event.requestId, accept: false });
-      }
-      return;
-    }
-    showPrivateRequestModal(event);
-    renderUsers(currentUsers);
-  }
-
-  function handlePrivateRequestSent(event) {
-    outgoingPrivateRequestTo = event.to || outgoingPrivateRequestTo;
-    renderUsers(currentUsers);
-  }
-
-  function handlePrivateRejected(event) {
-    outgoingPrivateRequestTo = "";
-    renderUsers(currentUsers);
-    showError(event.message || "رفض المستخدم طلب المحادثة الخاصة.", 4000);
-  }
-
-  function handlePrivateStarted(event) {
-    const peer = event.peer || currentUsers.find((user) => user.clientId === event.with);
-    if (!peer) return;
-    startPrivateSession(peer);
-    if (event.adminOverride) {
-      showError(profile?.role === "owner"
-        ? `تم فتح الخاص مباشرة مع ${peer.nickname}.`
-        : "فتحت الإدارة محادثة خاصة معك.", 3200);
-    } else {
-      showError(`بدأت محادثة خاصة مع ${peer.nickname}.`, 2500);
-    }
-  }
-
-  function handlePrivateEnded(event) {
-    if (!privateSessionPeerId && !activePrivateUser) return;
-    finishPrivateSession(event.message || "انتهت المحادثة الخاصة.", false);
-  }
-
-  function getClientId() {
-    const storage = isLocalDemo() ? sessionStorage : localStorage;
-    let id = storage.getItem(CLIENT_ID_KEY);
-    if (!id) {
-      id = randomId();
-      storage.setItem(CLIENT_ID_KEY, id);
-    }
-    return id;
-  }
-
-  function getCharacter(id) {
-    return CHARACTERS.find((item) => item.id === id && item.available !== false) ||
-      CHARACTERS.find((item) => item.isDefault) ||
-      CHARACTERS[0] ||
-      {
-        id: "lina",
-        name: "لينا",
-        portrait: "./characters/lina/portrait.webp",
-        portraitSmall: "./characters/lina/portrait-small.webp",
-        model: ""
-      };
-  }
-
-  function avatarUrl(name) {
-    const character = getCharacter(name);
-    return character.portraitSmall || character.portrait;
-  }
-
-  function profileStorageKey(value = null) {
-    const googleUid = value?.googleUid || googleSession?.googleUid || "";
-    return googleUid ? `${PROFILE_KEY}:${googleUid}` : PROFILE_KEY;
-  }
-
-  function pendingAvatarStorageKey() {
-    const googleUid = googleSession?.googleUid || "guest";
-    return `${PENDING_AVATAR_KEY}:${googleUid}`;
-  }
-
-  function loadPendingAvatar() {
-    try {
-      return localStorage.getItem(pendingAvatarStorageKey()) || "";
-    } catch {
-      return "";
-    }
-  }
-
-  function savePendingAvatar(avatarId) {
-    try {
-      localStorage.setItem(pendingAvatarStorageKey(), getCharacter(avatarId).id);
-    } catch {}
-  }
-
-  function loadSavedProfile() {
-    try {
-      const source = isLocalDemo() ? sessionStorage : localStorage;
-      return JSON.parse(source.getItem(profileStorageKey()) || "null");
-    } catch {
-      return null;
-    }
-  }
-
-  function saveProfile(value) {
-    const source = isLocalDemo() ? sessionStorage : localStorage;
-    const safe = { ...(value || {}) };
-    delete safe.adminToken;
-    delete safe.staffSessionToken;
-    delete safe.googleSessionToken;
-    source.setItem(profileStorageKey(safe), JSON.stringify(safe));
-  }
-
-  function isLocalDemo() {
-    return location.protocol === "file:";
-  }
-
-  function isSharedLocalServer() {
-    return location.protocol !== "file:" && (
-      location.hostname === "127.0.0.1" ||
-      location.hostname === "localhost"
-    );
-  }
-
-  async function loadDynamicCharacters() {
-    if (isLocalDemo() || isSharedLocalServer()) return;
-    try {
-      const response = await fetch(`/api/characters?t=${Date.now()}`, { cache: "no-store" });
-      if (!response.ok) return;
-      const data = await response.json();
-      for (const item of (data.characters || [])) {
-        if (!item?.id || CHARACTERS.some((character) => character.id === item.id)) continue;
-        CHARACTERS.push({
-          id: item.id,
-          name: item.name || item.id,
-          portrait: item.thumbnailUrl || "./assets/lina-instant-poster.webp",
-          portraitSmall: item.thumbnailUrl || "./assets/lina-instant-poster.webp",
-          model: item.vrmUrl,
-          available: item.visible !== false,
-          vipOnly: Boolean(item.vipOnly),
-          dialect: item.dialect || "العربية"
-        });
-      }
-    } catch (error) {
-      console.warn("Dynamic characters unavailable", error);
-    }
-  }
-
-  function buildAvatarGrid() {
-    els.avatarGrid.textContent = "";
-    const fragment = document.createDocumentFragment();
-
-    CHARACTERS.forEach((character) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "avatar-option character-option";
-      button.dataset.avatar = character.id;
-      button.disabled = character.available === false;
-      button.setAttribute("aria-label", "اختيار هذه الشخصية");
-
-      const portraitWrap = document.createElement("span");
-      portraitWrap.className = "character-portrait";
-
-      const img = document.createElement("img");
-      img.src = character.portraitSmall || character.portrait;
-      img.alt = "صورة الشخصية";
-      portraitWrap.appendChild(img);
-
-      const check = document.createElement("i");
-      check.className = "character-check";
-      check.textContent = "✓";
-      if (character.vipOnly) {
-        const vip = document.createElement("b");
-        vip.className = "character-vip-mark";
-        vip.textContent = "💎 VIP";
-        portraitWrap.appendChild(vip);
-      }
-
-      button.append(portraitWrap, check);
-      button.addEventListener("click", () => selectAvatar(character.id));
-      fragment.appendChild(button);
-    });
-
-    els.avatarGrid.appendChild(fragment);
-    selectAvatar(selectedAvatar);
-  }
-  function selectAvatar(name) {
-    const character = getCharacter(name);
-    const savedVip = Boolean(profile?.isVip || loadSavedProfile()?.isVip);
-    if (character.vipOnly && !savedVip) {
-      showError("هذه الشخصية خاصة بأعضاء VIP.");
-      return;
-    }
-
-    selectedAvatar = character.id;
-    savePendingAvatar(selectedAvatar);
-
-    if (els.avatarGrid) {
-      els.avatarGrid.querySelectorAll(".avatar-option").forEach((button) => {
-        button.classList.toggle("selected", button.dataset.avatar === selectedAvatar);
-      });
-    }
-
-    // Keep every preview synchronized with the user's latest choice.
-    if (els.liveCharacterPortrait) {
-      els.liveCharacterPortrait.src = character.portrait || character.portraitSmall;
-      els.liveCharacterPortrait.alt = character.name || "الشخصية المختارة";
-    }
-
-    window.RIVO_ACTIVE_CHARACTER = character;
-    window.dispatchEvent(new CustomEvent("rivo:character-selected", {
-      detail: { character }
-    }));
-  }
-  function cleanNickname(value) {
-    return String(value || "").replace(/\s+/g, " ").trim().slice(0, 24);
-  }
-
-  function enterChat(nextProfile) {
-    const staff = loadStaffIdentity();
-
-    profile = {
-      clientId: nextProfile.clientId || (googleSession?.googleUid ? `google:${googleSession.googleUid}` : getClientId()),
-      nickname: cleanNickname(nextProfile.nickname),
-      avatar: getCharacter(nextProfile.avatar).id,
-      privateOpen: nextProfile.privateOpen !== false,
-      role: staff?.role || "user",
-      adminVisible: staff?.visible !== false,
-      adminToken: staff?.token || "",
-      staffSessionToken: staff?.staffSessionToken || "",
-      staffClientId: staff?.clientId || "",
-      googleUid: googleSession?.googleUid || nextProfile.googleUid || "",
-      googleEmail: googleSession?.email || nextProfile.googleEmail || "",
-      googleSessionToken: googleSession?.sessionToken || "",
-      badge: nextProfile.badge || "",
-      isVip: Boolean(nextProfile.isVip),
-      vipExpiresAt: Number(nextProfile.vipExpiresAt || 0),
-      vipStealth: Boolean(nextProfile.vipStealth),
-      roomId: activeRoomId || DEFAULT_ROOM
-    };
-
-    saveProfile(profile);
-    savePendingAvatar(profile.avatar);
-    els.joinScreen.classList.add("hidden");
-    els.chatApp.classList.remove("hidden");
-    els.myAvatarSide.src = avatarUrl(profile.avatar);
-    els.myNameSide.textContent = firstName(profile.nickname);
-
-    els.myCrownBadge.classList.toggle("hidden", profile.role !== "owner");
-    els.myModeratorBadge?.classList.toggle("hidden", profile.role !== "moderator");
-    els.myModeratorRoleLabel?.classList.toggle("hidden", profile.role !== "moderator");
-    els.moderatorPanelButton?.classList.toggle("hidden", profile.role !== "moderator");
-    els.adminPanelButton.classList.toggle(
-      "hidden",
-      !["owner", "moderator"].includes(profile.role)
-    );
-    if (profile.role === "owner") {
-      els.adminPanelButton.href = `./admin.html?room=${encodeURIComponent(activeRoomId || DEFAULT_ROOM)}`;
-      els.adminPanelButton.title = "لوحة الإدارة";
-      els.adminPanelButton.textContent = "♛";
-    } else if (profile.role === "moderator") {
-      els.adminPanelButton.href = `./moderator.html?room=${encodeURIComponent(activeRoomId || DEFAULT_ROOM)}`;
-      els.adminPanelButton.title = "فتح لوحة المراقب";
-      els.adminPanelButton.textContent = "★";
-    }
-    syncVipUi();
-    updateRoomUi();
-    syncPrivateToggleUI();
-    const selectedCharacter = getCharacter(profile.avatar);
-    window.RIVO_ACTIVE_CHARACTER = selectedCharacter;
-    window.dispatchEvent(new CustomEvent("rivo:character-selected", {
-      detail: { character: selectedCharacter }
-    }));
-    resetConversationView();
-    startLocalCleanup();
-    hydratePublicLocal();
-    connectTransport();
-    clearInterval(roomRefreshTimer);
-    roomRefreshTimer = setInterval(() => loadRooms().catch(() => {}), 10000);
-    clearInterval(vipRefreshTimer);
-    vipRefreshTimer = setInterval(() => refreshVipStatus().catch(() => {}), 30000);
-    setTimeout(() => els.messageInput.focus(), 100);
-  }
-
-  function leaveChat() {
-    const leavingRole = profile?.role || "user";
-    const wasStaff = ["owner", "moderator"].includes(leavingRole);
-    const leavingProfileKey = profileStorageKey(profile);
-    clearInterval(localCleanupTimer);
-    clearInterval(roomRefreshTimer);
-    clearInterval(vipRefreshTimer);
-    clearTimeout(localCleanupDebounce);
-    stopLiveMic();
-    hideCharacterStage();
-
-    const oldVoiceRoom = voiceRoom;
-    const oldRelayAudio = relayAudio;
-    oldVoiceRoom?.destroy().catch(() => {});
-    oldRelayAudio?.destroy().catch(() => {});
-
-    transport?.close();
-    transport = null;
-    activeTypers.clear();
-    currentUsers = [];
-    presenceFirstSeen.clear();
-    currentMicHolderId = "";
-    currentMicHolderName = "";
-    currentMicHolderAvatar = "";
-    clearPendingMicClaim(false);
-    conversationMode = "public";
-    activePrivateUser = null;
-    privatePopupExpanded = false;
-    privatePopupMinimized = false;
-    closePrivatePopup();
-    publicMessages = [];
-    privateMessagesByUser.clear();
-    privateUnreadByUser.clear();
-    profile = null;
-    activeRoomId = DEFAULT_ROOM;
-    activeRoomName = "العامة";
-    sessionStorage.removeItem(ROOM_KEY);
-    updateRoomUi();
-
-    voiceRoom = createVoiceRoom();
-    relayAudio = createRelayAudio();
-    localPcmRelay = new LocalPcmRelay();
-    installProfessionalBridge();
-    syncRoomSoundButton();
-    updateMicAvailability();
-
-    const source = isLocalDemo() ? sessionStorage : localStorage;
-    source.removeItem(leavingProfileKey);
-    if (wasStaff) {
-      localStorage.removeItem(leavingRole === "owner" ? OWNER_STAFF_IDENTITY_KEY : MODERATOR_STAFF_IDENTITY_KEY);
-      const cleanUrl = new URL("./index.html", location.href);
-      history.replaceState({}, "", cleanUrl.href);
-    }
-    els.chatApp.classList.add("hidden");
-    els.joinScreen.classList.remove("hidden");
-    els.sidebar.classList.remove("open");
-    els.sidebarBackdrop.classList.add("hidden");
-    els.nicknameInput.focus();
-  }
-
-  function resetConversationView() {
-    conversationMode = "public";
-    activePrivateUser = null;
-    publicMessages = [];
-    privateMessagesByUser.clear();
-    privateUnreadByUser.clear();
-    closePrivatePopup();
-    renderCurrentConversation();
-  }
-
-  function connectTransport() {
-    transport?.close();
-
-    const roomId = activeRoomId || DEFAULT_ROOM;
-    profile.roomId = roomId;
-    if (isLocalDemo()) {
-      transport = new DemoTransport(profile, roomId);
-      showError("لا تفتح index.html مباشرة. شغّل ملف Rivo حتى تعمل الدردشة بين المتصفحات.", 8000);
-    } else if (isSharedLocalServer()) {
-      transport = new LocalHttpTransport(profile, roomId);
-    } else {
-      transport = new SocketTransport(profile, roomId);
-    }
-
-    transport.onEvent(handleEvent);
-    transport.onStatus(setConnectionStatus);
-    transport.connect();
-  }
-
-  function handleEvent(event) {
-    if (!event || typeof event !== "object") return;
-
-    window.dispatchEvent(new CustomEvent("rivo:server-event", {
-      detail: event
-    }));
-
-    if (event.type === "init") {
-      const serverMessages = Array.isArray(event.messages) ? event.messages : [];
-      publicMessages = mergeMessages(publicMessages, serverMessages).slice(-LOCAL_PUBLIC_LIMIT);
-      serverMessages.forEach(persistPublicMessage);
-      currentUsers = event.users || [];
-
-      if (event.self) {
-        if (event.self.clientId) profile.clientId = event.self.clientId;
-        profile.privateOpen = event.self.privateOpen !== false;
-        profile.role = event.self.role || profile.role || "user";
-        profile.staffClientId = event.self.staffClientId || profile.staffClientId || "";
-        profile.adminVisible = event.self.adminVisible !== false;
-        myMicBlocked = Boolean(event.self.micBlocked);
-        myPrivateBlocked = Boolean(event.self.privateBlocked);
-        profile.badge = event.self.badge || "";
-        profile.isVip = Boolean(event.self.isVip);
-        profile.vipExpiresAt = Number(event.self.vipExpiresAt || 0);
-        profile.vipStealth = Boolean(event.self.vipStealth);
-        profile.roomId = event.self.roomId || event.room?.id || activeRoomId || DEFAULT_ROOM;
-        activeRoomId = profile.roomId;
-        if (event.room?.name) activeRoomName = event.room.name;
-        sessionStorage.setItem(ROOM_KEY, activeRoomId);
-        saveProfile(profile);
-        syncPrivateToggleUI();
-        syncVipUi();
-        updateRoomUi();
-      }
-
-      if (event.roomControls) handleRoomControls(event.roomControls);
-      if (event.room?.id && !roomCatalog.some((room) => room.id === event.room.id)) {
-        roomCatalog.push({ id: event.room.id, name: event.room.name || event.room.id, capacity: event.room.capacity || ROOM_CAPACITY, count: currentUsers.length, ordinaryCount: currentUsers.filter((user) => !user.isVip && user.role === "user").length });
-      }
-
-      els.myCrownBadge.classList.toggle("hidden", profile.role !== "owner");
-      els.adminPanelButton.classList.toggle(
-        "hidden",
-        !["owner", "moderator"].includes(profile.role)
-      );
-      if (profile.role === "owner") {
-        els.adminPanelButton.href = `./admin.html?room=${encodeURIComponent(activeRoomId || DEFAULT_ROOM)}`;
-        els.adminPanelButton.title = "لوحة الإدارة";
-        els.adminPanelButton.textContent = "♛";
-      } else if (profile.role === "moderator") {
-        els.adminPanelButton.href = `./moderator.html?room=${encodeURIComponent(activeRoomId || DEFAULT_ROOM)}`;
-        els.adminPanelButton.title = "لوحة المراقب";
-        els.adminPanelButton.textContent = "🛡️";
-      }
-
-      renderUsers(currentUsers);
-      installProfessionalBridge();
-      voiceRoom?.updateUsers(currentUsers);
-      updateMicAvailability();
-      renderCurrentConversation();
-      return;
-    }
-
-    if (event.type === "message") {
-      if (event.message && !publicMessages.some((item) => item.id === event.message.id)) {
-        publicMessages.push(event.message);
-        publicMessages = publicMessages.slice(-LOCAL_PUBLIC_LIMIT);
-        persistPublicMessage(event.message);
-      }
-
-      if (conversationMode === "public") {
-        renderMessage(event.message);
-        scrollToBottom();
-      }
-      return;
-    }
-
-    if (event.type === "presence") {
-      currentUsers = event.users || [];
-      renderUsers(currentUsers);
-      installProfessionalBridge();
-      voiceRoom?.updateUsers(currentUsers);
-
-      if (activePrivateUser) {
-        const fresh = currentUsers.find((user) => user.clientId === activePrivateUser.clientId);
-        if (fresh) {
-          activePrivateUser = { ...fresh };
-        } else {
-          if (privateSessionPeerId) {
-            finishPrivateSession("انتهت المحادثة الخاصة لأن المستخدم غادر.", false);
-          } else {
-            activePrivateUser = { ...activePrivateUser, privateOpen: false };
-          }
-        }
-        if (activePrivateUser) renderPrivatePopup();
-      }
-      updateConversationHeader();
-      return;
-    }
-
-    if (event.type === "private-history") {
-      handlePrivateHistory(event);
-      return;
-    }
-
-    if (event.type === "private-message") {
-      handlePrivateMessage(event.message);
-      return;
-    }
-
-    if (event.type === "private-denied") {
-      outgoingPrivateRequestTo = "";
-      handlePrivateDenied(event);
-      renderUsers(currentUsers);
-      return;
-    }
-
-    if (event.type === "private-request") {
-      handlePrivateRequest(event);
-      return;
-    }
-
-    if (event.type === "private-request-sent") {
-      handlePrivateRequestSent(event);
-      return;
-    }
-
-    if (event.type === "private-rejected") {
-      handlePrivateRejected(event);
-      return;
-    }
-
-    if (event.type === "private-started") {
-      handlePrivateStarted(event);
-      return;
-    }
-
-    if (event.type === "private-ended") {
-      handlePrivateEnded(event);
-      return;
-    }
-
-    if (event.type === "typing") {
-      if (conversationMode === "public") handleTypingEvent(event);
-      return;
-    }
-
-    if (event.type === "audio-pcm") {
-      localPcmRelay?.handleChunk(event);
-      return;
-    }
-
-    if (event.type === "voice-state") {
-      handleVoiceState(event);
-      return;
-    }
-
-    if (event.type === "room-controls") {
-      handleRoomControls(event);
-      return;
-    }
-
-    if (event.type === "user-restrictions") {
-      handleMyRestrictions(event);
-      renderUsers(currentUsers);
-      return;
-    }
-
-    if (event.type === "profile-updated") {
-      if (event.clientId === profile?.clientId) {
-        if (event.avatar) {
-          profile.avatar = getCharacter(event.avatar).id;
-          selectedAvatar = profile.avatar;
-          savePendingAvatar(profile.avatar);
-          els.myAvatarSide.src = avatarUrl(profile.avatar);
-          const character = getCharacter(profile.avatar);
-          window.RIVO_ACTIVE_CHARACTER = character;
-          window.dispatchEvent(new CustomEvent("rivo:character-selected", {
-            detail: { character }
-          }));
-        }
-
-        if (typeof event.adminVisible === "boolean") {
-          profile.adminVisible = event.adminVisible;
-        }
-
-        if (event.badge !== undefined) {
-          profile.badge = event.badge || "";
-        }
-
-        saveProfile(profile);
-      }
-
-      currentUsers = currentUsers.map((user) =>
-        user.clientId === event.clientId
-          ? {
-              ...user,
-              avatar: event.avatar || user.avatar,
-              adminVisible: typeof event.adminVisible === "boolean"
-                ? event.adminVisible
-                : user.adminVisible,
-              badge: event.badge !== undefined ? (event.badge || "") : user.badge
-            }
-          : user
-      );
-
-      renderUsers(currentUsers);
-      renderCurrentConversation();
-      return;
-    }
-
-    if (event.type === "badge-updated") {
-      currentUsers = currentUsers.map((user) =>
-        user.clientId === event.clientId
-          ? { ...user, badge: event.badge || "" }
-          : user
-      );
-
-      if (profile?.clientId === event.clientId) {
-        profile.badge = event.badge || "";
-        saveProfile(profile);
-      }
-
-      renderUsers(currentUsers);
-      renderCurrentConversation();
-      return;
-    }
-
-    if (event.type === "vip-state") {
-      profile.isVip = Boolean(event.active);
-      profile.vipStealth = Boolean(event.stealth);
-      profile.vipExpiresAt = Number(event.expiresAt || 0);
-      saveProfile(profile);
-      syncVipUi();
-      renderUsers(currentUsers);
-      loadRooms().catch(() => {});
-      return;
-    }
-
-    if (event.type === "mic-forced-release") {
-      if (micActive) {
-        stopLiveMic();
-        hideCharacterStage();
-      }
-      showError(event.message || "تم إنزالك من المايك.");
-      return;
-    }
-
-    if (event.type === "staff-revoked") {
-      showError(event.message || "تم إيقاف حساب المراقب أو انتهت مدة اشتراكه.", 8000);
-      localStorage.removeItem(profile?.role === "owner" ? OWNER_STAFF_IDENTITY_KEY : MODERATOR_STAFF_IDENTITY_KEY);
-      transport?.close();
-      transport = null;
-      setTimeout(() => {
-        const cleanUrl = new URL("./index.html", location.href);
-        location.href = cleanUrl.href;
-      }, 1400);
-      return;
-    }
-
-    if (event.type === "admin-ban") {
-      showError(event.message || "تم حظر حسابك مؤقتاً بواسطة الإدارة.", 10000);
-      transport?.close();
-      transport = null;
-      els.messageInput.disabled = true;
-      els.sendButton.disabled = true;
-      els.voiceButton.disabled = true;
-      return;
-    }
-
-    if (event.type === "admin-force-mic-off") {
-      if (micActive) {
-        stopLiveMic();
-        hideCharacterStage();
-      }
-      showError("الإدارة أنزلتك من المايك.");
-      return;
-    }
-
-    if (event.type === "admin-kick") {
-      showError(event.message || "تم إخراجك من الدردشة بواسطة الإدارة.", 5000);
-      setTimeout(leaveChat, 600);
-      return;
-    }
-
-    if (event.type === "mic-state") {
-      handleMicState(event);
-      return;
-    }
-
-    if (event.type === "mic-denied") {
-      handleMicDenied(event);
-      return;
-    }
-
-    if (relayAudio?.handleEvent(event)) {
-      return;
-    }
-
-    if (voiceRoom?.handleEvent(event)) {
-      return;
-    }
-
-    if (event.type === "error") {
-      showError(event.message || "حدث خطأ غير معروف.");
-    }
-  }
-
-  function renderMessage(message) {
-    if (!message?.id || renderedMessageIds.has(message.id)) return;
-    renderedMessageIds.add(message.id);
-
-    const date = new Date(Number(message.createdAt || Date.now()));
-    const dayKey = date.toLocaleDateString("ar-IQ");
-
-    if (dayKey !== lastRenderedDay) {
-      const divider = document.createElement("div");
-      divider.className = "day-divider";
-      divider.textContent = isToday(date) ? "اليوم" : dayKey;
-      els.messages.appendChild(divider);
-      lastRenderedDay = dayKey;
-    }
-
-    const row = document.createElement("article");
-    row.className = "message-row";
-    row.dataset.messageId = message.id || "";
-    row.dataset.clientId = message.clientId || "";
-    row.dataset.nickname = message.nickname || "";
-    row.dataset.avatar = message.avatar || "";
-    if (message.clientId === profile.clientId) row.classList.add("own");
-
-    const avatarWrap = document.createElement("span");
-    avatarWrap.className = "message-avatar-wrap";
-
-    const avatar = document.createElement("img");
-    avatar.className = "message-avatar";
-    avatar.src = avatarUrl(message.avatar);
-    avatar.alt = "";
-    avatarWrap.appendChild(avatar);
-
-    const messageRole = message.role || userRoleById(message.clientId);
-    const messageBadge = messageRole === "owner"
-      ? ""
-      : (message.badge || badgeForClient(message.clientId));
-    if (messageBadge) {
-      const badge = document.createElement("span");
-      badge.innerHTML = badgeMarkup(messageBadge, "message-avatar-badge");
-      avatarWrap.appendChild(badge.firstElementChild);
-    }
-    if (message.isVip && messageRole !== "owner") {
-      const gem = document.createElement("span");
-      gem.className = "presence-vip-gem";
-      gem.textContent = "💎";
-      gem.title = "عضو VIP";
-      avatarWrap.appendChild(gem);
-    }
-
-    const content = document.createElement("div");
-    content.className = "message-content";
-
-    const head = document.createElement("div");
-    head.className = "message-head";
-
-    const nameLine = document.createElement("span");
-    nameLine.className = "message-name-line";
-
-    const name = document.createElement("strong");
-    name.textContent = message.clientId === profile.clientId
-      ? firstName(profile.nickname)
-      : firstName(message.nickname);
-
-    if (messageRole === "owner") {
-      const crown = document.createElement("span");
-      crown.className = "message-crown";
-      crown.innerHTML = crownMarkup();
-      crown.title = "الإدارة";
-      const roleLabel = document.createElement("span");
-      roleLabel.innerHTML = ownerRoleMarkup("message-owner-label");
-      nameLine.append(name, crown, roleLabel.firstElementChild);
-    } else if (messageRole === "moderator") {
-      const star = document.createElement("span");
-      star.innerHTML = moderatorStarMarkup("message-moderator-star");
-      nameLine.append(name, star.firstElementChild);
-    } else {
-      nameLine.appendChild(name);
-      if (message.isVip) {
-        const gem = document.createElement("span");
-        gem.innerHTML = vipGemMarkup("message-vip-gem");
-        nameLine.appendChild(gem.firstElementChild);
-      }
-    }
-
-    if (messageBadge) {
-      const award = document.createElement("span");
-      award.innerHTML = badgeMarkup(messageBadge, "message-name-badge");
-      nameLine.appendChild(award.firstElementChild);
-    }
-
-    const time = document.createElement("time");
-    time.dateTime = date.toISOString();
-    time.textContent = new Intl.DateTimeFormat("ar-IQ", {
-      hour: "2-digit",
-      minute: "2-digit"
-    }).format(date);
-
-    const body = document.createElement("div");
-    body.className = "message-body";
-    body.textContent = message.body;
-
-    head.append(nameLine, time);
-    content.append(head, body);
-    row.append(avatarWrap, content);
-    els.messages.appendChild(row);
-  }
-
-  function isToday(date) {
-    const now = new Date();
-    return date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth() &&
-      date.getDate() === now.getDate();
-  }
-
-  function renderPresenceStrip(users) {
-    if (!els.presenceAvatars) return;
-
-    els.presenceAvatars.textContent = "";
-    const fragment = document.createDocumentFragment();
-
-    users.forEach((user, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = `presence-avatar role-${user.role || "user"}${user.isVip ? " is-vip" : ""}`;
-      button.dataset.clientId = user.clientId;
-      button.setAttribute("role", "listitem");
-      button.title = `${user.nickname || "مستخدم"} — ${user.role === "owner" ? "الإدارة" : user.role === "moderator" ? "مراقب" : user.isVip ? "عضو VIP" : `ترتيبه ${index + 1}`}`;
-
-      const avatarWrap = document.createElement("span");
-      avatarWrap.className = "presence-avatar-image";
-
-      const img = document.createElement("img");
-      img.src = avatarUrl(user.avatar);
-      img.alt = user.nickname || "مستخدم";
-      avatarWrap.appendChild(img);
-
-      const onlineDot = document.createElement("i");
-      onlineDot.className = "presence-online-dot";
-      avatarWrap.appendChild(onlineDot);
-
-      if (user.role === "owner") {
-        const crown = document.createElement("span");
-        crown.innerHTML = crownMarkup();
-        crown.className = "presence-owner-crown";
-        avatarWrap.appendChild(crown);
-      } else if (user.role === "moderator") {
-        const star = document.createElement("span");
-        star.className = "presence-moderator-star";
-        star.textContent = "★";
-        star.title = "مراقب";
-        avatarWrap.appendChild(star);
-      } else if (user.isVip) {
-        const gem = document.createElement("span");
-        gem.className = "presence-vip-gem";
-        gem.textContent = "💎";
-        gem.title = "عضو VIP";
-        avatarWrap.appendChild(gem);
-      }
-
-      const label = document.createElement("small");
-      label.textContent = firstName(user.nickname);
-      button.append(avatarWrap, label);
-      fragment.appendChild(button);
-    });
-
-    els.presenceAvatars.appendChild(fragment);
-    if (els.presenceCount) els.presenceCount.textContent = String(users.length);
-    els.presenceStrip?.classList.toggle("empty", users.length === 0);
-  }
-
-  function appendVipUserActions(row, user) {
-    if (!profile?.isVip || user.clientId === profile.clientId || user.role === "owner") return;
-    const actions = document.createElement("div");
-    actions.className = "vip-user-actions";
-
-    const gift = document.createElement("button");
-    gift.type = "button"; gift.className = "vip-user-action gift"; gift.textContent = "🎁";
-    gift.title = `إرسال هدية إلى ${user.nickname}`;
-    gift.addEventListener("click", (event) => { event.stopPropagation(); openVipGift(user); });
-    actions.appendChild(gift);
-
-    if (user.role === "user" && !user.isVip) {
-      const kick = document.createElement("button");
-      kick.type = "button"; kick.className = "vip-user-action danger"; kick.textContent = "↪";
-      kick.title = `إخراج ${user.nickname} من الغرفة من دون حظر`;
-      kick.addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (confirm(`إخراج ${user.nickname} من هذه الغرفة؟ لن يتم حظره من الموقع.`)) {
-          transport?.send({ type: "vip-kick", to: user.clientId });
-        }
-      });
-      actions.appendChild(kick);
-
-      if (currentMicHolderId === user.clientId) {
-        const mic = document.createElement("button");
-        mic.type = "button"; mic.className = "vip-user-action mic"; mic.textContent = "🎙";
-        mic.title = `إنزال ${user.nickname} من المايك`;
-        mic.addEventListener("click", (event) => { event.stopPropagation(); transport?.send({ type: "vip-release-mic", to: user.clientId }); });
-        actions.appendChild(mic);
-      }
-    }
-    row.appendChild(actions);
-  }
-
-  function renderUsers(users) {
-    const unique = orderedUniqueUsers(users);
-
-    renderPresenceStrip(unique);
-    els.usersList.textContent = "";
-    const fragment = document.createDocumentFragment();
-
-    unique.forEach((user) => {
-      const row = document.createElement("div");
-      row.className = `user-row role-${user.role || "user"}`;
-      if (user.isVip) row.classList.add("is-vip");
-      if (user.privateBusy) row.classList.add("private-busy");
-      row.dataset.clientId = user.clientId;
-
-      const avatarWrap = document.createElement("div");
-      avatarWrap.className = "user-avatar-wrap";
-
-      const img = document.createElement("img");
-      img.src = avatarUrl(user.avatar);
-      img.alt = "";
-
-      const dot = document.createElement("i");
-      avatarWrap.append(img, dot);
-
-      if (user.badge && user.role !== "owner") {
-        const award = document.createElement("span");
-        award.innerHTML = badgeMarkup(user.badge, "user-avatar-award");
-        avatarWrap.appendChild(award.firstElementChild);
-      }
-
-      if (user.role === "owner") {
-        const crown = document.createElement("span");
-        crown.innerHTML = crownMarkup();
-        crown.className = "user-crown-wrap";
-        avatarWrap.appendChild(crown);
-      } else if (user.role === "moderator") {
-        const star = document.createElement("span");
-        star.className = "moderator-avatar-star";
-        star.textContent = "★";
-        star.title = "مراقب Rivo";
-        avatarWrap.appendChild(star);
-      } else if (user.isVip) {
-        const gem = document.createElement("span");
-        gem.className = "presence-vip-gem";
-        gem.textContent = "💎";
-        gem.title = "عضو VIP";
-        avatarWrap.appendChild(gem);
-      }
-
-      const nameWrap = document.createElement("div");
-      nameWrap.className = "user-name-wrap";
-
-      const name = document.createElement("strong");
-      name.textContent = firstName(user.nickname);
-      nameWrap.appendChild(name);
-
-      if (user.role === "owner") {
-        const ownerLabel = document.createElement("span");
-        ownerLabel.innerHTML = ownerRoleMarkup("user-owner-label");
-        nameWrap.appendChild(ownerLabel.firstElementChild);
-      } else if (user.role === "moderator") {
-        const roleStar = document.createElement("span");
-        roleStar.innerHTML = moderatorStarMarkup("user-moderator-star");
-        nameWrap.appendChild(roleStar.firstElementChild);
-      } else if (user.isVip) {
-        const gem = document.createElement("span");
-        gem.innerHTML = vipGemMarkup("user-vip-gem");
-        nameWrap.appendChild(gem.firstElementChild);
-      }
-
-      if (user.badge && user.role !== "owner") {
-        const award = document.createElement("span");
-        award.innerHTML = badgeMarkup(user.badge, "user-name-award");
-        nameWrap.appendChild(award.firstElementChild);
-      }
-
-      if (user.privateBusy) {
-        const busyLabel = document.createElement("span");
-        busyLabel.className = "user-private-state";
-        busyLabel.textContent = user.clientId === profile?.clientId ? "أنت مشغول" : "مشغول";
-        nameWrap.appendChild(busyLabel);
-      }
-
-      row.append(avatarWrap, nameWrap);
-      appendVipUserActions(row, user);
-
-      if (user.clientId === profile.clientId) {
-        const me = document.createElement("small");
-        me.textContent = "حسابك";
-        row.appendChild(me);
-      } else {
-        const privateButton = document.createElement("button");
-        privateButton.type = "button";
-        privateButton.className = "user-private-button";
-        const busy = Boolean(user.privateBusy);
-        const requesting = outgoingPrivateRequestTo === user.clientId;
-        const ownerOverride = profile?.role === "owner";
-        privateButton.disabled = (!ownerOverride && (user.privateOpen === false || user.privateBlocked === true)) || busy || Boolean(privateSessionPeerId) || Boolean(pendingPrivateRequest) || requesting;
-        privateButton.classList.toggle("busy", busy);
-        privateButton.classList.toggle("requesting", requesting);
-        privateButton.title = busy
-          ? `${user.nickname} مشغول في الخاص`
-          : requesting
-            ? "بانتظار موافقته"
-            : privateButton.disabled
-              ? "الخاص غير متاح"
-              : ownerOverride
-                ? `فتح خاص مباشر مع ${user.nickname}`
-                : `طلب محادثة خاصة مع ${user.nickname}`;
-        privateButton.setAttribute("aria-label", privateButton.title);
-
-        privateButton.innerHTML = busy
-          ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8a5 5 0 0 1 5 5v2.1h.5a2.2 2.2 0 0 1 2.2 2.2v7a2.2 2.2 0 0 1-2.2 2.2h-11a2.2 2.2 0 0 1-2.2-2.2v-7a2.2 2.2 0 0 1 2.2-2.2H7V7.8a5 5 0 0 1 5-5Zm0 1.8a3.2 3.2 0 0 0-3.2 3.2v2.1h6.4V7.8A3.2 3.2 0 0 0 12 4.6Z"/></svg>'
-          : requesting
-            ? '<span aria-hidden="true">…</span>'
-            : privateButton.disabled
-              ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 10V7.5a4 4 0 1 1 8 0V10h.7a2 2 0 0 1 2 2v6.2a2 2 0 0 1-2 2H7.3a2 2 0 0 1-2-2V12a2 2 0 0 1 2-2H8Zm1.8 0h4.4V7.5a2.2 2.2 0 1 0-4.4 0V10Z"/></svg>'
-              : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h10a2.5 2.5 0 0 1 2.5 2.5v8A2.5 2.5 0 0 1 17 16h-5.2l-4.9 4.1A1 1 0 0 1 5.3 19v-3.2a2.5 2.5 0 0 1-.8-1.8V5.5Zm2.5-.7a.7.7 0 0 0-.7.7v8c0 .4.3.7.7.7h.1v2.7l4-3.3H17a.7.7 0 0 0 .7-.7V5.5a.7.7 0 0 0-.7-.7H7Z"/></svg>';
-
-        const unread = Number(privateUnreadByUser.get(user.clientId) || 0);
-        if (unread > 0) {
-          const badge = document.createElement("span");
-          badge.className = "user-private-unread";
-          badge.textContent = String(unread);
-          privateButton.appendChild(badge);
-        }
-
-        privateButton.addEventListener("click", (event) => {
-          event.stopPropagation();
-          openPrivateChat(user);
-        });
-
-        row.appendChild(privateButton);
-      }
-
-      fragment.appendChild(row);
-    });
-
-    els.usersList.appendChild(fragment);
-    const count = unique.length;
-    els.onlineBadge.textContent = String(count);
-    els.onlineCountSide.textContent = String(count);
-    if (els.onlineCountHeader) els.onlineCountHeader.textContent = String(count);
-  }
-  function handleTypingEvent(event) {
-    if (!event.clientId || event.clientId === profile.clientId) return;
-
-    if (event.active) {
-      activeTypers.set(event.clientId, {
-        nickname: event.nickname,
-        expiresAt: Date.now() + 3500
-      });
-    } else {
-      activeTypers.delete(event.clientId);
-    }
-
-    updateTypingBar();
-  }
-
-  function updateTypingBar() {
-    const now = Date.now();
-    for (const [id, item] of activeTypers) {
-      if (item.expiresAt < now) activeTypers.delete(id);
-    }
-
-    const names = [...activeTypers.values()].map((item) => item.nickname);
-    if (!names.length) {
-      els.typingBar.classList.add("hidden");
-      return;
-    }
-
-    els.typingText.textContent = names.length === 1
-      ? `${names[0]} يكتب`
-      : `${names.slice(0, 2).join(" و ")} يكتبان`;
-
-    els.typingBar.classList.remove("hidden");
-    setTimeout(updateTypingBar, 3600);
-  }
-
-  function sendTyping(active) {
-    if (typingSent === active) return;
-    typingSent = active;
-    transport?.send({ type: "typing", active });
-  }
-
-  function sendCurrentMessage() {
-    const body = els.messageInput.value.trim();
-    if (!body || !transport?.isReady()) return;
-
-    transport.send({ type: "chat", body });
-    sendTyping(false);
-    els.messageInput.value = "";
-    resizeComposer();
-  }
-
-  function sendPrivatePopupMessage() {
-    const body = els.privatePopupInput.value.trim();
-    if (!body || !transport?.isReady()) return;
-
-    if (!activePrivateUser) {
-      showError("اختر مستخدماً من قائمة المتصلين أولاً.");
-      return;
-    }
-
-    if (privateSessionPeerId !== activePrivateUser.clientId) {
-      showError("لا توجد محادثة خاصة نشطة مع هذا المستخدم.");
-      return;
-    }
-
-    transport.send({
-      type: "private-chat",
-      to: activePrivateUser.clientId,
-      body
-    });
-
-    els.privatePopupInput.value = "";
-    els.privatePopupInput.style.height = "auto";
-  }
-
-  function resizeComposer() {
-    els.messageInput.style.height = "auto";
-    els.messageInput.style.height = `${Math.min(els.messageInput.scrollHeight, 130)}px`;
-  }
-
-  function scrollToBottom() {
-    requestAnimationFrame(() => {
-      els.messages.scrollTop = els.messages.scrollHeight;
-    });
-  }
-
-  function setConnectionStatus(status) {
-    els.connectionStatus.className = `connection-status ${status}`;
-    const text = {
-      connected: isLocalDemo() ? "وضع التجربة" : "متصل",
-      connecting: "جاري الاتصال",
-      disconnected: "غير متصل"
-    }[status] || status;
-
-    els.connectionStatus.querySelector("span").textContent = text;
-    els.sendButton.disabled = status !== "connected";
-    voiceRoom?.setTransportStatus(status);
-
-    if (status === "connected") {
-      voiceRoom?.updateUsers(currentUsers);
-    }
-  }
-
-  function showError(message, duration = 4500) {
-    clearTimeout(errorTimer);
-    els.errorBanner.textContent = message;
-    els.errorBanner.classList.remove("hidden");
-    errorTimer = setTimeout(() => els.errorBanner.classList.add("hidden"), duration);
-  }
-
-  function showCharacterStage(character, title, status, mode) {
-    character = getCharacter(character?.id || character || profile?.avatar || selectedAvatar);
-    window.RIVO_ACTIVE_CHARACTER = character;
-    stageMode = mode;
-    els.liveCharacterPortrait.src = character.portrait || character.portraitSmall;
-    els.liveCharacterPortrait.alt = character.name || "صورة الشخصية";
-    const loadingText = els.modelLoading?.querySelector("b");
-    if (loadingText) loadingText.textContent = "تحميل الشخصية المختارة ثلاثية الأبعاد…";
-    els.liveCharacterName.textContent = title;
-    els.liveMicStatus.textContent = status;
-    els.avatarLivePanel.classList.remove("hidden");
-    els.chatApp.classList.add("stage-visible");
-
-    const local = mode === "local";
-    els.toggleLiveMic.classList.toggle("hidden", !local);
-    els.speakerBadgeText.textContent = local ? "شخصيتك على المايك" : "المتحدث الآن";
-    els.liveStageNote.textContent = local
-      ? "صوتك يصل إلى الموجودين، وتستطيع قراءة الرسائل والكتابة والرد."
-      : "تستمع إلى المتحدث وترى شخصيته، بينما تبقى الدردشة أمامك.";
-
-    window.dispatchEvent(new CustomEvent("rivo:stage-open", {
-      detail: { character }
-    }));
-
-    setTimeout(() => {
-      if (!els.avatarLivePanel.classList.contains("hidden") &&
-          !els.modelLoading.classList.contains("hidden")) {
-        els.modelLoading.classList.add("hidden");
-      }
-    }, 12000);
-  }
-
-  function openAvatarStage() {
-    const character = getCharacter(profile?.avatar || selectedAvatar);
-    showCharacterStage(
-      character,
-      `${profile?.nickname || "أنت"} على المايك`,
-      micActive ? "المايك يعمل — تكلم الآن" : "اضغط تشغيل المايك",
-      "local"
-    );
-  }
-
-  function hideCharacterStage() {
-    els.avatarLivePanel.classList.add("hidden");
-    els.chatApp.classList.remove("stage-visible");
-    stageMode = "none";
-    remoteSpeakerId = "";
-    window.dispatchEvent(new CustomEvent("rivo:stage-close"));
-  }
-
-  function closeAvatarStage() {
-    if (stageMode === "local") stopLiveMic();
-    hideCharacterStage();
-  }
-
-  function sendVoiceState(active, level = 0, laugh = false) {
-    if (!profile || !transport?.isReady()) return;
-    transport.send({
-      type: "voice-state",
-      active,
-      level,
-      laugh
-    });
-  }
-
-  function handleVoiceState(event) {
-    if (!event?.clientId || event.clientId === profile?.clientId) return;
-
-    if (!event.active) {
-      remoteLaughUntil = 0;
-      if (remoteSpeakerId === event.clientId && stageMode === "remote") {
-        window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-          detail: { level: 0, laugh: false, active: false }
-        }));
-        hideCharacterStage();
-      }
-      return;
-    }
-
-    if (micActive) return;
-
-    const voiceNow = performance.now();
-    if (event.laugh) remoteLaughUntil = Math.max(remoteLaughUntil, voiceNow + 700);
-
-    const speaker = currentUsers.find((user) => user.clientId === event.clientId);
-    const character = getCharacter(event.avatar || speaker?.avatar);
-    const speakerChanged =
-      remoteSpeakerId !== event.clientId ||
-      stageMode !== "remote" ||
-      els.avatarLivePanel.classList.contains("hidden");
-
-    remoteSpeakerId = event.clientId;
-
-    if (speakerChanged) {
-      showCharacterStage(
-        character,
-        `${event.nickname} على المايك`,
-        "يتكلم الآن",
-        "remote"
-      );
-    } else {
-      els.liveCharacterName.textContent = `${event.nickname} على المايك`;
-      els.liveMicStatus.textContent = "يتكلم الآن";
-    }
-
-    window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-      detail: {
-        level: Number(event.level || 0),
-        laugh: Boolean(event.laugh) || performance.now() < remoteLaughUntil,
-        active: true
-      }
-    }));
-  }
-
-  async function requestMicrophoneStream() {
-    if (!window.isSecureContext && location.hostname !== "localhost") {
-      const error = new Error("Microphone requires a secure context");
-      error.name = "SecurityError";
-      throw error;
-    }
-
-    try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1
-        },
-        video: false
-      });
-    } catch (error) {
-      if (error?.name === "OverconstrainedError" || error?.name === "TypeError") {
-        return navigator.mediaDevices.getUserMedia({
-          audio: true,
-          video: false
-        });
-      }
-      throw error;
-    }
-  }
-
-  function microphoneErrorMessage(error) {
-    const name = String(error?.name || "");
-
-    if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-      return "المتصفح حظر المايك. اضغط علامة القفل بجانب عنوان الصفحة، ثم اجعل المايك: سماح.";
-    }
-
-    if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-      return "لم يعثر المتصفح على مايك متصل بالحاسوب.";
-    }
-
-    if (name === "NotReadableError" || name === "TrackStartError") {
-      return "المايك مشغول في برنامج آخر. أغلق البرنامج الذي يستعمله ثم حاول مرة ثانية.";
-    }
-
-    if (name === "SecurityError") {
-      return "افتح Rivo من الرابط المحلي الذي يشغله الملف، ولا تفتح index.html مباشرة.";
-    }
-
-    return "تعذر تشغيل المايك. اضغط علامة القفل بجانب عنوان الصفحة وتأكد أن إذن المايك مضبوط على سماح.";
-  }
-
-  async function startLiveMic() {
-    if (micActive) return;
-
-    // Create/resume the analyser while the click is still a direct user gesture.
-    // Mobile browsers may refuse a new AudioContext after later awaits.
-    if (!isSharedLocalServer() && !audioContext) {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (AudioContextClass) {
-        try {
-          audioContext = new AudioContextClass({ latencyHint: "interactive" });
-          if (audioContext.state === "suspended") audioContext.resume().catch(() => {});
-        } catch {
-          audioContext = null;
-        }
-      }
-    }
-
-    if (roomPublicMicEnabled === false) {
-      showError("الإدارة أغلقت مايك العامة.");
-      return;
-    }
-
-    if (myMicBlocked) {
-      showError("الإدارة منعت المايك عن حسابك.");
-      return;
-    }
-
-    if (currentMicHolderId && currentMicHolderId !== profile?.clientId) {
-      showError(`${currentMicHolderName || "مستخدم آخر"} على المايك الآن.`);
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia) {
-      showError("المتصفح لا يدعم تشغيل المايك.");
-      return;
-    }
-
-    let claimed = false;
-
-    try {
-      els.liveMicStatus.textContent = "جاري طلب إذن المايك…";
-      micStream = await requestMicrophoneStream();
-
-      const track = micStream.getAudioTracks()[0];
-      if (!track || track.readyState !== "live") {
-        throw new DOMException("Microphone track is not live", "NotReadableError");
-      }
-
-      els.liveMicStatus.textContent = "جاري حجز المايك…";
-      claimed = await requestMicClaim();
-
-      if (!claimed) {
-        micStream.getTracks().forEach((item) => item.stop());
-        micStream = null;
-        els.liveMicStatus.textContent = "المايك غير محجوز";
-        return;
-      }
-
-      micActive = true;
-      stageMode = "local";
-      smoothedVoiceLevel = 0;
-
-      if (isSharedLocalServer()) {
-        await localPcmRelay.startCapture(micStream);
-      } else if (relayAudio?.isCaptureSupported?.()) {
-        await relayAudio.startCapture(micStream);
-      } else {
-        await voiceRoom?.startLocalAudio(micStream);
-      }
-      laughPeaks = [];
-      lastPeakHigh = false;
-      localLaughUntil = 0;
-      lastVoiceBroadcastAt = 0;
-
-      els.toggleLiveMic.classList.add("active");
-      els.voiceButton.classList.add("voice-live");
-      els.toggleLiveMic.querySelector("b").textContent = "إيقاف المايك";
-      els.liveCharacterName.textContent = `${profile?.nickname || "أنت"} على المايك`;
-      els.liveMicStatus.textContent = "المايك يعمل — صوتك يصل للغرفة";
-
-      sendVoiceState(true, 0, false);
-
-      // The local shared server analyses and relays PCM in one audio graph.
-      // Production/WebRTC mode keeps the separate analyser below.
-      if (!isSharedLocalServer()) {
-        try {
-          const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-
-          if (AudioContextClass) {
-            audioContext = audioContext || new AudioContextClass({ latencyHint: "interactive" });
-
-            try {
-              if (audioContext.state === "suspended") {
-                await audioContext.resume();
-              }
-            } catch {}
-
-            micSourceNode = audioContext.createMediaStreamSource(micStream);
-            micAnalyser = audioContext.createAnalyser();
-            micAnalyser.fftSize = 512;
-            micAnalyser.smoothingTimeConstant = 0.55;
-            micSourceNode.connect(micAnalyser);
-            analyseMicrophone();
-          }
-        } catch (analyserError) {
-          console.warn("Microphone analyser unavailable; audio remains active", analyserError);
-          audioContext = null;
-          micSourceNode = null;
-          micAnalyser = null;
-        }
-      }
-    } catch (error) {
-      console.error("Microphone start failed", error);
-
-      relayAudio?.stopCapture?.().catch(() => {});
-      voiceRoom?.stopLocalAudio().catch(() => {});
-      localPcmRelay?.stopCapture().catch(() => {});
-
-      if (micStream) {
-        micStream.getTracks().forEach((track) => track.stop());
-        micStream = null;
-      }
-
-      if (audioContext) {
-        audioContext.close().catch(() => {});
-        audioContext = null;
-      }
-
-      micAnalyser = null;
-      micActive = false;
-      els.voiceButton.classList.remove("voice-live");
-
-      if (claimed) releaseMicClaim();
-
-      const message = microphoneErrorMessage(error);
-      showError(message, 9000);
-      els.liveMicStatus.textContent = message;
-    }
-  }
-
-  function stopLiveMic() {
-    const wasActive = micActive;
-    cancelAnimationFrame(micFrame);
-    micFrame = null;
-
-    if (isSharedLocalServer()) {
-      localPcmRelay?.stopCapture().catch((error) => {
-        console.warn("Could not stop local PCM capture", error);
-      });
-    } else {
-      relayAudio?.stopCapture?.().catch((error) => {
-        console.warn("Could not stop relayed room audio cleanly", error);
-      });
-      voiceRoom?.stopLocalAudio().catch((error) => {
-        console.warn("Could not stop room audio cleanly", error);
-      });
-    }
-
-    if (micStream) {
-      micStream.getTracks().forEach((track) => track.stop());
-      micStream = null;
-    }
-
-    if (audioContext) {
-      audioContext.close().catch(() => {});
-      audioContext = null;
-    }
-
-    try { micSourceNode?.disconnect(); } catch {}
-    micSourceNode = null;
-    micAnalyser = null;
-    micActive = false;
-    smoothedVoiceLevel = 0;
-    laughPeaks = [];
-    lastPeakHigh = false;
-    localLaughUntil = 0;
-
-    els.avatarStage?.classList.remove("talking", "laughing");
-    if (els.voiceMeterFill) els.voiceMeterFill.style.transform = "scaleX(0)";
-    if (els.toggleLiveMic) {
-      els.toggleLiveMic.classList.remove("active");
-      els.voiceButton.classList.remove("voice-live");
-      els.toggleLiveMic.querySelector("b").textContent = "تشغيل المايك";
-    }
-    if (els.liveMicStatus && !els.avatarLivePanel?.classList.contains("hidden")) {
-      els.liveMicStatus.textContent = "اضغط تشغيل المايك";
-    }
-
-    window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-      detail: { level: 0, laugh: false, active: false }
-    }));
-
-    if (wasActive) {
-      sendVoiceState(false, 0, false);
-      releaseMicClaim();
-    }
-  }
-
-  function applyLocalVoiceLevel(inputLevel) {
-    const target = Math.min(1, Math.max(0, Number(inputLevel || 0)));
-    smoothedVoiceLevel = smoothedVoiceLevel * 0.66 + target * 0.34;
-
-    // A stricter gate keeps the mouth completely closed during room noise.
-    const level = smoothedVoiceLevel < 0.018 ? 0 : smoothedVoiceLevel;
-    const now = performance.now();
-    const peakHigh = level >= 0.30;
-
-    if (peakHigh && !lastPeakHigh) {
-      const previous = laughPeaks[laughPeaks.length - 1] || 0;
-      if (!previous || now - previous >= 85) laughPeaks.push(now);
-      laughPeaks = laughPeaks.filter((time) => now - time <= 1250);
-
-      if (laughPeaks.length >= 3) {
-        const recent = laughPeaks.slice(-4);
-        const gaps = recent.slice(1).map((time, index) => time - recent[index]);
-        const rhythmic = gaps.length >= 2 && gaps.every((gap) => gap >= 85 && gap <= 520);
-        if (rhythmic) localLaughUntil = now + 700;
-      }
-    }
-
-    if (level <= 0.16) lastPeakHigh = false;
-    else if (peakHigh) lastPeakHigh = true;
-
-    const laugh = now < localLaughUntil && (level > 0.02 || now + 160 < localLaughUntil);
-    const active = micActive;
-
-    els.avatarStage.classList.toggle("talking", level > 0.025);
-    els.avatarStage.classList.toggle("laughing", laugh);
-    els.avatarStage.style.setProperty("--voice-level", level.toFixed(3));
-    els.voiceMeterFill.style.transform = `scaleX(${level > 0 ? Math.max(0.03, level).toFixed(3) : "0"})`;
-
-    if (level > 0.025) {
-      els.liveMicStatus.textContent = laugh ? "يلتقط ضحكتك" : "يلتقط صوتك — تكلم";
-    } else if (micActive) {
-      els.liveMicStatus.textContent = "المايك يعمل — الفم مغلق عند الصمت";
-    }
-
-    window.dispatchEvent(new CustomEvent("rivo:avatar-level", {
-      detail: { level, laugh, active }
-    }));
-
-    if (now - lastVoiceBroadcastAt >= 100) {
-      lastVoiceBroadcastAt = now;
-      sendVoiceState(true, level, laugh);
-    }
-  }
-
-  function analyseMicrophone() {
-    if (!micActive || !micAnalyser) return;
-
-    const data = new Float32Array(micAnalyser.fftSize);
-    micAnalyser.getFloatTimeDomainData(data);
-
-    let sum = 0;
-
-    for (let i = 0; i < data.length; i++) {
-      sum += data[i] * data[i];
-    }
-
-    const rms = Math.sqrt(sum / Math.max(1, data.length));
-    const level = Math.min(1, Math.max(0, (rms - 0.0015) * 24));
-    applyLocalVoiceLevel(level);
-
-    micFrame = requestAnimationFrame(analyseMicrophone);
-  }
-
-  function toggleLiveMic() {
-    if (micActive) stopLiveMic();
-    else startLiveMic();
-  }
-
-  function openSidebar() {
-    els.sidebar.classList.add("open");
-    els.sidebarBackdrop.classList.remove("hidden");
-  }
-
-  function closeSidebar() {
-    els.sidebar.classList.remove("open");
-    els.sidebarBackdrop.classList.add("hidden");
-  }
-
-  class LocalPcmRelay {
-    constructor() {
-      this.captureContext = null;
-      this.captureSource = null;
-      this.processor = null;
-      this.silentGain = null;
-      this.playbackContext = null;
-      this.playbackGain = null;
-      this.nextPlayTime = 0;
-      this.pendingChunks = [];
-      this.muted = false;
-      this.sequence = 0;
-      this.active = false;
-    }
-
-    async unlock() {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return false;
-
-      if (!this.playbackContext || this.playbackContext.state === "closed") {
-        this.playbackContext = new AudioContextClass({ latencyHint: "interactive" });
-        this.playbackGain = this.playbackContext.createGain();
-        this.playbackGain.gain.value = this.muted ? 0 : 1;
-        this.playbackGain.connect(this.playbackContext.destination);
-        this.nextPlayTime = this.playbackContext.currentTime + 0.06;
-      }
-
-      if (this.playbackContext.state !== "running") {
-        try {
-          await this.playbackContext.resume();
-        } catch {}
-      }
-
-      if (this.playbackContext.state === "running" && this.pendingChunks.length) {
-        const queued = this.pendingChunks.splice(0);
-        queued.forEach((event) => this.playChunk(event));
-      }
-
-      return this.playbackContext.state === "running";
-    }
-
-    setMuted(muted) {
-      this.muted = Boolean(muted);
-
-      if (this.playbackGain && this.playbackContext) {
-        this.playbackGain.gain.setTargetAtTime(
-          this.muted ? 0 : 1,
-          this.playbackContext.currentTime,
-          0.02
-        );
-      }
-    }
-
-    isUnlocked() {
-      return this.playbackContext?.state === "running";
-    }
-
-    async startCapture(stream) {
-      if (!stream?.getAudioTracks?.().length) {
-        throw new Error("No microphone audio track");
-      }
-
-      await this.stopCapture();
-
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) {
-        throw new Error("Web Audio is not supported");
-      }
-
-      this.captureContext = new AudioContextClass({
-        latencyHint: "interactive",
-        sampleRate: 48000
-      });
-
-      if (this.captureContext.state === "suspended") {
-        try {
-          await this.captureContext.resume();
-        } catch {}
-      }
-
-      this.captureSource = this.captureContext.createMediaStreamSource(stream);
-      this.processor = this.captureContext.createScriptProcessor(4096, 1, 1);
-      this.silentGain = this.captureContext.createGain();
-      this.silentGain.gain.value = 0;
-
-      this.captureSource.connect(this.processor);
-      this.processor.connect(this.silentGain);
-      this.silentGain.connect(this.captureContext.destination);
-
-      this.active = true;
-
-      this.processor.onaudioprocess = (event) => {
-        if (!this.active || !micActive || !transport?.isReady?.()) return;
-
-        const input = event.inputBuffer.getChannelData(0);
-        let sum = 0;
-
-        for (let i = 0; i < input.length; i++) {
-          sum += input[i] * input[i];
-        }
-
-        const rms = Math.sqrt(sum / Math.max(1, input.length));
-        const targetLevel = Math.min(1, Math.max(0, (rms - 0.0015) * 24));
-        applyLocalVoiceLevel(targetLevel);
-
-        const pcm = this.downsampleToInt16(
-          input,
-          this.captureContext.sampleRate,
-          16000
-        );
-
-        transport.send({
-          type: "audio-pcm",
-          sampleRate: 16000,
-          sequence: ++this.sequence,
-          level: targetLevel,
-          data: this.int16ToBase64(pcm)
-        });
-      };
-    }
-
-    async stopCapture() {
-      this.active = false;
-
-      if (this.processor) {
-        this.processor.onaudioprocess = null;
-      }
-
-      try { this.captureSource?.disconnect(); } catch {}
-      try { this.processor?.disconnect(); } catch {}
-      try { this.silentGain?.disconnect(); } catch {}
-
-      this.captureSource = null;
-      this.processor = null;
-      this.silentGain = null;
-
-      if (this.captureContext) {
-        try { await this.captureContext.close(); } catch {}
-      }
-
-      this.captureContext = null;
-      this.sequence = 0;
-    }
-
-    handleChunk(event) {
-      if (!event?.data || event.clientId === profile?.clientId) return;
-
-      clearTimeout(remotePcmTimer);
-      els.remoteAudioCount.textContent = "1";
-      els.roomSoundButton.classList.add("receiving");
-      els.roomSoundButton.title = `تستمع الآن إلى ${firstName(event.nickname)}`;
-
-      remotePcmTimer = setTimeout(() => {
-        els.remoteAudioCount.textContent = "0";
-        els.roomSoundButton.classList.remove("receiving");
-        els.roomSoundButton.title = "تشغيل أو كتم أصوات المستخدمين";
-      }, 1100);
-
-      if (!this.playbackContext || this.playbackContext.state !== "running") {
-        this.pendingChunks.push(event);
-        if (this.pendingChunks.length > 12) this.pendingChunks.shift();
-        return;
-      }
-
-      this.playChunk(event);
-    }
-
-    playChunk(event) {
-      if (!this.playbackContext || !this.playbackGain || this.muted) return;
-
-      try {
-        const samples = this.base64ToInt16(event.data);
-
-        if (!samples.length) return;
-
-        const sampleRate = Number(event.sampleRate || 16000);
-        const buffer = this.playbackContext.createBuffer(1, samples.length, sampleRate);
-        const output = buffer.getChannelData(0);
-
-        for (let i = 0; i < samples.length; i++) {
-          output[i] = samples[i] / 32768;
-        }
-
-        const source = this.playbackContext.createBufferSource();
-        source.buffer = buffer;
-        source.connect(this.playbackGain);
-
-        const now = this.playbackContext.currentTime;
-        if (
-          !Number.isFinite(this.nextPlayTime) ||
-          this.nextPlayTime < now - 0.15 ||
-          this.nextPlayTime > now + 1.2
-        ) {
-          this.nextPlayTime = now + 0.055;
-        }
-
-        const startAt = Math.max(now + 0.025, this.nextPlayTime);
-        source.start(startAt);
-        this.nextPlayTime = startAt + buffer.duration;
-      } catch (error) {
-        console.warn("PCM playback failed", error);
-      }
-    }
-
-    downsampleToInt16(input, inputRate, outputRate) {
-      if (outputRate >= inputRate) {
-        const direct = new Int16Array(input.length);
-        for (let i = 0; i < input.length; i++) {
-          direct[i] = Math.max(-32768, Math.min(32767, input[i] * 32767));
-        }
-        return direct;
-      }
-
-      const ratio = inputRate / outputRate;
-      const outputLength = Math.max(1, Math.floor(input.length / ratio));
-      const output = new Int16Array(outputLength);
-
-      for (let i = 0; i < outputLength; i++) {
-        const start = Math.floor(i * ratio);
-        const end = Math.min(input.length, Math.floor((i + 1) * ratio));
-        let sum = 0;
-        let count = 0;
-
-        for (let j = start; j < end; j++) {
-          sum += input[j];
-          count++;
-        }
-
-        const value = count ? sum / count : input[start] || 0;
-        output[i] = Math.max(-32768, Math.min(32767, value * 32767));
-      }
-
-      return output;
-    }
-
-    int16ToBase64(samples) {
-      const bytes = new Uint8Array(samples.buffer);
-      let binary = "";
-      const step = 8192;
-
-      for (let i = 0; i < bytes.length; i += step) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + step));
-      }
-
-      return btoa(binary);
-    }
-
-    base64ToInt16(value) {
-      const binary = atob(value);
-      const bytes = new Uint8Array(binary.length);
-
-      for (let i = 0; i < binary.length; i++) {
-        bytes[i] = binary.charCodeAt(i);
-      }
-
-      return new Int16Array(bytes.buffer);
-    }
-
-    async destroy() {
-      await this.stopCapture();
-
-      if (this.playbackContext) {
-        try { await this.playbackContext.close(); } catch {}
-      }
-
-      this.playbackContext = null;
-      this.playbackGain = null;
-      this.pendingChunks = [];
-      this.nextPlayTime = 0;
-    }
-  }
-
-  class LocalHttpTransport {
-    constructor(user, room) {
-      this.user = user;
-      this.room = room;
-      this.sessionId = "";
-      this.eventHandler = () => {};
-      this.statusHandler = () => {};
-      this.closedByUser = false;
-      this.ready = false;
-      this.polling = false;
-    }
-
-    onEvent(handler) { this.eventHandler = handler; }
-    onStatus(handler) { this.statusHandler = handler; }
-
-    async connect() {
-      this.closedByUser = false;
-      this.statusHandler("connecting");
-
-      try {
-        const response = await fetch("/api/local/connect", {
-          method: "POST",
-          headers: { "content-type": "application/json; charset=utf-8" },
-          cache: "no-store",
-          body: JSON.stringify({
-            kind: "chat",
-            nickname: this.user.nickname,
-            avatar: this.user.avatar,
-            clientId: this.user.clientId,
-            privateOpen: this.user.privateOpen !== false,
-            role: this.user.role || "user",
-            adminVisible: this.user.adminVisible !== false,
-            adminToken: this.user.adminToken || "",
-            staffClientId: this.user.staffClientId || "",
-            roomId: this.room || DEFAULT_ROOM
-          })
-        });
-
-        if (!response.ok) {
-          let failure = {};
-          try { failure = await response.json(); } catch {}
-
-          if (response.status === 403) {
-            this.closedByUser = true;
-            this.eventHandler({
-              type: "admin-ban",
-              message: failure.message || "حسابك محظور بواسطة الإدارة.",
-              banUntil: failure.banUntil || 0
-            });
-            this.statusHandler("disconnected");
-            return;
-          }
-
-          if (response.status === 401 && this.user.role === "moderator") {
-            this.closedByUser = true;
-            this.eventHandler({
-              type: "staff-revoked",
-              message: failure.error || "رمز المراقب متوقف أو منتهي أو تم تغييره."
-            });
-            this.statusHandler("disconnected");
-            return;
-          }
-
-          throw new Error(failure.error || `Local connect failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        this.sessionId = String(data.sessionId || "");
-        this.ready = Boolean(this.sessionId);
-
-        if (!this.ready) {
-          throw new Error("The local server did not return a session.");
-        }
-
-        this.statusHandler("connected");
-        this.eventHandler(data);
-        this.pollLoop();
-      } catch (error) {
-        console.error("Shared local chat connection failed", error);
-        this.ready = false;
-        this.statusHandler("disconnected");
-
-        if (!this.closedByUser) {
-          setTimeout(() => this.connect(), 1200);
-        }
-      }
-    }
-
-    async pollLoop() {
-      if (this.polling || this.closedByUser) return;
-      this.polling = true;
-
-      while (!this.closedByUser && this.sessionId) {
-        try {
-          const response = await fetch(
-            `/api/local/poll?sessionId=${encodeURIComponent(this.sessionId)}&t=${Date.now()}`,
-            { cache: "no-store" }
-          );
-
-          if (!response.ok) throw new Error(`Poll failed: ${response.status}`);
-
-          const data = await response.json();
-
-          if (data.closed) {
-            throw new Error("Local session closed");
-          }
-
-          for (const event of (data.events || [])) {
-            this.eventHandler(event);
-          }
-
-          await new Promise((resolve) => setTimeout(resolve, 65));
-        } catch (error) {
-          console.warn("Local poll paused", error);
-          this.ready = false;
-          this.statusHandler("disconnected");
-
-          if (!this.closedByUser) {
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            this.polling = false;
-            this.sessionId = "";
-            this.connect();
-            return;
-          }
-        }
-      }
-
-      this.polling = false;
-    }
-
-    send(payload) {
-      if (!this.isReady()) return;
-
-      fetch("/api/local/send", {
-        method: "POST",
-        headers: { "content-type": "application/json; charset=utf-8" },
-        cache: "no-store",
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          payload
-        })
-      }).catch((error) => {
-        console.warn("Local send failed", error);
-      });
-    }
-
-    isReady() {
-      return this.ready && Boolean(this.sessionId);
-    }
-
-    close() {
-      this.closedByUser = true;
-      this.ready = false;
-      this.statusHandler("disconnected");
-
-      if (this.sessionId) {
-        const body = JSON.stringify({ sessionId: this.sessionId });
-
-        try {
-          navigator.sendBeacon(
-            "/api/local/disconnect",
-            new Blob([body], { type: "application/json" })
-          );
-        } catch {
-          fetch("/api/local/disconnect", {
-            method: "POST",
-            headers: { "content-type": "application/json; charset=utf-8" },
-            body,
-            keepalive: true
-          }).catch(() => {});
-        }
-      }
-
-      this.sessionId = "";
-    }
-  }
-
-  class SocketTransport {
-    constructor(user, room) {
-      this.user = user;
-      this.room = room;
-      this.socket = null;
-      this.eventHandler = () => {};
-      this.statusHandler = () => {};
-      this.closedByUser = false;
-      this.retryCount = 0;
-      this.heartbeat = null;
-    }
-
-    onEvent(handler) { this.eventHandler = handler; }
-    onStatus(handler) { this.statusHandler = handler; }
-
-    connect() {
-      this.closedByUser = false;
-      this.statusHandler("connecting");
-
-      const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-      const params = new URLSearchParams({
-        nickname: this.user.nickname,
-        avatar: this.user.avatar,
-        clientId: this.user.clientId,
-        privateOpen: this.user.privateOpen === false ? "0" : "1",
-        role: this.user.role || "user",
-        adminVisible: this.user.adminVisible === false ? "0" : "1",
-        adminToken: this.user.adminToken || "",
-        staffSessionToken: this.user.staffSessionToken || "",
-        staffClientId: this.user.staffClientId || "",
-        authToken: this.user.googleSessionToken || ""
-      });
-      const url = `${protocol}//${location.host}/api/rooms/${this.room}/ws?${params}`;
-
-      this.socket = new WebSocket(url);
-
-      this.socket.addEventListener("open", () => {
-        this.retryCount = 0;
-        this.statusHandler("connected");
-        this.heartbeat = setInterval(() => this.send({ type: "ping" }), 25000);
-      });
-
-      this.socket.addEventListener("message", (event) => {
-        try { this.eventHandler(JSON.parse(event.data)); } catch {}
-      });
-
-      this.socket.addEventListener("close", (event) => {
-        clearInterval(this.heartbeat);
-        this.statusHandler("disconnected");
-
-        if (event.code === 4003) {
-          this.closedByUser = true;
-          this.eventHandler({
-            type: "admin-ban",
-            message: event.reason || "حسابك محظور بواسطة الإدارة."
-          });
-          return;
-        }
-
-        if (event.code === 4004) {
-          this.closedByUser = true;
-          this.eventHandler({
-            type: "staff-revoked",
-            message: event.reason || "تم إيقاف حساب المراقب أو انتهت مدته."
-          });
-          return;
-        }
-
-        if (!this.closedByUser) this.reconnect();
-      });
-
-      this.socket.addEventListener("error", () => {
-        this.statusHandler("disconnected");
-      });
-    }
-
-    reconnect() {
-      const wait = Math.min(12000, 900 * (2 ** this.retryCount));
-      this.retryCount += 1;
-      setTimeout(() => {
-        if (!this.closedByUser) this.connect();
-      }, wait);
-    }
-
-    send(payload) {
-      if (this.isReady()) this.socket.send(JSON.stringify(payload));
-    }
-
-    isReady() {
-      return this.socket?.readyState === WebSocket.OPEN;
-    }
-
-    close() {
-      this.closedByUser = true;
-      clearInterval(this.heartbeat);
-      this.socket?.close(1000, "User left");
-    }
-  }
-
-  class DemoTransport {
-    constructor(user, room) {
-      this.user = user;
-      this.room = room;
-      this.sessionId = randomId();
-      this.eventHandler = () => {};
-      this.statusHandler = () => {};
-      this.channel = null;
-      this.users = new Map();
-      this.heartbeat = null;
-      this.cleanupTimer = null;
-      this.ready = false;
-      this.joinedAt = Date.now();
-      this.privateWith = "";
-      this.pendingPrivateRequest = null;
-    }
-
-    onEvent(handler) { this.eventHandler = handler; }
-    onStatus(handler) { this.statusHandler = handler; }
-
-    connect() {
-      this.statusHandler("connecting");
-      this.channel = new BroadcastChannel(`rivo_demo_${this.room}`);
-      this.channel.onmessage = (event) => this.receive(event.data);
-
-      this.users.set(this.sessionId, {
-        sessionId: this.sessionId,
-        clientId: this.user.clientId,
-        nickname: this.user.nickname,
-        avatar: this.user.avatar,
-        privateOpen: this.user.privateOpen !== false,
-        role: this.user.role || "user",
-        adminVisible: this.user.adminVisible !== false,
-        micBlocked: false,
-        privateBlocked: false,
-        privateBusy: Boolean(this.privateWith),
-        joinedAt: this.joinedAt,
-        lastSeen: Date.now()
-      });
-
-      this.ready = true;
-      this.statusHandler("connected");
-      this.emitInit();
-      this.broadcast({ type: "demo-join", user: this.currentUser() });
-
-      this.heartbeat = setInterval(() => {
-        this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-
-        const micState = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-        if (
-          micState?.active &&
-          micState.clientId === this.user.clientId &&
-          micState.sessionId === this.sessionId
-        ) {
-          micState.claimedAt = Date.now();
-          localStorage.setItem(DEMO_MIC_STATE_KEY, JSON.stringify(micState));
-        }
-      }, 2500);
-
-      this.cleanupTimer = setInterval(() => this.cleanupUsers(), 3000);
-    }
-
-    currentUser() {
-      return {
-        sessionId: this.sessionId,
-        clientId: this.user.clientId,
-        nickname: this.user.nickname,
-        avatar: this.user.avatar,
-        privateOpen: this.user.privateOpen !== false,
-        role: this.user.role || "user",
-        adminVisible: this.user.adminVisible !== false,
-        micBlocked: false,
-        privateBlocked: false,
-        privateBusy: Boolean(this.privateWith),
-        joinedAt: this.joinedAt,
-        lastSeen: Date.now()
-      };
-    }
-
-    emitInit() {
-      const settings = JSON.parse(localStorage.getItem(DEMO_SETTINGS_KEY) || "null") || {
-        publicMicEnabled: true,
-        privateMicEnabled: false
-      };
-      const micBlocks = JSON.parse(localStorage.getItem(DEMO_MIC_BLOCKS_KEY) || "{}");
-      const privateBlocks = JSON.parse(localStorage.getItem(DEMO_PRIVATE_BLOCKS_KEY) || "{}");
-
-      this.eventHandler({
-        type: "init",
-        self: {
-          ...this.currentUser(),
-          micBlocked: Boolean(micBlocks[this.user.clientId]),
-          privateBlocked: Boolean(privateBlocks[this.user.clientId])
-        },
-        messages: this.loadMessages(),
-        users: this.publicUsers(),
-        roomControls: settings
-      });
-    }
-
-    receive(data) {
-      if (!data || data.sessionId === this.sessionId) return;
-      if (data.to && data.to !== this.user.clientId) return;
-
-      if (data.type === "demo-join" || data.type === "demo-heartbeat") {
-        const user = data.user;
-        if (user?.sessionId) {
-          this.users.set(user.sessionId, { ...user, lastSeen: Date.now() });
-          this.emitPresence();
-          if (data.type === "demo-join") {
-            this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-          }
-        }
-        return;
-      }
-
-      if (data.type === "demo-leave") {
-        this.users.delete(data.sessionId);
-        this.emitPresence();
-        return;
-      }
-
-
-      if (data.type === "private-request") {
-        if (this.privateWith || this.pendingPrivateRequest) {
-          this.broadcast({
-            type: "private-rejected",
-            to: data.from,
-            message: `${this.user.nickname} مشغول الآن.`
-          });
-          return;
-        }
-        this.pendingPrivateRequest = data;
-        this.eventHandler(data);
-        return;
-      }
-
-      if (data.type === "private-response") {
-        if (data.accept) {
-          this.privateWith = data.from;
-          const peer = [...this.users.values()].find((user) => user.clientId === data.from);
-          this.eventHandler({ type: "private-started", with: data.from, peer });
-          this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-        } else {
-          this.eventHandler({ type: "private-rejected", message: data.message || "تم رفض طلب الخاص." });
-        }
-        return;
-      }
-
-      if (data.type === "private-end") {
-        if (this.privateWith === data.from) {
-          this.privateWith = "";
-          this.eventHandler({ type: "private-ended", message: "أنهى المستخدم المحادثة الخاصة." });
-          this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-        }
-        return;
-      }
-      if (data.type === "admin-request-state") {
-        const settings = JSON.parse(localStorage.getItem(DEMO_SETTINGS_KEY) || "null") || {
-          publicMicEnabled: true,
-          privateMicEnabled: false
-        };
-        const activeMic = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-        this.broadcast({
-          type: "admin-state",
-          users: this.allAdminUsers(),
-          publicMicEnabled: settings.publicMicEnabled !== false,
-          privateMicEnabled: Boolean(settings.privateMicEnabled),
-          activeMic
-        });
-        return;
-      }
-
-      if (data.type === "admin-command") {
-        this.handleDemoAdminCommand(data);
-        return;
-      }
-
-      if (
-        data.type === "message" ||
-        data.type === "typing" ||
-        data.type === "voice-state" ||
-        data.type === "mic-state" ||
-        data.type === "mic-denied" ||
-        data.type === "private-message" ||
-        data.type === "private-denied" ||
-        data.type === "private-request" ||
-        data.type === "private-request-sent" ||
-        data.type === "private-rejected" ||
-        data.type === "private-started" ||
-        data.type === "private-ended" ||
-        data.type === "rtc-ready" ||
-        data.type === "rtc-signal"
-      ) {
-        this.eventHandler(data);
-      }
-    }
-
-    claimMicDirect() {
-      if (!this.ready) {
-        return { ok: false, message: "الدردشة غير متصلة بعد." };
-      }
-
-      const settings = JSON.parse(localStorage.getItem(DEMO_SETTINGS_KEY) || "null") || {
-        publicMicEnabled: true,
-        privateMicEnabled: false
-      };
-      const micBlocks = JSON.parse(localStorage.getItem(DEMO_MIC_BLOCKS_KEY) || "{}");
-
-      if (settings.publicMicEnabled === false) {
-        return { ok: false, message: "الإدارة أغلقت مايك العامة." };
-      }
-
-      if (micBlocks[this.user.clientId]) {
-        return { ok: false, message: "الإدارة منعت المايك عن حسابك." };
-      }
-
-      let current = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-
-      const currentSessionOnline = current?.sessionId
-        ? this.users.has(current.sessionId)
-        : false;
-
-      const stale = current?.active && (
-        !Number(current.claimedAt) ||
-        Date.now() - Number(current.claimedAt) > 15000 ||
-        (!currentSessionOnline && current.clientId !== this.user.clientId)
-      );
-
-      if (stale) {
-        localStorage.removeItem(DEMO_MIC_STATE_KEY);
-        current = null;
-      }
-
-      if (
-        current?.active &&
-        current.clientId &&
-        current.clientId !== this.user.clientId
-      ) {
-        return {
-          ok: false,
-          message: `${current.nickname || "مستخدم آخر"} على المايك الآن.`
-        };
-      }
-
-      const nextState = {
-        type: "mic-state",
-        active: true,
-        clientId: this.user.clientId,
-        sessionId: this.sessionId,
-        nickname: this.user.nickname,
-        avatar: this.user.avatar,
-        claimedAt: Date.now()
-      };
-
-      localStorage.setItem(DEMO_MIC_STATE_KEY, JSON.stringify(nextState));
-      handleMicState(nextState);
-      this.broadcast(nextState);
-
-      return { ok: true };
-    }
-
-    send(payload) {
-      if (!this.ready) return;
-
-      if (payload.type === "chat") {
-        const message = {
-          id: randomId(),
-          clientId: this.user.clientId,
-          nickname: this.user.nickname,
-          avatar: this.user.avatar,
-          role: this.user.role || "user",
-          body: String(payload.body || "").trim().slice(0, 800),
-          createdAt: Date.now()
-        };
-        if (!message.body) return;
-
-        const messages = this.loadMessages();
-        messages.push(message);
-        localStorage.setItem(DEMO_MESSAGES_KEY, JSON.stringify(messages.slice(-LOCAL_PUBLIC_LIMIT)));
-
-        const event = { type: "message", message };
-        this.eventHandler(event);
-        this.broadcast(event);
-        return;
-      }
-
-      if (payload.type === "typing") {
-        this.broadcast({
-          type: "typing",
-          clientId: this.user.clientId,
-          nickname: this.user.nickname,
-          active: Boolean(payload.active)
-        });
-        return;
-      }
-
-      if (payload.type === "voice-state") {
-        this.broadcast({
-          type: "voice-state",
-          clientId: this.user.clientId,
-          nickname: this.user.nickname,
-          avatar: this.user.avatar,
-          active: Boolean(payload.active),
-          level: Math.max(0, Math.min(1, Number(payload.level || 0))),
-          laugh: Boolean(payload.laugh)
-        });
-        return;
-      }
-
-      if (payload.type === "mic-claim") {
-        const result = this.claimMicDirect();
-
-        if (!result.ok) {
-          this.eventHandler({
-            type: "mic-denied",
-            to: this.user.clientId,
-            message: result.message
-          });
-        }
-        return;
-      }
-
-      if (payload.type === "mic-release") {
-        const current = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-        if (current?.clientId === this.user.clientId) {
-          localStorage.removeItem(DEMO_MIC_STATE_KEY);
-          const nextState = {
-            type: "mic-state",
-            active: false,
-            clientId: this.user.clientId,
-            nickname: this.user.nickname,
-            avatar: this.user.avatar
-          };
-          this.eventHandler(nextState);
-          this.broadcast(nextState);
-        }
-        return;
-      }
-
-      if (payload.type === "privacy-setting") {
-        this.user.privateOpen = Boolean(payload.privateOpen);
-        const own = this.users.get(this.sessionId);
-        if (own) own.privateOpen = this.user.privateOpen;
-        this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-        this.emitPresence();
-        return;
-      }
-
-
-      if (payload.type === "private-request") {
-        const targetId = String(payload.to || "");
-        const target = [...this.users.values()].find((user) => user.clientId === targetId);
-        if (!target || target.privateOpen === false || target.privateBusy || this.privateWith) {
-          this.eventHandler({
-            type: "private-denied",
-            to: targetId,
-            message: !target ? "المستخدم غير متصل الآن." : target.privateBusy ? `${target.nickname} مشغول في الخاص الآن.` : "الخاص غير متاح."
-          });
-          return;
-        }
-        const requestId = randomId();
-        this.eventHandler({ type: "private-request-sent", to: targetId, requestId });
-        this.broadcast({
-          type: "private-request",
-          to: targetId,
-          from: this.user.clientId,
-          fromNickname: this.user.nickname,
-          fromAvatar: this.user.avatar,
-          requestId
-        });
-        return;
-      }
-
-      if (payload.type === "private-response") {
-        const request = this.pendingPrivateRequest;
-        if (!request || request.requestId !== payload.requestId) return;
-        this.pendingPrivateRequest = null;
-        if (payload.accept) {
-          this.privateWith = request.from;
-          const peer = [...this.users.values()].find((user) => user.clientId === request.from);
-          this.eventHandler({ type: "private-started", with: request.from, peer });
-          this.broadcast({ type: "private-response", to: request.from, from: this.user.clientId, accept: true });
-          this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-        } else {
-          this.broadcast({ type: "private-response", to: request.from, from: this.user.clientId, accept: false, message: `${this.user.nickname} رفض طلب الخاص.` });
-        }
-        return;
-      }
-
-      if (payload.type === "private-end") {
-        const targetId = this.privateWith || String(payload.with || "");
-        if (targetId) this.broadcast({ type: "private-end", to: targetId, from: this.user.clientId });
-        this.privateWith = "";
-        this.broadcast({ type: "demo-heartbeat", user: this.currentUser() });
-        return;
-      }
-      if (payload.type === "private-history-request") {
-        const targetId = String(payload.with || "");
-        const history = this.loadPrivateMessages().filter((message) =>
-          (message.senderId === this.user.clientId && message.recipientId === targetId) ||
-          (message.senderId === targetId && message.recipientId === this.user.clientId)
-        );
-
-        this.eventHandler({
-          type: "private-history",
-          with: targetId,
-          messages: history
-        });
-        return;
-      }
-
-      if (payload.type === "private-chat") {
-        const targetId = String(payload.to || "");
-        const target = [...this.users.values()].find((user) => user.clientId === targetId);
-        const privateBlocks = JSON.parse(localStorage.getItem(DEMO_PRIVATE_BLOCKS_KEY) || "{}");
-
-        if (!target || this.privateWith !== targetId || target.privateOpen === false || privateBlocks[targetId] || privateBlocks[this.user.clientId]) {
-          this.eventHandler({
-            type: "private-denied",
-            to: targetId,
-            message: target
-              ? (this.privateWith !== targetId ? "يجب أن يوافق المستخدم على طلب الخاص أولاً." : `${target.nickname} أغلق الرسائل الخاصة.`)
-              : "المستخدم غير متصل الآن."
-          });
-          return;
-        }
-
-        const message = {
-          id: randomId(),
-          senderId: this.user.clientId,
-          senderNickname: this.user.nickname,
-          senderAvatar: this.user.avatar,
-          recipientId: target.clientId,
-          recipientNickname: target.nickname,
-          recipientAvatar: target.avatar,
-          body: String(payload.body || "").trim().slice(0, 800),
-          createdAt: Date.now()
-        };
-
-        if (!message.body) return;
-
-        const messages = this.loadPrivateMessages();
-        messages.push(message);
-        localStorage.setItem(
-          DEMO_PRIVATE_MESSAGES_KEY,
-          JSON.stringify(messages.slice(-500))
-        );
-
-        const event = { type: "private-message", message };
-        this.eventHandler(event);
-        this.broadcast({ ...event, to: target.clientId });
-        return;
-      }
-
-      if (payload.type === "rtc-ready") {
-        this.broadcast({
-          type: "rtc-ready",
-          from: this.user.clientId,
-          to: payload.to || undefined,
-          nickname: this.user.nickname,
-          avatar: this.user.avatar,
-          active: Boolean(payload.active)
-        });
-        return;
-      }
-
-      if (payload.type === "rtc-signal") {
-        this.broadcast({
-          type: "rtc-signal",
-          from: this.user.clientId,
-          to: payload.to,
-          signal: payload.signal
-        });
-      }
-    }
-
-    broadcast(payload) {
-      this.channel?.postMessage({ ...payload, sessionId: this.sessionId });
-    }
-
-    loadMessages() {
-      try {
-        const cutoff = Date.now() - 24 * 60 * 60 * 1000;
-        const data = JSON.parse(localStorage.getItem(DEMO_MESSAGES_KEY) || "[]");
-        const clean = (Array.isArray(data) ? data : [])
-          .filter((message) => Number(message?.createdAt || 0) >= cutoff)
-          .slice(-LOCAL_PUBLIC_LIMIT);
-        localStorage.setItem(DEMO_MESSAGES_KEY, JSON.stringify(clean));
-        return clean;
-      } catch {
-        return [];
-      }
-    }
-
-    loadPrivateMessages() {
-      try {
-        const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
-        const data = JSON.parse(localStorage.getItem(DEMO_PRIVATE_MESSAGES_KEY) || "[]");
-        const clean = (Array.isArray(data) ? data : [])
-          .filter((message) => Number(message?.createdAt || 0) >= cutoff)
-          .slice(-500);
-        localStorage.setItem(DEMO_PRIVATE_MESSAGES_KEY, JSON.stringify(clean));
-        return clean;
-      } catch {
-        return [];
-      }
-    }
-
-    cleanupUsers() {
-      const cutoff = Date.now() - 8000;
-      let changed = false;
-      for (const [id, user] of this.users) {
-        if (user.lastSeen < cutoff) {
-          this.users.delete(id);
-          changed = true;
-        }
-      }
-      if (changed) this.emitPresence();
-    }
-
-    allAdminUsers() {
-      const micBlocks = JSON.parse(localStorage.getItem(DEMO_MIC_BLOCKS_KEY) || "{}");
-      const privateBlocks = JSON.parse(localStorage.getItem(DEMO_PRIVATE_BLOCKS_KEY) || "{}");
-      const seen = new Set();
-      const result = [];
-
-      for (const user of this.users.values()) {
-        if (seen.has(user.clientId)) continue;
-        seen.add(user.clientId);
-        result.push({
-          clientId: user.clientId,
-          nickname: user.nickname,
-          avatar: user.avatar,
-          privateOpen: user.privateOpen !== false,
-          role: user.role || "user",
-          adminVisible: user.adminVisible !== false,
-          micBlocked: Boolean(micBlocks[user.clientId]),
-          privateBlocked: Boolean(privateBlocks[user.clientId]),
-          privateBusy: Boolean(user.privateBusy),
-          joinedAt: Number(user.joinedAt || user.lastSeen || Date.now())
-        });
-      }
-
-      return result.sort((a, b) =>
-        roleRank(a) - roleRank(b) ||
-        Number(a.joinedAt || 0) - Number(b.joinedAt || 0) ||
-        String(a.nickname).localeCompare(String(b.nickname), "ar")
-      );
-    }
-
-    handleDemoAdminCommand(data) {
-      const settings = JSON.parse(localStorage.getItem(DEMO_SETTINGS_KEY) || "null") || {
-        publicMicEnabled: true,
-        privateMicEnabled: false
-      };
-      const micBlocks = JSON.parse(localStorage.getItem(DEMO_MIC_BLOCKS_KEY) || "{}");
-      const privateBlocks = JSON.parse(localStorage.getItem(DEMO_PRIVATE_BLOCKS_KEY) || "{}");
-
-      if (data.action === "set-public-mic") {
-        settings.publicMicEnabled = Boolean(data.enabled);
-        localStorage.setItem(DEMO_SETTINGS_KEY, JSON.stringify(settings));
-        this.eventHandler({ type: "room-controls", ...settings });
-        if (!settings.publicMicEnabled && micActive) {
-          this.eventHandler({ type: "admin-force-mic-off" });
-        }
-      }
-
-      if (data.action === "set-private-mic") {
-        settings.privateMicEnabled = Boolean(data.enabled);
-        localStorage.setItem(DEMO_SETTINGS_KEY, JSON.stringify(settings));
-        this.eventHandler({ type: "room-controls", ...settings });
-      }
-
-      if (data.action === "force-release-mic") {
-        const active = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-        if (active?.clientId === this.user.clientId) {
-          this.eventHandler({ type: "admin-force-mic-off" });
-        }
-        localStorage.removeItem(DEMO_MIC_STATE_KEY);
-        this.broadcast({
-          type: "mic-state",
-          active: false,
-          clientId: active?.clientId || "",
-          nickname: active?.nickname || "",
-          avatar: active?.avatar || ""
-        });
-      }
-
-      if (data.action === "block-user-mic") {
-        micBlocks[data.clientId] = Boolean(data.blocked);
-        localStorage.setItem(DEMO_MIC_BLOCKS_KEY, JSON.stringify(micBlocks));
-        if (data.clientId === this.user.clientId) {
-          this.eventHandler({
-            type: "user-restrictions",
-            clientId: this.user.clientId,
-            micBlocked: Boolean(data.blocked),
-            privateBlocked: Boolean(privateBlocks[this.user.clientId])
-          });
-        }
-      }
-
-      if (data.action === "block-user-private") {
-        privateBlocks[data.clientId] = Boolean(data.blocked);
-        localStorage.setItem(DEMO_PRIVATE_BLOCKS_KEY, JSON.stringify(privateBlocks));
-        if (data.clientId === this.user.clientId) {
-          this.eventHandler({
-            type: "user-restrictions",
-            clientId: this.user.clientId,
-            micBlocked: Boolean(micBlocks[this.user.clientId]),
-            privateBlocked: Boolean(data.blocked)
-          });
-        }
-      }
-
-      if (data.action === "kick-user" && data.clientId === this.user.clientId) {
-        this.eventHandler({
-          type: "admin-kick",
-          message: "تم إخراجك من الدردشة بواسطة الإدارة."
-        });
-      }
-
-      this.emitPresence();
-      this.broadcast({
-        type: "admin-state",
-        users: this.allAdminUsers(),
-        publicMicEnabled: settings.publicMicEnabled !== false,
-        privateMicEnabled: Boolean(settings.privateMicEnabled),
-        activeMic: JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null")
-      });
-    }
-
-    publicUsers() {
-      const seen = new Set();
-      const result = [];
-      const micBlocks = JSON.parse(localStorage.getItem(DEMO_MIC_BLOCKS_KEY) || "{}");
-      const privateBlocks = JSON.parse(localStorage.getItem(DEMO_PRIVATE_BLOCKS_KEY) || "{}");
-
-      for (const user of this.users.values()) {
-        if (seen.has(user.clientId)) continue;
-        if (["owner", "moderator"].includes(user.role) && user.adminVisible === false) continue;
-
-        seen.add(user.clientId);
-        result.push({
-          clientId: user.clientId,
-          nickname: user.nickname,
-          avatar: user.avatar,
-          privateOpen: user.privateOpen !== false && !privateBlocks[user.clientId],
-          role: user.role || "user",
-          adminVisible: user.adminVisible !== false,
-          micBlocked: Boolean(micBlocks[user.clientId]),
-          privateBlocked: Boolean(privateBlocks[user.clientId]),
-          privateBusy: Boolean(user.privateBusy),
-          joinedAt: Number(user.joinedAt || user.lastSeen || Date.now())
-        });
-      }
-      return result.sort((a, b) =>
-        roleRank(a) - roleRank(b) ||
-        Number(a.joinedAt || 0) - Number(b.joinedAt || 0) ||
-        String(a.nickname).localeCompare(String(b.nickname), "ar")
-      );
-    }
-
-    emitPresence() {
-      this.eventHandler({ type: "presence", users: this.publicUsers() });
-    }
-
-    isReady() { return this.ready; }
-
-    close() {
-      if (!this.ready) return;
-      const current = JSON.parse(localStorage.getItem(DEMO_MIC_STATE_KEY) || "null");
-      if (current?.clientId === this.user.clientId) {
-        localStorage.removeItem(DEMO_MIC_STATE_KEY);
-        this.broadcast({
-          type: "mic-state",
-          active: false,
-          clientId: this.user.clientId,
-          nickname: this.user.nickname,
-          avatar: this.user.avatar
-        });
-      }
-      if (this.privateWith) {
-        this.broadcast({ type: "private-end", to: this.privateWith, from: this.user.clientId });
-        this.privateWith = "";
-      }
-      this.broadcast({ type: "demo-leave" });
-      clearInterval(this.heartbeat);
-      clearInterval(this.cleanupTimer);
-      this.channel?.close();
-      this.ready = false;
-      this.statusHandler("disconnected");
-    }
-  }
-
-
-  function installProfessionalBridge() {
-    window.RIVO_APP = {
-      send(payload) {
-        if (transport?.isReady?.()) transport.send(payload);
-      },
-      isReady() {
-        return Boolean(transport?.isReady?.());
-      },
-      getProfile() {
-        return profile ? { ...profile } : null;
-      },
-      getUsers() {
-        return currentUsers.map((user) => ({ ...user }));
-      },
-      getMessages() {
-        return publicMessages.map((message) => ({ ...message }));
-      },
-      openPrivate(clientId) {
-        const user = currentUsers.find((item) => item.clientId === clientId);
-        if (user) openPrivateChat(user);
-      },
-      showMessage(message, duration = 4000) {
-        showError(message, duration);
-      },
-      avatarUrl,
-      firstName
-    };
-
-    window.dispatchEvent(new CustomEvent("rivo:bridge-ready"));
-  }
-
-  function bindEvents() {
-    document.addEventListener("pointerdown", () => {
-      unlockRoomAudio().catch(() => {});
-    }, { once: true, capture: true });
-
-    document.addEventListener("keydown", () => {
-      unlockRoomAudio().catch(() => {});
-    }, { once: true, capture: true });
-
-    document.addEventListener("pointerdown", () => {
-      localPcmRelay?.unlock?.().catch(() => {});
-    }, { passive: true });
-
-    document.addEventListener("keydown", () => {
-      localPcmRelay?.unlock?.().catch(() => {});
-    });
-
-    els.moderatorLoginOpen?.addEventListener("click", openModeratorLogin);
-    els.moderatorLoginClose?.addEventListener("click", closeModeratorLogin);
-    els.moderatorLoginBackdrop?.addEventListener("click", closeModeratorLogin);
-    els.moderatorLoginForm?.addEventListener("submit", handleModeratorMainLogin);
-
-    els.vipJoinOpen?.addEventListener("click", openVipModal);
-    els.vipHeaderButton?.addEventListener("click", openVipModal);
-    bindReliableModalClose(els.vipModalClose, closeVipModal);
-    bindReliableModalClose(els.vipModal?.querySelector("[data-close-vip]"), closeVipModal);
-    installVipCloseSafetyNet();
-    els.vipRequestButton?.addEventListener("click", requestVipMembership);
-
-    els.mobileRoomsButton?.addEventListener("click", () => {
-      closeSidebar();
-      openRoomsMenu();
-    });
-    els.mobileVipButton?.addEventListener("click", () => {
-      closeSidebar();
-      openVipModal();
-    });
-    els.vipStealthButton?.addEventListener("click", () => {
-      if (!profile?.isVip || !transport?.isReady?.()) return;
-      const enabled = !profile.vipStealth;
-      profile.vipStealth = enabled;
-      syncVipUi();
-      transport.send({ type: "vip-stealth", enabled });
-    });
-    els.vipGiftClose?.addEventListener("click", closeVipGift);
-    els.vipGiftModal?.querySelector("[data-close-vip-gift]")?.addEventListener("click", closeVipGift);
-    els.vipGiftGrid?.addEventListener("click", (event) => {
-      const button = event.target.closest("button[data-gift]");
-      if (button) sendVipGift(button.dataset.gift);
-    });
-
-    els.joinForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      unlockRoomAudio().catch(() => {});
-      const nickname = cleanNickname(els.nicknameInput.value);
-
-      if (googleRequired() && !googleSession?.sessionToken) {
-        showError("سجّل الدخول بحساب Google أولاً.", 5000);
-        return;
-      }
-
-      if (nickname.length < 2) {
-        els.nicknameInput.focus();
-        return;
-      }
-
-      els.joinButton.disabled = true;
-      const originalText = els.joinButton.querySelector("span")?.textContent || "دخول الدردشة";
-      if (els.joinButton.querySelector("span")) els.joinButton.querySelector("span").textContent = "جاري الدخول إلى العامة…";
-      activeRoomId = "";
-      sessionStorage.removeItem(ROOM_KEY);
-      await loadRooms({ assign: true, preferGeneral: true });
-      enterChat({
-        clientId: googleSession?.googleUid ? `google:${googleSession.googleUid}` : getClientId(),
-        nickname,
-        avatar: selectedAvatar,
-        googleUid: googleSession?.googleUid || "",
-        googleEmail: googleSession?.email || ""
-      });
-      els.joinButton.disabled = false;
-      if (els.joinButton.querySelector("span")) els.joinButton.querySelector("span").textContent = originalText;
-    });
-
-    els.composer.addEventListener("submit", (event) => {
-      event.preventDefault();
-      sendCurrentMessage();
-    });
-
-    els.messageInput.addEventListener("input", () => {
-      resizeComposer();
-      sendTyping(true);
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(() => sendTyping(false), 1100);
-    });
-
-    els.messageInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        sendCurrentMessage();
-      }
-    });
-
-    els.emojiButton.addEventListener("click", () => {
-      els.emojiPanel.classList.toggle("hidden");
-    });
-
-    els.emojiPanel.addEventListener("click", (event) => {
-      const button = event.target.closest("button");
-      if (!button) return;
-      const start = els.messageInput.selectionStart;
-      const end = els.messageInput.selectionEnd;
-      const value = els.messageInput.value;
-      els.messageInput.value = value.slice(0, start) + button.textContent + value.slice(end);
-      els.messageInput.focus();
-      els.messageInput.selectionStart = els.messageInput.selectionEnd = start + button.textContent.length;
-      resizeComposer();
-    });
-
-    document.addEventListener("click", (event) => {
-      if (!event.target.closest("#emojiPanel") && !event.target.closest("#emojiButton")) {
-        els.emojiPanel.classList.add("hidden");
-      }
-    });
-
-    els.voiceButton.addEventListener("click", () => {
-      unlockRoomAudio().catch(() => {});
-
-      if (micActive && stageMode === "local") {
-        stopLiveMic();
-        hideCharacterStage();
-        return;
-      }
-
-      openAvatarStage();
-      if (!micActive) startLiveMic();
-    });
-
-    els.roomsMenuButton?.addEventListener("click", openRoomsMenu);
-    els.primaryRoomsButton?.addEventListener("click", openRoomsMenu);
-    els.profileHomeButton?.addEventListener("click", leaveChat);
-    els.closeRoomsModal?.addEventListener("click", closeRoomsMenu);
-    els.roomsModal?.querySelector("[data-close-rooms]")?.addEventListener("click", closeRoomsMenu);
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !els.roomsModal?.classList.contains("hidden")) closeRoomsMenu();
-      if (event.key === "Escape" && !els.vipModal?.classList.contains("hidden")) closeVipModal();
-      if (event.key === "Escape" && !els.vipGiftModal?.classList.contains("hidden")) closeVipGift();
-    });
-
-    els.roomSoundButton.addEventListener("click", async () => {
-      const wasUnlocked = Boolean(
-        relayAudio?.isUnlocked?.() ||
-        voiceRoom?.isPlaybackUnlocked?.() ||
-        (isSharedLocalServer() && localPcmRelay?.isUnlocked?.())
-      );
-
-      const unlocked = await unlockRoomAudio();
-      if (!unlocked) {
-        syncRoomSoundButton();
-        return;
-      }
-
-      // The first tap must enable playback, not immediately mute it.
-      if (!wasUnlocked) {
-        relayAudio?.setMuted?.(false);
-        voiceRoom?.setPlaybackMuted?.(false);
-        localPcmRelay?.setMuted?.(false);
-        syncRoomSoundButton();
-        showError("صوت الغرفة يعمل الآن.", 2200);
-        return;
-      }
-
-      const currentlyMuted = Boolean(
-        relayAudio?.isMuted?.() ||
-        voiceRoom?.isPlaybackMuted?.() ||
-        localPcmRelay?.isMuted?.()
-      );
-      const nextMuted = !currentlyMuted;
-      relayAudio?.setMuted?.(nextMuted);
-      voiceRoom?.setPlaybackMuted?.(nextMuted);
-      localPcmRelay?.setMuted?.(nextMuted);
-      syncRoomSoundButton();
-    });
-
-    els.toggleLiveMic.addEventListener("click", async () => {
-      await unlockRoomAudio();
-      toggleLiveMic();
-    });
-    els.closeAvatarStage.addEventListener("click", closeAvatarStage);
-    window.addEventListener("rivo:vrm-ready", () => {
-      els.avatarFallback.classList.add("hidden");
-      els.modelLoading.classList.add("hidden");
-    });
-
-    window.addEventListener("rivo:vrm-loading", () => {
-      els.avatarFallback.classList.remove("hidden");
-      els.modelLoading.classList.remove("hidden");
-    });
-
-    window.addEventListener("rivo:vrm-error", () => {
-      els.avatarFallback.classList.remove("hidden");
-      els.modelLoading.classList.add("hidden");
-      els.liveMicStatus.textContent = "تعذر تحميل النموذج الثلاثي الأبعاد";
-    });
-
-    els.publicNavButton.addEventListener("click", switchToPublic);
-    els.privateNavButton?.addEventListener("click", openPrivateHome);
-    els.backToPublicButton.addEventListener("click", switchToPublic);
-
-    els.privatePopupForm.addEventListener("submit", (event) => {
-      event.preventDefault();
-      sendPrivatePopupMessage();
-    });
-
-    els.privatePopupInput.addEventListener("input", () => {
-      els.privatePopupInput.style.height = "auto";
-      els.privatePopupInput.style.height =
-        `${Math.min(els.privatePopupInput.scrollHeight, 110)}px`;
-    });
-
-    els.privatePopupInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        sendPrivatePopupMessage();
-      }
-    });
-
-    els.privatePopupMinimize.addEventListener("click", minimizePrivatePopup);
-    els.privatePopupExpand.addEventListener("click", togglePrivatePopupExpanded);
-    els.privatePopupClose.addEventListener("click", closePrivatePopup);
-    els.privatePopupCollapsedButton.addEventListener("click", restorePrivatePopup);
-    els.privateRequestAccept?.addEventListener("click", () => {
-      if (!pendingPrivateRequest || !transport?.isReady?.()) return;
-      transport.send({ type: "private-response", requestId: pendingPrivateRequest.requestId, accept: true });
-      hidePrivateRequestModal();
-    });
-    els.privateRequestReject?.addEventListener("click", () => {
-      if (pendingPrivateRequest && transport?.isReady?.()) {
-        transport.send({ type: "private-response", requestId: pendingPrivateRequest.requestId, accept: false });
-      }
-      pendingPrivateRequest = null;
-      hidePrivateRequestModal();
-      renderUsers(currentUsers);
-    });
-    els.privateToggleButton.addEventListener("click", () => {
-      setPrivateOpen(profile?.privateOpen === false);
-    });
-
-    els.changeProfileButton.addEventListener("click", leaveChat);
-    els.googleLogoutButton?.addEventListener("click", () => {
-      window.RivoGoogleAuth?.clearSession?.();
-      googleSession = null;
-      syncGoogleUi();
-    });
-    els.openSidebar.addEventListener("click", openSidebar);
-    els.closeSidebar.addEventListener("click", closeSidebar);
-    els.sidebarBackdrop.addEventListener("click", closeSidebar);
-
-    window.addEventListener("beforeunload", () => {
-      clearInterval(localCleanupTimer);
-      clearInterval(roomRefreshTimer);
-      clearInterval(vipRefreshTimer);
-      clearTimeout(localCleanupDebounce);
-      if (privateSessionPeerId && transport?.isReady?.()) {
-        transport.send({ type: "private-end", with: privateSessionPeerId });
-      }
-      if (micActive) sendVoiceState(false, 0, false);
-      releaseMicClaim();
-      voiceRoom?.destroy();
-      relayAudio?.destroy();
-      localPcmRelay?.destroy();
-      transport?.close();
-    });
-
-    const INSTALL_MARKER_KEY = "rivo_pwa_installed_v1";
-
-    const isStandaloneApp = () => {
-      return window.matchMedia?.("(display-mode: standalone)")?.matches === true ||
-        window.navigator.standalone === true;
-    };
-
-    const setInstallButtonsHidden = (hidden) => {
-      els.installButton?.classList.toggle("hidden", hidden);
-      els.mobileInstallButton?.classList.toggle("hidden", hidden);
-      document.body.classList.toggle("rivo-app-installed", hidden);
-    };
-
-    const syncInstallButtons = () => {
-      const installed = isStandaloneApp() || localStorage.getItem(INSTALL_MARKER_KEY) === "1";
-      setInstallButtonsHidden(installed);
-    };
-
-    const ensureInstallHelpModal = () => {
-      let modal = document.getElementById("installHelpModal");
-      if (modal) return modal;
-
-      modal = document.createElement("div");
-      modal.id = "installHelpModal";
-      modal.className = "professional-modal install-help-modal hidden";
-      modal.setAttribute("aria-hidden", "true");
-      modal.innerHTML = `
-        <div class="professional-modal-backdrop" data-close-install-help="1"></div>
-        <section class="professional-sheet install-help-sheet" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
-          <button class="professional-close" type="button" data-close-install-help="1" aria-label="إغلاق">✕</button>
-          <div class="install-help-icon" aria-hidden="true">⬇</div>
-          <h2 id="installHelpTitle">تثبيت Rivo Chat</h2>
-          <p id="installHelpIntro">يمكنك إضافة Rivo Chat إلى شاشة الهاتف وفتحه مثل التطبيق.</p>
-          <div class="install-help-steps" id="installHelpSteps"></div>
-          <button class="install-help-ok" type="button" data-close-install-help="1">فهمت</button>
-        </section>`;
-      document.body.appendChild(modal);
-
-      modal.addEventListener("click", (event) => {
-        if (event.target.closest("[data-close-install-help='1']")) {
-          modal.classList.add("hidden");
-          modal.setAttribute("aria-hidden", "true");
-          document.body.classList.remove("modal-open");
-        }
-      });
-      return modal;
-    };
-
-    const showInstallHelp = () => {
-      const modal = ensureInstallHelpModal();
-      const steps = modal.querySelector("#installHelpSteps");
-      const intro = modal.querySelector("#installHelpIntro");
-      const ua = navigator.userAgent || "";
-      const isIos = /iPad|iPhone|iPod/i.test(ua);
-      const isAndroid = /Android/i.test(ua);
-
-      if (isIos) {
-        intro.textContent = "في iPhone أو iPad استخدم Safari لإضافة Rivo Chat إلى الشاشة الرئيسية.";
-        steps.innerHTML = `
-          <div><b>1</b><span>افتح الموقع في Safari.</span></div>
-          <div><b>2</b><span>اضغط زر المشاركة.</span></div>
-          <div><b>3</b><span>اختر «إضافة إلى الشاشة الرئيسية» ثم «إضافة».</span></div>`;
-      } else if (isAndroid) {
-        intro.textContent = "إذا لم تظهر نافذة التثبيت التلقائية، ثبّت Rivo Chat من قائمة المتصفح.";
-        steps.innerHTML = `
-          <div><b>1</b><span>افتح قائمة المتصفح ⋮.</span></div>
-          <div><b>2</b><span>اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية».</span></div>
-          <div><b>3</b><span>وافق على التثبيت، ثم افتح أيقونة Rivo Chat.</span></div>`;
-      } else {
-        intro.textContent = "إذا لم تظهر نافذة التثبيت، استخدم قائمة المتصفح لتثبيت Rivo Chat.";
-        steps.innerHTML = `
-          <div><b>1</b><span>افتح قائمة المتصفح.</span></div>
-          <div><b>2</b><span>اختر «تثبيت التطبيق» أو «إنشاء اختصار».</span></div>
-          <div><b>3</b><span>وافق على إضافة Rivo Chat إلى جهازك.</span></div>`;
-      }
-
-      modal.classList.remove("hidden");
-      modal.setAttribute("aria-hidden", "false");
-      document.body.classList.add("modal-open");
-    };
-
-    const promptInstallApp = async () => {
-      if (isStandaloneApp()) {
-        localStorage.setItem(INSTALL_MARKER_KEY, "1");
-        syncInstallButtons();
-        return;
-      }
-
-      if (!deferredInstallPrompt) {
-        showInstallHelp();
-        return;
-      }
-
-      try {
-        deferredInstallPrompt.prompt();
-        const choice = await deferredInstallPrompt.userChoice;
-        if (choice?.outcome === "accepted") {
-          localStorage.setItem(INSTALL_MARKER_KEY, "1");
-          setInstallButtonsHidden(true);
-        }
-      } catch (_) {
-        showInstallHelp();
-      } finally {
-        deferredInstallPrompt = null;
-      }
-    };
-
-    window.addEventListener("beforeinstallprompt", (event) => {
-      event.preventDefault();
-      deferredInstallPrompt = event;
-      if (!isStandaloneApp() && localStorage.getItem(INSTALL_MARKER_KEY) !== "1") {
-        setInstallButtonsHidden(false);
-      }
-    });
-
-    window.addEventListener("appinstalled", () => {
-      deferredInstallPrompt = null;
-      localStorage.setItem(INSTALL_MARKER_KEY, "1");
-      setInstallButtonsHidden(true);
-      const modal = document.getElementById("installHelpModal");
-      modal?.classList.add("hidden");
-      modal?.setAttribute("aria-hidden", "true");
-      document.body.classList.remove("modal-open");
-    });
-
-    const displayModeQuery = window.matchMedia?.("(display-mode: standalone)");
-    displayModeQuery?.addEventListener?.("change", syncInstallButtons);
-    syncInstallButtons();
-
-    els.installButton?.addEventListener("click", promptInstallApp);
-    els.mobileInstallButton?.addEventListener("click", async () => {
-      closeSidebar();
-      await promptInstallApp();
-    });
-  }
-
-  function registerServiceWorker() {
-    const local = location.protocol === "file:" ||
-      location.hostname === "127.0.0.1" ||
-      location.hostname === "localhost";
-
-    if (local) {
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.getRegistrations()
-          .then((items) => Promise.all(items.map((item) => item.unregister())))
-          .catch(() => {});
-      }
-
-      if ("caches" in window) {
-        caches.keys()
-          .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
-          .catch(() => {});
-      }
-      return;
-    }
-
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("./sw.js").catch(() => {});
-    }
-  }
-
-  async function init() {
-    const params = new URLSearchParams(location.search);
-    const requestedRoom = String(params.get("room") || "").trim();
-    const adminAutoName = String(params.get("adminAutoName") || "").trim();
-    const preferGeneralOnEntry = !requestedRoom && !adminAutoName;
-    if (requestedRoom) {
-      activeRoomId = requestedRoom;
-      sessionStorage.setItem(ROOM_KEY, activeRoomId);
-    } else if (preferGeneralOnEntry) {
-      // Do not restore an old room from the phone/browser. Start in العامة.
-      activeRoomId = "";
-      sessionStorage.removeItem(ROOM_KEY);
-    }
-
-    if (adminAutoName && !els.nicknameInput.value) {
-      els.nicknameInput.value = adminAutoName;
-    }
-
-    voiceRoom = createVoiceRoom();
-    relayAudio = createRelayAudio();
-    localPcmRelay?.destroy().catch(() => {});
-    localPcmRelay = new LocalPcmRelay();
-    syncRoomSoundButton();
-    await loadDynamicCharacters();
-    bindEvents();
-    registerServiceWorker();
-    setConnectionStatus("disconnected");
-    await initializeGoogleLogin();
-
-    const saved = loadSavedProfile();
-    const pendingAvatar = loadPendingAvatar();
-    selectedAvatar = getCharacter(pendingAvatar || saved?.avatar || selectedAvatar).id;
-    buildAvatarGrid();
-    installFirstGestureAudioUnlock();
-    await loadRooms({ assign: true, preferGeneral: preferGeneralOnEntry });
-
-    if (adminAutoName) {
-      const adminProfile = {
-        ...(saved || {}),
-        nickname: adminAutoName,
-        avatar: saved?.avatar || selectedAvatar
-      };
-
-      selectedAvatar = getCharacter(adminProfile.avatar).id;
-      els.nicknameInput.value = adminAutoName;
-      enterChat(adminProfile);
-    } else if (
-      saved?.nickname &&
-      saved?.avatar &&
-      (!googleRequired() || (googleSession?.googleUid && saved.googleUid === googleSession.googleUid))
-    ) {
-      selectedAvatar = getCharacter(saved.avatar).id;
-      els.nicknameInput.value = saved.nickname;
-      enterChat(saved);
-    } else {
-      els.nicknameInput.focus();
-    }
-  }
-
-  init();
-})();
+  }catch(e){}
+}
+function sendMessage(){
+ updateColorUI();
+ const t=$('#messageInput').value.trim();
+ if(!t)return;
+ if(permissionValue('publicMessages')===false){toast('الكتابة غير مسموحة لرتبتك');return}
+ if(state.user?.status==='muted'){toast('الإدارة قامت بكتم حسابك');return}
+ if(t.length>state.adminFeatures.maxMessageLength){toast('الرسالة أطول من الحد الذي حددته الإدارة');return}
+if(!state.user){open('loginModal');return}appendRoomMessage({room:state.room,user:state.user.id,text:t,color:state.color,time:new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}),createdAt:Date.now()});$('#messageInput').value='';renderMessages();$('#messages').scrollTop=$('#messages').scrollHeight}
+
+function entryAvatarNames(){return['guest','ahmed','samar','ali','noor','mira']}
+function currentEntryAvatarOptions(){return normalizeEntryAvatarOptions(state.entryAvatarOptions)}
+function renderEntryAvatarChoices(){
+ const wrap=$('#entryAvatarPickerGrid');
+ state.entryAvatarOptions=currentEntryAvatarOptions();
+ if(!state.entryAvatarOptions.some(item=>item.src===state.entryAvatar))state.entryAvatar=state.entryAvatarOptions[0]?.src||defaultEntryAvatars[0].src;
+ if(wrap){
+  wrap.innerHTML=state.entryAvatarOptions.map(item=>`<button type="button" class="entryAvatarPickerOption" data-picker-avatar="${item.src}" aria-label="${esc(item.alt)}"><img src="${av(item.src)}" alt="${esc(item.alt)}" title="${esc(item.title||item.alt)}" loading="lazy" decoding="async"><span>${esc(item.title||item.alt)}</span></button>`).join('');
+  $$('[data-picker-avatar]',wrap).forEach(button=>button.onclick=()=>{state.entryAvatar=button.dataset.pickerAvatar;updateEntryAvatarUI();close('entryAvatarPickerModal');toast('تم اختيار الصورة الشخصية')});
+ }
+ updateEntryAvatarUI();
+}
+function openEntryAvatarPicker(){renderEntryAvatarChoices();open('entryAvatarPickerModal')}
+function updateEntryAvatarUI(){const preview=$('#entryAvatarPreview');const selected=(state.entryAvatarOptions||[]).find(item=>item.src===state.entryAvatar)||state.entryAvatarOptions?.[0]||defaultEntryAvatars[0];if(preview){preview.src=av(selected?.src||'guest');preview.alt=selected?.alt||'معاينة الصورة الشخصية المختارة'}$$('[data-picker-avatar]').forEach(b=>b.classList.toggle('selected',b.dataset.pickerAvatar===state.entryAvatar))}
+function showEntryError(message=''){const box=$('#entryError');if(!box)return;box.textContent=message;box.classList.toggle('hidden',!message)}
+function showEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.remove('hidden');document.body.classList.add('entryLocked');showEntryError('');setTimeout(()=>$('#entryName')?.focus(),80)}
+function hideEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.add('hidden');document.body.classList.remove('entryLocked');showEntryError('')}
+function initEntryScreen(){if(new URLSearchParams(location.search).has('adminPreview')){hideEntryScreen();return}renderEntryAvatarChoices();showEntryScreen()}
+function validateEntryProfile(){const name=String($('#entryName')?.value||'').trim();if(name.length<2){showEntryError('اكتب اسماً من حرفين على الأقل.');$('#entryName')?.focus();return null}return{name,avatar:state.entryAvatar||currentEntryAvatarOptions()[0]?.src||'guest'}}
+function enterFromEntry(type){const profile=validateEntryProfile();if(!profile)return;if(type==='guest'&&state.adminFeatures.guestEntry===false){showEntryError('دخول الضيف مغلق من الإدارة.');return}updateColorUI();if(type==='google'){state.user={id:'googleLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'مسجل بحساب Google',authType:'google',coins:50,role:'user',plan:'user',vip:false,verified:true,giftValue:0,friends:0,level:1};restoreLocalMembership(state.user);persistCurrentUserProfile()}else state.user={id:'guestLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'ضيف',authType:'guest',coins:0,role:'guest',plan:'guest',vip:false,verified:false,giftValue:0,friends:0,level:1};startFreshChatSession();hideEntryScreen();renderAll();toast(type==='google'?'تم التسجيل والدخول بحساب Google التجريبي':'تم الدخول كضيف')}
+function googleLogin(){
+ updateColorUI();
+ state.user={
+  id:'googleLocal',
+  name:'مستخدم Google',
+  avatar:'ahmed',
+  room:state.room,
+  bio:'مسجل بحساب Google',
+  authType:'google',
+  coins:50,
+  role:'user',
+  plan:'user',
+  vip:false,
+  verified:true,
+  giftValue:0,
+  friends:0,
+  level:1
+ };
+ restoreLocalProfile(state.user);
+ restoreLocalMembership(state.user);
+ startFreshChatSession();
+ close('loginModal');hideEntryScreen();
+ renderAll();
+ toast('تم الدخول كمستخدم مسجل بحساب Google');
+}
+function ownerLogin(){
+ updateColorUI();
+ state.user={
+  id:'demoUser',
+  name:'الإدارة',
+  avatar:'owner',
+  room:state.room,
+  bio:'مالك ريفو',
+  authType:'owner',
+  coins:1200,
+  role:'owner',
+  plan:'owner',
+  isHidden:Boolean(readAdminConfig()?.users?.find(u=>u.id==='owner')?.isHidden),
+  vip:true,
+  verified:false,
+  giftValue:350,
+  friends:73,
+  level:15
+ };
+ restoreLocalProfile(state.user);
+ startFreshChatSession();
+ close('loginModal');hideEntryScreen();
+ renderAll();
+ const pending=state.pendingFreeBadgeTarget;
+ state.pendingFreeBadgeTarget=null;
+ if(pending){
+  toast('تم دخول الإدارة — اختر الشارة الآن');
+  setTimeout(()=>openFreeBadgePanel(pending),60);
+ }else{
+  toast('تم دخول الإدارة التجريبي');
+ }
+}
+function guestLogin(){
+ if(state.adminFeatures.guestEntry===false){
+  toast('دخول الضيف مغلق من الإدارة');
+  return;
+ }
+ updateColorUI();
+ const n=$('#guestName').value.trim();
+ if(n.length<2){
+  toast('اكتب اسماً من حرفين على الأقل');
+  return;
+ }
+ state.user={
+  id:'guestLocal',
+  name:n,
+  avatar:state.guestAvatar,
+  room:state.room,
+  bio:'ضيف',
+  authType:'guest',
+  coins:0,
+  role:'guest',
+  plan:'guest',
+  vip:false,
+  verified:false,
+  giftValue:0,
+  friends:0,
+  level:1
+ };
+ restoreLocalProfile(state.user);
+ startFreshChatSession();
+ close('guestModal');hideEntryScreen();
+ renderAll();
+ toast('دخلت كضيف — تبدأ الدردشة من جديد');
+}
+async function joinCamera(){requestRoomCamera()}
+function joinMic(){requestRoomMic()}
+function leaveStage(){if(state.localStream){state.localStream.getTracks().forEach(t=>t.stop());state.localStream=null}state.stage=state.stage.filter(s=>s.user!==state.user?.id);renderStage()}
+function toggleAvatar(){if(!member('الشخصية المتحركة'))return;const s=state.stage.find(x=>x.user===state.user.id);if(!s){joinMic();return}s.mode=s.mode==='avatar'?'audio':'avatar';renderStage();toast(s.mode==='avatar'?'تم إظهار الشخصية':'تم إخفاء الشخصية')}
+
+const RIVO_LOCAL_MEMBERSHIP_KEY='rivoLocalMembershipV1';
+function membershipExpiryText(value){
+ if(!value)return'';
+ const date=new Date(value);
+ if(Number.isNaN(date.getTime()))return'';
+ return date.toLocaleDateString('ar-IQ',{year:'numeric',month:'long',day:'numeric'});
+}
+function saveLocalMembership(){
+ if(!state.user)return;
+ localStorage.setItem(RIVO_LOCAL_MEMBERSHIP_KEY,JSON.stringify({
+  userId:state.user.id,
+  plan:state.user.plan,
+  expiresAt:state.user.membershipExpires||null
+ }));
+}
+function restoreLocalMembership(user){
+ if(!user||user.role==='owner'||user.role==='moderator')return user;
+ try{
+  const saved=JSON.parse(localStorage.getItem(RIVO_LOCAL_MEMBERSHIP_KEY)||'null');
+  if(!saved||saved.userId!==user.id)return user;
+  const expiry=Number(saved.expiresAt||0);
+  if(!['plus','vip','primo'].includes(saved.plan)||!expiry||expiry<=Date.now()){
+   localStorage.removeItem(RIVO_LOCAL_MEMBERSHIP_KEY);
+   return user;
+  }
+  user.role='user';
+  user.plan=saved.plan;
+  user.vip=['vip','primo'].includes(saved.plan);
+  user.membershipExpires=expiry;
+ }catch(_){}
+ return user;
+}
+function currentMembershipHtml(){
+ if(!state.user)return'<div class="membershipCurrent none">سجّل الدخول أو ادخل كضيف لتجربة رمز العضوية.</div>';
+ const role=userAccessRole(state.user);
+ if(!['plus','vip','primo'].includes(role))return'<div class="membershipCurrent none">حسابك لا يملك عضوية مدفوعة حالياً.</div>';
+ const plan=state.planConfig[role];
+ return`<div class="membershipCurrent active">
+  <span>${plan?.icon||'💎'}</span>
+  <div><b>عضويتك الحالية: ${esc(plan?.label||role)}</b><small>${state.user.membershipExpires?'تنتهي في '+membershipExpiryText(state.user.membershipExpires):'مفعّلة'}</small></div>
+ </div>`;
+}
+function normalizeAccessCode(value){return String(value||'').trim().toUpperCase()}
+function activateMembershipCode(){
+ if(!state.user){close('storeModal');open('loginModal');toast('سجّل الدخول أولاً');return}
+ if(state.user.role==='owner'||state.user.role==='moderator'){toast('الإدارة والمراقب لا يحتاجان رمز اشتراك');return}
+ const input=$('#membershipCodeInput');
+ const code=normalizeAccessCode(input?.value);
+ if(!code){toast('اكتب كلمة سر الاشتراك');input?.focus();return}
+ const planKey=['plus','vip','primo'].find(key=>{
+  const plan=state.planConfig[key];
+  return plan?.enabled&&normalizeAccessCode(plan.accessCode)===code;
+ });
+ if(!planKey){toast('كلمة السر غير صحيحة أو الخطة مغلقة');return}
+ const plan=state.planConfig[planKey];
+ const expiresAt=Date.now()+Math.max(1,+plan.days||30)*86400000;
+ state.user.role='user';
+ state.user.plan=planKey;
+ state.user.vip=['vip','primo'].includes(planKey);
+ state.user.membershipExpires=expiresAt;
+ const listed=findUser(state.user.id);
+ if(listed){
+  listed.role='user';listed.plan=planKey;listed.vip=state.user.vip;listed.membershipExpires=expiresAt;
+ }
+ saveLocalMembership();
+ renderAll();
+ showStore('vip');
+ toast(`تم تفعيل ${plan.label} لمدة ${plan.days} يوم`);
+}
+
+function showStore(tab='coins'){
+ $$('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));
+ let h='';
+ if(tab==='coins'){
+  h=`<div class="storeGrid">${[100,250,600,1500,3500,8000].map((n,i)=>`<div class="package"><strong>${n} 🪙</strong><span>${i>1?'باقة مع مكافأة':'باقة ذهب'}</span></div>`).join('')}</div>`;
+ }
+ if(tab==='vip'){
+  const plans=['plus','vip','primo'].filter(k=>state.planConfig[k]?.enabled);
+  h=`${currentMembershipHtml()}
+   <div class="storeGrid membershipStore">${plans.map(k=>{
+    const p=state.planConfig[k];
+    return`<div class="package membershipPackage ${k}">
+      <strong>${p.icon} ${p.label}</strong>
+      <span>${p.price} 🪙 / ${p.days} يوم</span>
+      <small>تُحدد المزايا من لوحة الإدارة.</small>
+    </div>`;
+   }).join('')}</div>
+   <div class="membershipCodeRedeem">
+    <b>تفعيل العضوية بكلمة السر</b>
+    <small>أدخل كلمة السر التي يمنحها لك مالك الدردشة.</small>
+    <div>
+      <input id="membershipCodeInput" autocomplete="off" placeholder="مثلاً: VIP-XXXXXX">
+      <button id="membershipActivateBtn">تفعيل</button>
+    </div>
+   </div>`;
+ }
+ if(tab==='verify'){
+  h='<div class="package" style="margin:16px 0"><strong>التوثيق الأزرق</strong><span>شارة توثيق خاصة بـRivo قرب الاسم والصورة.</span></div>';
+ }
+ $('#storeContent').innerHTML=h;
+ if($('#membershipActivateBtn'))$('#membershipActivateBtn').onclick=activateMembershipCode;
+ if($('#membershipCodeInput'))$('#membershipCodeInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter'){e.preventDefault();activateMembershipCode()}
+ });
+}
+function initAdmin(){const r=room();$('#adminAnnouncement').value=r.announcement;$('#announcementEnabled').checked=r.announcementOn;$('#cameraLimit').value=r.cams;$('#cameraLimitText').textContent=r.cams;$('#micLimit').value=r.mics;$('#micLimitText').textContent=r.mics;$('#cameraEnabled').checked=r.camOn;$('#micEnabled').checked=r.micOn;$('#musicEnabled').checked=r.music;$('#avatarsEnabled').checked=r.avatars;$('#linaEnabled').checked=r.lina;renderStageAdmin();renderRoomCameraRequests();initRadioAdmin()}
+function saveAnnouncement(){const txt=$('#adminAnnouncement').value.trim(),on=$('#announcementEnabled').checked;if($('#announcementScope').value==='all')state.rooms.forEach(r=>{r.announcement=txt;r.announcementOn=on});else{room().announcement=txt;room().announcementOn=on}renderHeader();toast('تم حفظ الإعلان')}
+function applySettings(){const r=room();r.cams=+$(' #cameraLimit'.trim()).value;r.mics=+$('#micLimit').value;r.camOn=$('#cameraEnabled').checked;r.micOn=$('#micEnabled').checked;r.music=$('#musicEnabled').checked;r.avatars=$('#avatarsEnabled').checked;r.lina=$('#linaEnabled').checked;state.stage=state.stage.slice(0,Math.max(r.cams,r.mics));
+ if($('#privateMicEnabled')) state.privateMedia.mic=$('#privateMicEnabled').checked;
+ if($('#privateCameraEnabled')) state.privateMedia.camera=$('#privateCameraEnabled').checked;
+ if($('#privateMediaPaidOnly')) state.privateMedia.paidOnly=$('#privateMediaPaidOnly').checked;
+ if(!r.camOn||r.cams===0) closeAllRoomCameras();
+ renderAll();updatePrivateMediaControls();renderRoomCameraRequests();toast('تم تطبيق إعدادات الغرفة والدردشة الخاصة')}
+
+function normalizeColor(value){
+ const v=String(value||'').trim();
+ return /^#[0-9a-f]{6}$/i.test(v)?v:'#111827';
+}
+function updateColorUI(){
+ state.color=normalizeColor(state.color);
+ const input=$('#messageInput');
+ const dot=$('#activeColorDot');
+ if(input){
+   input.style.color=state.color;
+   input.style.caretColor=state.color;
+ }
+ if(dot) dot.style.background=state.color;
+ $$('#colorGrid [data-color]').forEach(btn=>{
+   btn.classList.toggle('selected',normalizeColor(btn.dataset.color)===state.color);
+   btn.setAttribute('aria-pressed',normalizeColor(btn.dataset.color)===state.color?'true':'false');
+ });
+}
+function chooseTextColor(color){
+ state.color=normalizeColor(color);
+ updateColorUI();
+ $('#colorPicker')?.classList.add('hidden');
+ $('#messageInput')?.focus();
+ toast('تم تفعيل لون الخط');
+}
+function positionColorPicker(){
+ const picker=$('#colorPicker'), button=$('#colorBtn');
+ if(!picker||!button) return;
+ const r=button.getBoundingClientRect();
+ picker.style.left=Math.max(12,Math.min(window.innerWidth-picker.offsetWidth-12,r.left))+'px';
+ picker.style.bottom=Math.max(74,window.innerHeight-r.top+8)+'px';
+}
+
+function initUI(){
+ $('#emojiGrid').innerHTML=emojis.map((e,i)=>`<button class="emojiChoice emojiMotion${i%4}" aria-label="إيموجي ${e}">${e}</button>`).join('');$$('#emojiGrid button').forEach(b=>b.onclick=()=>{$('#messageInput').value+=b.textContent;$('#messageInput').focus()});
+ $('#colorGrid').innerHTML=colors.map(c=>`<button type="button" class="colorChoice" style="--choice-color:${c};background:${c}" data-color="${c}" title="اختيار هذا اللون" aria-label="لون ${c}"></button>`).join('');
+ $$('#colorGrid [data-color]').forEach(b=>b.onclick=()=>chooseTextColor(b.dataset.color));
+ updateColorUI();
+ $('#avatarChoices').innerHTML=['guest','ahmed','samar','ali','noor','mira','lina','owner'].map(a=>`<button class="${a==='guest'?'selected':''}" data-avatar="${a}"><img src="${av(a)}"></button>`).join('');$$('[data-avatar]').forEach(b=>b.onclick=()=>{$$('[data-avatar]').forEach(x=>x.classList.remove('selected'));b.classList.add('selected');state.guestAvatar=b.dataset.avatar});
+}
+function bind(){
+ $$('.sideTabs button').forEach(b=>b.onclick=()=>setSideTab(b.dataset.sideTab));
+ if($('#logoutBtn'))$('#logoutBtn').onclick=e=>{e.stopPropagation();logoutChat()};
+ if($('#accountBtn')) $('#accountBtn').onclick=()=>{if(!state.user){open('loginModal');return}if(roleGiftKey(state.user)){openRoleGiftPanel();return}showProfile(state.user.id)};
+ if($('#dmMiniBtn')) $('#dmMiniBtn').onclick=(e)=>{e.stopPropagation();openPrivateInbox()};
+ if($('#notifMiniBtn')) $('#notifMiniBtn').onclick=(e)=>{e.stopPropagation();toast('هذه أيقونة التنبيهات');clearInbox('alerts')};
+ if($('#googleDemo')) $('#googleDemo').onclick=googleLogin;if($('#ownerDemo')) $('#ownerDemo').onclick=ownerLogin;if($('#ownerIdentityBtn'))$('#ownerIdentityBtn').onclick=e=>{e.stopPropagation();openOwnerIdentitySettings()};if($('#ownerIdentitySave'))$('#ownerIdentitySave').onclick=saveOwnerIdentity;if($('#ownerIdentityCancel'))$('#ownerIdentityCancel').onclick=()=>close('ownerIdentityModal');if($('#ownerCrownOnly'))$('#ownerCrownOnly').onchange=updateOwnerIdentityChoice;if($('#ownerDisplayName'))$('#ownerDisplayName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();saveOwnerIdentity()}});if($('#moderatorOpen'))$('#moderatorOpen').onclick=()=>{close('loginModal');open('moderatorLoginModal')};if($('#moderatorEnterBtn'))$('#moderatorEnterBtn').onclick=moderatorLogin;if($('#moderatorCodeInput'))$('#moderatorCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();moderatorLogin()}});if($('#visibilityBtn'))$('#visibilityBtn').onclick=e=>{e.stopPropagation();toggleMyVisibility()};if($('#guestOpen')) $('#guestOpen').onclick=()=>{close('loginModal');open('guestModal')};if($('#guestEnter')) $('#guestEnter').onclick=guestLogin;
+ $('#sendBtn').onclick=sendMessage;$('#messageInput').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}});$('#emojiBtn').onclick=()=>$('#emojiPicker').classList.toggle('hidden');
+ $('#colorBtn').onclick=()=>{
+   const picker=$('#colorPicker');
+   const opening=picker.classList.contains('hidden');
+   picker.classList.toggle('hidden');
+   if(opening){requestAnimationFrame(()=>{positionColorPicker();updateColorUI()})}
+ };
+ if($('#giftBtn')) $('#giftBtn').onclick=()=>{const u=usersInRoom().find(x=>x.id!==state.user?.id);if(u)openGifts(u.id)};$('#coinBtn').onclick=()=>{if(!member('تحويل العملات'))return;const u=usersInRoom().find(x=>x.id!==state.user.id);state.target=u.id;$('#coinTarget').textContent=u.name;open('coinModal')};
+ $('#coinSend').onclick=()=>{if(!member('تحويل العملات'))return;const n=+$('#coinAmount').value,u=findUser(state.target);if(n<1||n>state.user.coins){toast('تحقق من الكمية والرصيد');return}state.user.coins-=n;u.coins+=n;appendRoomMessage({type:'system',room:state.room,text:`${state.user.name} أرسل ${n} عملة ذهبية إلى ${u.name}`});close('coinModal');renderAll();toast('تم تحويل الذهب')};
+ $('#storeBtn').onclick=()=>{showStore('coins');open('storeModal')};$$('[data-tab]').forEach(b=>b.onclick=()=>showStore(b.dataset.tab)); if($('#cameraBtn')) $('#cameraBtn').onclick=joinCamera; if($('#micBtn')) $('#micBtn').onclick=joinMic; if($('#composerCameraBtn')) $('#composerCameraBtn').onclick=joinCamera; if($('#composerMicBtn')) $('#composerMicBtn').onclick=joinMic; if($('#leaveStage')) $('#leaveStage').onclick=leaveStage; if($('#avatarToggle')) $('#avatarToggle').onclick=toggleAvatar;
+ if($('#soundBtn')) $('#soundBtn').onclick=()=>{document.body.classList.toggle('muted');$('#soundBtn').textContent=document.body.classList.contains('muted')?'🔇 صوت الغرفة':'🔊 صوت الغرفة';toast('تحكم صوت تجريبي')}; $('#radioBtn').onclick=toggleRadioListener;
+ if($('#adminBtn')) $('#adminBtn').onclick=(e)=>{e.stopPropagation();location.href='admin.html'};$('#cameraLimit').oninput=e=>$('#cameraLimitText').textContent=e.target.value;$('#micLimit').oninput=e=>$('#micLimitText').textContent=e.target.value;$('#saveAnnouncement').onclick=saveAnnouncement;$('#applySettings').onclick=applySettings;
+
+ if($('#musicVolume')) $('#musicVolume').oninput=e=>{
+   const audio=radioAudio();
+   if(audio) audio.volume=Math.max(0,Math.min(1,(+e.target.value||0)/100));
+ };
+ if($('#adminRadioScope')) $('#adminRadioScope').onchange=updateRadioScopeAdmin;
+ if($('#useDemoRadio')) $('#useDemoRadio').onclick=()=>{
+   $('#adminRadioTitle').value='موسيقى ريفو التجريبية';
+   $('#adminRadioSource').value='assets/audio/rivo-radio-demo.wav';
+   toast('تم اختيار المقطع التجريبي');
+ };
+ if($('#startRadioBroadcast')) $('#startRadioBroadcast').onclick=startRadioBroadcast;
+ if($('#pauseRadioBroadcast')) $('#pauseRadioBroadcast').onclick=pauseRadioBroadcast;
+ if($('#stopRadioBroadcast')) $('#stopRadioBroadcast').onclick=stopRadioBroadcast;
+ if($('#globalRadioAudio')){
+   $('#globalRadioAudio').onplay=renderRadioUI;
+   $('#globalRadioAudio').onpause=renderRadioUI;
+   $('#globalRadioAudio').onerror=()=>{renderRadioUI();toast('تعذر تشغيل رابط الصوت')};
+ }
+
+ $('#roomSearch').oninput=renderRooms;$('#userSearch').oninput=renderUsers; if($('#hideAnnouncement')) $('#hideAnnouncement').onclick=()=>$('#announcement').classList.add('hidden');
+ $('#userMenu').onclick=e=>{
+ const actionButton=e.target.closest('[data-act]');
+ const a=actionButton?.dataset.act;
+ if(!a)return;
+ if(a==='cancel'){ $('#userMenu').classList.add('hidden'); return; }
+ $('#userMenu').classList.add('hidden');
+ if(a==='profile') showProfile(state.target);
+ if(a==='gift') openGifts(state.target);
+ if(a==='dm') openPrivateChat(state.target);
+ if(a==='report') toast('تم فتح نموذج إبلاغ تجريبي');
+};
+
+ if($('#entryAvatarPickerBtn'))$('#entryAvatarPickerBtn').onclick=openEntryAvatarPicker;
+ if($('#entryGuestBtn'))$('#entryGuestBtn').onclick=()=>enterFromEntry('guest');
+ if($('#entryGoogleBtn'))$('#entryGoogleBtn').onclick=()=>enterFromEntry('google');
+ if($('#entryOwnerBtn'))$('#entryOwnerBtn').onclick=()=>ownerLogin();
+ if($('#entryModeratorBtn'))$('#entryModeratorBtn').onclick=()=>open('moderatorLoginModal');
+ if($('#entryName'))$('#entryName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();enterFromEntry('guest')}});
+
+ $('#profileGift').onclick=()=>{close('profileModal');openGifts(state.target)};$('#profileDm').onclick=()=>{close('profileModal');openPrivateChat(state.target)};if($('#profileAvatarEdit'))$('#profileAvatarEdit').onclick=()=>{close('profileModal');openAvatarEditor()};if($('#profileFreeBadge'))$('#profileFreeBadge').onclick=()=>{const id=state.target;close('profileModal');requestFreeBadgeFor(id)};
+ if($('#avatarEditorCancel'))$('#avatarEditorCancel').onclick=()=>{close('avatarEditorModal');resetAvatarEditor()};
+ if($('#avatarEditorSave'))$('#avatarEditorSave').onclick=saveAvatarEditorImage;
+ if($('#avatarUploadInput'))$('#avatarUploadInput').onchange=e=>{const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>loadAvatarIntoEditor(String(ev.target?.result||''),true);reader.readAsDataURL(file)};
+ if($('#avatarZoomRange'))$('#avatarZoomRange').oninput=e=>{if(!avatarEditor.image)return;avatarEditor.scale=avatarEditor.minScale*((+e.target.value||100)/100);clampAvatarEditorOffsets();drawAvatarEditor()};
+ const avatarCanvas=$('#avatarCropCanvas');
+ if(avatarCanvas){
+  avatarCanvas.addEventListener('mousedown',e=>{e.preventDefault();startAvatarEditorDrag(e.clientX,e.clientY)});
+  avatarCanvas.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(!t)return;startAvatarEditorDrag(t.clientX,t.clientY,t.identifier)},{passive:true});
+ }
+ window.addEventListener('mousemove',e=>moveAvatarEditorDrag(e.clientX,e.clientY));
+ window.addEventListener('mouseup',stopAvatarEditorDrag);
+ window.addEventListener('touchmove',e=>{if(!avatarEditor.dragging)return;const touch=[...e.touches].find(t=>avatarEditor.pointerId==null||t.identifier===avatarEditor.pointerId)||e.touches?.[0];if(!touch)return;moveAvatarEditorDrag(touch.clientX,touch.clientY)},{passive:true});
+ window.addEventListener('touchend',stopAvatarEditorDrag);
+ if($('#clearRoleGiftBtn'))$('#clearRoleGiftBtn').onclick=()=>{if(!state.user)return;clearActiveNameGift(state.user.id);renderAll();openRoleGiftPanel();toast('تمت إزالة الهدية من قرب اسمك')};
+ if($('#removeFreeBadgeBtn'))$('#removeFreeBadgeBtn').onclick=removeFreeBadge;
+
+
+ if($('#roomCameraCloseBtn')) $('#roomCameraCloseBtn').onclick=()=>stopRoomCamera(false);
+ if($('#roomCameraMinimizeBtn')) $('#roomCameraMinimizeBtn').onclick=toggleRoomCameraMinimize;
+ if($('#roomCameraMaximizeBtn')) $('#roomCameraMaximizeBtn').onclick=toggleRoomCameraMaximize;
+ if($('#closeAllRoomCameras')) $('#closeAllRoomCameras').onclick=closeAllRoomCameras;
+
+ if($('#closePrivateInbox')) $('#closePrivateInbox').onclick=closePrivateInbox;
+ if($('#privateMessagesToggle')) $('#privateMessagesToggle').onchange=e=>setPrivateMessagesEnabled(e.target.checked);
+ if($('#privateCloseBtn')) $('#privateCloseBtn').onclick=closePrivateChat;
+ if($('#privateMinimizeBtn')) $('#privateMinimizeBtn').onclick=togglePrivateMinimize;
+ if($('#privateMaximizeBtn')) $('#privateMaximizeBtn').onclick=togglePrivateMaximize;
+ if($('#privateSendBtn')) $('#privateSendBtn').onclick=sendPrivateMessage;
+ if($('#privateMessageInput')) $('#privateMessageInput').addEventListener('keydown',e=>{
+   if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendPrivateMessage()}
+ });
+ if($('#privateMicBtn')) $('#privateMicBtn').onclick=()=>{
+   if($('#privateMicBtn').dataset.locked==='1') toast($('#privateMicLabel').textContent);
+   else toast('تشغيل المايك الخاص — نموذج تجريبي');
+ };
+ if($('#privateCameraBtn')) $('#privateCameraBtn').onclick=()=>{
+   if($('#privateCameraBtn').dataset.locked==='1') toast($('#privateCameraLabel').textContent);
+   else toast('تشغيل الكاميرا الخاصة — نموذج تجريبي');
+ };
+
+ $$('[data-close]').forEach(b=>b.onclick=()=>close(b.dataset.close));document.addEventListener('click',e=>{if(!e.target.closest('.userItem')&&!e.target.closest('#userMenu'))$('#userMenu').classList.add('hidden')});
+}
+migrateCachedAccountsV32();applyExternalAdminConfig(false);initUI();bind();renderAll();updateColorUI();drawAvatarEditor();initEntryScreen();renderPrivateInbox();updatePrivateBadge();initPrivateWindowDrag();initRoomCameraDrag();renderRoomCameraRequests();renderRadioUI();setSideTab('users');$('#messages').scrollTop=$('#messages').scrollHeight;
+
+window.addEventListener('message',e=>handleAdminLiveMessage(e.data));
+if(rivoSyncChannel)rivoSyncChannel.onmessage=e=>handleAdminLiveMessage(e.data);
+window.addEventListener('storage',e=>{
+ if(e.key===RIVO_ADMIN_CONFIG_KEY)refreshChatFromAdmin(null,true);
+ if(e.key===RIVO_MIC_REQUESTS_KEY)handleAdminLiveMessage({type:'rivo-mic-requests',payload:readSharedMicRequests()});
+ if(e.key===RIVO_CAMERA_REQUESTS_KEY)handleAdminLiveMessage({type:'rivo-camera-requests',payload:readSharedCameraRequests()});
+});
+notifyAdminLive('rivo-chat-ready',{room:state.room,preview:new URLSearchParams(location.search).has('adminPreview')});
+
+window.addEventListener('beforeunload',()=>{state.activeNameGifts={}});

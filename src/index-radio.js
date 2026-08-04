@@ -8,7 +8,7 @@ const MAX_POSITION_SECONDS = 24 * 60 * 60;
 
 const PRESENCE_LEAVE_DELAY_MS = 30 * 1000;
 const PRESENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
-const PRESENCE_HISTORY_LIMIT = 50;
+const PRESENCE_HISTORY_LIMIT = 12;
 const PRESENCE_PENDING_TABLE = "presence_pending_leaves_v1";
 
 // لينا: مضيفة ذكية مستقلة عن أساس الدردشة.
@@ -344,6 +344,7 @@ export class ChatRoom extends GiftChatRoom {
       joinedSession.privateBlocked = true;
       joinedSession.isVip = false;
       joinedSocket.serializeAttachment?.(joinedSession);
+      this.broadcastPresence();
     }
 
     if (joinedSocket && joinedSession && this.shouldShowPresenceEvent(joinedSession)) {
@@ -795,7 +796,7 @@ export class ChatRoom extends GiftChatRoom {
     this.persistLinaMessage(`تسلم ${sender} على ${giftName}، كلش حلوة منك 💜`);
   }
 
-  handleAdminCommand(ws, session, data) {
+  async handleAdminCommand(ws, session, data) {
     const action = cleanText(data?.action, 60);
     const targetId = cleanText(data?.clientId, 80);
 
@@ -810,7 +811,7 @@ export class ChatRoom extends GiftChatRoom {
     }
 
     const previousBadge = targetId === LINA_CLIENT_ID ? this.getUserBadge(LINA_CLIENT_ID) : "";
-    const result = super.handleAdminCommand(ws, session, data);
+    const result = await super.handleAdminCommand(ws, session, data);
 
     if (
       targetId === LINA_CLIENT_ID &&
