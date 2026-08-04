@@ -1053,3 +1053,11 @@ body.entryAvatarManagerOpen{overflow:hidden}
   .ownerAdminHero{grid-template-columns:auto 1fr}
   .ownerAdminModePill{grid-column:1/-1}
 }
+
+
+/* Rivo v189 — compact owner room switcher */
+.ownerAdminRoomSwitcher{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #dce3f0;border-radius:13px;background:linear-gradient(135deg,#f8fbff,#f5f1ff)}
+.ownerAdminRoomInfo{display:flex;align-items:center;gap:9px;min-width:0}.ownerAdminRoomIcon{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;background:#e8edff;font-size:18px;flex:0 0 auto}.ownerAdminRoomInfo div{display:grid;gap:2px;min-width:0}.ownerAdminRoomInfo b{font-size:13px;color:#26334e}.ownerAdminRoomInfo small{font-size:10px;color:#6f7890;white-space:normal}.ownerAdminRoomInfo strong{color:#5143c9}
+.ownerAdminRoomControls{display:grid;grid-template-columns:minmax(155px,230px) auto;gap:7px;align-items:center;flex:0 0 auto}.ownerAdminRoomControls select{height:38px;border:1px solid #cbd5e7;border-radius:10px;background:#fff;color:#27324b;padding:0 10px;font-size:12px;font-weight:850;outline:none}.ownerAdminRoomControls select:focus{border-color:#6552df;box-shadow:0 0 0 3px rgba(101,82,223,.11)}.ownerAdminRoomControls button{height:38px;border:0;border-radius:10px;padding:0 13px;background:linear-gradient(135deg,#4e46cf,#2d8bea);color:#fff;font-size:12px;font-weight:950;cursor:pointer;white-space:nowrap}.ownerAdminRoomControls button.hiddenEntry{background:linear-gradient(135deg,#6c54d5,#8d5bc3)}.ownerAdminRoomControls button:hover{filter:brightness(1.04)}
+@media(max-width:760px){.ownerAdminRoomSwitcher{align-items:stretch;flex-direction:column}.ownerAdminRoomControls{grid-template-columns:1fr auto}.ownerAdminRoomControls select{min-width:0}}
+@media(max-width:430px){.ownerAdminRoomControls{grid-template-columns:1fr}.ownerAdminRoomControls button{width:100%}}

@@ -127,6 +127,20 @@
           <div><b>أنت الآن مخفي عن قائمة المستخدمين</b><small>يمكنك مشاهدة الدردشة والكتابة في العام؛ ستظهر رسائلك باسم الإدارة والتاج فقط.</small></div>
         </div>
 
+        <section class="ownerAdminRoomSwitcher" aria-label="اختيار غرفة دخول الإدارة">
+          <div class="ownerAdminRoomInfo">
+            <span class="ownerAdminRoomIcon">🏠</span>
+            <div>
+              <b>الدخول إلى أي غرفة</b>
+              <small>الغرفة الحالية: <strong id="ownerAdminCurrentRoomName">العامة</strong> — يمكنك الانتقال وأنت ظاهر أو مخفي.</small>
+            </div>
+          </div>
+          <div class="ownerAdminRoomControls">
+            <select id="ownerAdminRoomSelect" aria-label="اختر الغرفة"></select>
+            <button id="ownerAdminEnterRoomBtn" type="button">دخول الغرفة</button>
+          </div>
+        </section>
+
         <div class="ownerAdminSettingsGrid">
           <section class="ownerAdminPanel ownerIdentityPanel">
             <div class="ownerPanelTitle">

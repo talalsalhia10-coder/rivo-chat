@@ -406,6 +406,7 @@ function reloadChatPreviewAsOwner(){
  try{
   const url=new URL(preview.getAttribute('src')||'index.html',location.href);
   url.searchParams.set('adminPreview','1');
+  url.searchParams.set('room',selectedRoomId);
   url.searchParams.set('ownerEntry',String(Date.now()));
   preview.src=url.href;
   return true;
@@ -417,7 +418,7 @@ function enterOwnerChatNow(name=ownerAdminSettingsState.name,visible=ownerAdminS
  if(!saveOwnerChatIdentity(identity)){setOwnerAdminStatus('تعذر حفظ جلسة دخول الإدارة في المتصفح.','error');return false}
  reloadChatPreviewAsOwner();
  if(openWindow){
-  const tab=window.open(`index.html?ownerEntry=${Date.now()}`,'_blank','noopener');
+  const tab=window.open(`index.html?room=${encodeURIComponent(selectedRoomId)}&ownerEntry=${Date.now()}`,'_blank','noopener');
   if(!tab)setOwnerAdminStatus('تم دخول الإدارة داخل المعاينة. المتصفح منع فتح نافذة مستقلة.','success');
  }
  setOwnerAdminStatus(identity.name===CROWN_ONLY_NAME?'دخلت إلى الدردشة بالتاج فقط. اكتب الآن من مربع الرسائل في المعاينة.':`دخلت إلى الدردشة باسم ${ownerAdminPublicName(identity.name)||'الإدارة'} مع التاج. اكتب الآن من مربع الرسائل في المعاينة.`,'success');
@@ -447,6 +448,50 @@ function setOwnerAdminStatus(text,type=''){
  if(!status)return;
  status.textContent=text;
  status.className=type?`ownerAdminSaveState ${type}`:'ownerAdminSaveState';
+}
+function renderOwnerAdminRoomPicker(){
+ const select=$('#ownerAdminRoomSelect');
+ const currentName=$('#ownerAdminCurrentRoomName');
+ const enterButton=$('#ownerAdminEnterRoomBtn');
+ const rooms=(Array.isArray(config?.rooms)?config.rooms:[])
+  .filter(room=>room&&room.enabled!==false)
+  .slice()
+  .sort((a,b)=>Number(a.order||0)-Number(b.order||0));
+ if(!rooms.length)return;
+ if(!rooms.some(room=>room.id===selectedRoomId))selectedRoomId=rooms[0].id;
+ if(select){
+  const activeElement=document.activeElement;
+  const previous=select.value;
+  select.innerHTML=rooms.map(room=>`<option value="${esc(room.id)}">${esc(room.icon||'💬')} ${esc(room.name||room.id)} · ${Number(room.count||0)} متصل</option>`).join('');
+  select.value=rooms.some(room=>room.id===selectedRoomId)?selectedRoomId:(previous||rooms[0].id);
+  if(activeElement===select)select.focus();
+ }
+ const room=roomById(selectedRoomId)||rooms[0];
+ if(currentName)currentName.textContent=`${room.icon||'💬'} ${room.name||room.id}`;
+ if(enterButton){
+  enterButton.textContent=ownerAdminSettingsState.visible===false?'دخول مخفي إلى الغرفة 🫥':'دخول الغرفة كإدارة 👑';
+  enterButton.classList.toggle('hiddenEntry',ownerAdminSettingsState.visible===false);
+ }
+}
+function switchOwnerAdminRoom(roomId,{openWindow=false}={}){
+ const room=roomById(roomId);
+ if(!room||room.enabled===false){setOwnerAdminStatus('هذه الغرفة غير متاحة الآن.','error');return false}
+ selectedRoomId=room.id;
+ const identity=buildOwnerChatIdentity(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+ if(!identity){showRemoteAdminLogin('أعد إدخال رمز الإدارة أولاً.');setOwnerAdminStatus('يلزم تسجيل دخول الإدارة قبل الانتقال إلى الغرفة.','error');return false}
+ if(!saveOwnerChatIdentity(identity)){setOwnerAdminStatus('تعذر حفظ الغرفة المختارة في المتصفح.','error');return false}
+ renderOwnerAdminRoomPicker();
+ renderRoomsAdmin();
+ connectAdminSocket(true);
+ reloadChatPreviewAsOwner();
+ if(openWindow){
+  const tab=window.open(`index.html?room=${encodeURIComponent(room.id)}&ownerEntry=${Date.now()}`,'_blank','noopener');
+  if(!tab)setOwnerAdminStatus(`تم دخول غرفة ${room.name} داخل المعاينة، لكن المتصفح منع فتح نافذة مستقلة.`,'success');
+ }
+ const mode=ownerAdminSettingsState.visible===false?'مخفياً':'كإدارة ظاهرة';
+ setOwnerAdminStatus(`دخلت إلى غرفة ${room.icon||'💬'} ${room.name} ${mode}. يمكنك الكتابة الآن من المعاينة.`,'success');
+ toast(`تم الانتقال إلى غرفة ${room.name}`);
+ return true;
 }
 function renderOwnerAdminSettings(){
  const name=ownerAdminPublicName();
@@ -481,6 +526,7 @@ function renderOwnerAdminSettings(){
  }
  const enterBtn=$('#ownerEnterChatNowBtn');
  if(enterBtn)enterBtn.textContent=visible?'فتح الدردشة كإدارة والكتابة الآن 👑':'فتح الدردشة مخفياً والكتابة في العام 🫥';
+ renderOwnerAdminRoomPicker();
 }
 function setOwnerAdminVisibility(visible){
  const nextVisible=Boolean(visible);
@@ -1011,6 +1057,7 @@ function renderCommunityPanel(){normalizeAdminData();
  $$('[data-community-visibility]').forEach(button=>button.onclick=e=>{e.stopPropagation();toggleStaffVisibility(button.dataset.communityVisibility)});
  $$('[data-community-room]').forEach(b=>b.onclick=()=>{
    selectedRoomId=b.dataset.communityRoom;
+   renderOwnerAdminRoomPicker();
    showSection('rooms');
    renderRoomsAdmin();
  });
@@ -1898,6 +1945,12 @@ function bind(){
  if($('#ownerEnterCrownOnlyBtn'))$('#ownerEnterCrownOnlyBtn').onclick=()=>applyOwnerAdminIdentity(true);
  if($('#ownerEnterNamedBtn'))$('#ownerEnterNamedBtn').onclick=()=>applyOwnerAdminIdentity(false);
  if($('#ownerEnterChatNowBtn'))$('#ownerEnterChatNowBtn').onclick=()=>enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+ if($('#ownerAdminRoomSelect'))$('#ownerAdminRoomSelect').onchange=event=>{
+  const room=roomById(event.target.value);
+  const currentName=$('#ownerAdminCurrentRoomName');
+  if(currentName&&room)currentName.textContent=`${room.icon||'💬'} ${room.name||room.id}`;
+ };
+ if($('#ownerAdminEnterRoomBtn'))$('#ownerAdminEnterRoomBtn').onclick=()=>switchOwnerAdminRoom($('#ownerAdminRoomSelect')?.value||selectedRoomId);
  if($('#ownerOpenChatBtn'))$('#ownerOpenChatBtn').onclick=event=>{event.preventDefault();enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,{openWindow:true})};
  if($('#ownerAdminDisplayName'))$('#ownerAdminDisplayName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyOwnerAdminIdentity(false)}});
  const ownerAvatarInput=$('#ownerAdminAvatarInput');
