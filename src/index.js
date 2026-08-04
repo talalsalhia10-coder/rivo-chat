@@ -2699,11 +2699,6 @@ export class ChatRoom extends DurableObject {
 
     if (data.type !== "chat") return;
 
-    if (["owner", "moderator"].includes(session.role) && session.adminVisible === false) {
-      this.safeSend(ws, { type: "error", message: "أنت في وضع المراقبة المخفية. أظهر حسابك أولاً للكتابة." });
-      return;
-    }
-
     const now = Date.now();
     const body = cleanText(data.body, MAX_MESSAGE_LENGTH);
     const color = cleanMessageColor(data.color);
@@ -2739,6 +2734,7 @@ export class ChatRoom extends DurableObject {
       isGuest: Boolean(session.isGuest),
       verified: Boolean(session.googleUid && !session.isGuest && session.role === "user"),
       badge: session.badge || "",
+      adminVisible: session.adminVisible !== false,
       color,
       body,
       createdAt: now
