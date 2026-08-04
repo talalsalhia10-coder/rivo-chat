@@ -6,18 +6,78 @@
   const isMobile = () => window.innerWidth <= MOBILE_BREAKPOINT;
   let pendingEntryType = null;
   let entryBypass = false;
+  let pageLockInstalled = false;
+  let lastLockedScrollReset = 0;
 
   const $ = (selector, root = document) => root.querySelector(selector);
 
+  function chatIsVisible() {
+    const screen = $('#entryScreen');
+    return isMobile() && !document.body.classList.contains('entryLocked') && Boolean(screen?.classList.contains('hidden'));
+  }
+
   function setViewportVars() {
     const viewport = window.visualViewport;
-    const height = viewport ? viewport.height : window.innerHeight;
+    const height = Math.max(320, viewport ? viewport.height : window.innerHeight);
     const top = viewport ? viewport.offsetTop : 0;
     document.documentElement.style.setProperty('--rivo-app-height', `${Math.round(height)}px`);
     document.documentElement.style.setProperty('--rivo-visual-top', `${Math.round(top)}px`);
 
     const keyboardOpen = isMobile() && window.innerHeight - height > 140;
     document.body.classList.toggle('rivoKeyboardOpen', keyboardOpen);
+    document.documentElement.classList.toggle('rivoKeyboardViewport', keyboardOpen && chatIsVisible());
+    syncPageLock();
+  }
+
+  function syncPageLock() {
+    const locked = chatIsVisible();
+    document.documentElement.classList.toggle('rivoMobileChatLocked', locked);
+    if (!locked) {
+      document.documentElement.classList.remove('rivoKeyboardViewport');
+      return;
+    }
+    if (window.scrollX !== 0 || window.scrollY !== 0) {
+      const now = Date.now();
+      if (now - lastLockedScrollReset > 80) {
+        lastLockedScrollReset = now;
+        window.scrollTo(0, 0);
+      }
+    }
+  }
+
+  function isAllowedMobileScroller(target) {
+    if (!(target instanceof Element)) return false;
+    return Boolean(target.closest([
+      '.messages', '.scrollList', '.composerToolbar', '.cameraGrid', '.micSeats',
+      '.privateMessages', '.privateInboxPanel', '.card', '.picker', '.colorPicker',
+      '.userMenu', '.entryScreen', '.entryAvatarPickerGrid', 'input', 'textarea',
+      'select', 'button', 'a', '[contenteditable="true"]'
+    ].join(',')));
+  }
+
+  function installHardPageLock() {
+    if (pageLockInstalled) return;
+    pageLockInstalled = true;
+
+    document.addEventListener('touchmove', (event) => {
+      if (!document.documentElement.classList.contains('rivoMobileChatLocked')) return;
+      if (isAllowedMobileScroller(event.target)) return;
+      event.preventDefault();
+    }, { passive: false, capture: true });
+
+    window.addEventListener('scroll', () => {
+      if (!document.documentElement.classList.contains('rivoMobileChatLocked')) return;
+      if (window.scrollX === 0 && window.scrollY === 0) return;
+      window.scrollTo(0, 0);
+    }, { passive: true });
+
+    document.addEventListener('focusin', (event) => {
+      if (!chatIsVisible() || !event.target?.matches?.('input,textarea,select,[contenteditable="true"]')) return;
+      window.setTimeout(() => {
+        syncPageLock();
+        syncComposerHeight();
+      }, 70);
+    });
   }
 
   function validateEntryBeforeAvatar() {
@@ -240,6 +300,18 @@
   }
 
   function installObservers() {
+    const bodyObserver = new MutationObserver(() => {
+      syncPageLock();
+      window.setTimeout(() => {
+        setViewportVars();
+        syncComposerHeight();
+      }, 30);
+    });
+    bodyObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+    const entryScreen = $('#entryScreen');
+    if (entryScreen) bodyObserver.observe(entryScreen, { attributes: true, attributeFilter: ['class'] });
+
     const labelObserver = new MutationObserver(() => {
       syncMobileLabels();
       syncMobileStage();
@@ -259,6 +331,7 @@
 
   function applyMode() {
     document.body.classList.toggle('rivoMobileUI', isMobile());
+    syncPageLock();
     if (!isMobile()) closeMobileDrawer();
     compactRoomButtons();
     restoreRoomButtons();
@@ -270,6 +343,7 @@
 
   function init() {
     ensureMobileChrome();
+    installHardPageLock();
     bindMobileEntryFlow();
     bindDrawerAutoClose();
     bindKeyboardComfort();
