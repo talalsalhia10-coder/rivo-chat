@@ -1379,8 +1379,21 @@ function privateChatUsers(){
 function renderPrivateInbox(){
  const list=$('#privateConversationList');
  if(!list) return;
- const users=privateChatUsers();
- list.innerHTML=users.map(u=>{
+ const privatePermission=state.user?permissionValue('privateChat'):false;
+ const canUseRegularPrivate=Boolean(state.user)&&privatePermission!==false&&privatePermission!=='off'&&state.privateMessagesEnabled;
+ const users=canUseRegularPrivate?privateChatUsers():[];
+ const adminMessages=Array.isArray(state.adminMessages)?state.adminMessages:[];
+ const adminUnread=Number(state.privateUnread?.['rivo-admin']||0);
+ const adminLast=adminMessages.at(-1);
+ const adminConversation=adminMessages.length?`<button class="privateConversation adminConversation" data-admin-message-inbox="1">
+   <span class="privateAdminAvatar">👑</span>
+   <span class="privateConversationCopy">
+     <b>الإدارة</b>
+     <small>${adminLast?esc(adminLast.body||adminLast.text||'رسالة من الإدارة'):'رسائل الإدارة'}</small>
+   </span>
+   ${adminUnread?`<i>${adminUnread}</i>`:''}
+ </button>`:'';
+ list.innerHTML=adminConversation+users.map(u=>{
    const chat=state.privateChats[u.id]||[];
    const last=chat.at(-1);
    const unread=state.privateUnread[u.id]||0;
@@ -1394,13 +1407,15 @@ function renderPrivateInbox(){
    </button>`;
  }).join('');
  $$('[data-private-user]').forEach(b=>b.onclick=()=>openPrivateChat(b.dataset.privateUser));
+ $$('[data-admin-message-inbox]').forEach(b=>b.onclick=()=>window.openAdminPrivateChat?.());
  const toggle=$('#privateMessagesToggle');
  if(toggle) toggle.checked=state.privateMessagesEnabled;
  const label=$('#privateReceiveState');
  if(label) label.textContent=state.privateMessagesEnabled?'مفتوح':'مغلق';
 }
 function openPrivateInbox(){
- if(!member('الرسائل الخاصة')) return;
+ const hasAdminMessages=Array.isArray(state.adminMessages)&&state.adminMessages.length>0;
+ if(!hasAdminMessages&&!member('الرسائل الخاصة')) return;
  renderPrivateInbox();
  $('#privateInboxPanel')?.classList.remove('hidden');
  updatePrivateBadge();
@@ -1409,7 +1424,8 @@ function closePrivateInbox(){
  $('#privateInboxPanel')?.classList.add('hidden');
 }
 function renderPrivateMessages(){
- const target=findUser(state.privateTarget);
+ const isAdminTarget=state.privateTarget==='rivo-admin';
+ const target=isAdminTarget?{id:'rivo-admin',name:'الإدارة',avatar:'owner'}:findUser(state.privateTarget);
  const box=$('#privateMessages');
  if(!target||!box) return;
  const messages=state.privateChats[target.id]||[];
@@ -1423,6 +1439,10 @@ function renderPrivateMessages(){
 }
 function updatePrivateMediaControls(){
  const mic=$('#privateMicBtn'),cam=$('#privateCameraBtn');
+ if(state.privateTarget==='rivo-admin'){
+  [mic,cam].forEach(button=>{if(!button)return;button.dataset.locked='1';button.classList.remove('unlocked');button.classList.add('privateLockedControl');const lock=button.querySelector('i');if(lock)lock.textContent='🔒';const small=button.querySelector('small');if(small)small.textContent='غير متاح في محادثة الإدارة'});
+  return;
+ }
  const paidOnly=state.privateMedia.paidOnly;
  const tier=userAccessRole(state.user||{});
  const paidTier=['plus','vip','primo','moderator','owner'].includes(tier);
@@ -1447,6 +1467,7 @@ function updatePrivateMediaControls(){
  apply(cam,state.privateMedia.camera&&cameraPermission==='direct',cameraPermission==='request'?'تحتاج موافقة الإدارة':'مغلقة لرتبتك','الكاميرا متاحة');
 }
 function openPrivateChat(userId){
+ if(userId==='rivo-admin'){window.openAdminPrivateChat?.();return}
  if(!member('الرسائل الخاصة')) return;
  const target=findUser(userId);
  if(!target) return;
@@ -2294,3 +2315,11 @@ window.addEventListener('storage',e=>{
 notifyAdminLive('rivo-chat-ready',{room:state.room,preview:new URLSearchParams(location.search).has('adminPreview')});
 
 // لا نمسح حالة الجلسة عند تحديث الصفحة؛ يعاد ربطها تلقائياً بعد الاتصال.
+
+(function installAdminConversationStyle(){
+ if(document.getElementById('rivoAdminConversationStyle'))return;
+ const style=document.createElement('style');
+ style.id='rivoAdminConversationStyle';
+ style.textContent='.privateAdminAvatar{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,#4f46e5,#2563eb);color:#fff;font-size:22px;box-shadow:0 6px 14px rgba(37,99,235,.22)}.adminConversation{border:1px solid #dbe5ff;background:#f6f8ff}';
+ document.head.appendChild(style);
+})();

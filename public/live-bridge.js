@@ -16,6 +16,8 @@
   const OWNER_STORAGE_KEY = "rivo_staff_identity_owner_v1";
   const MOD_STORAGE_KEY = "rivo_staff_identity_moderator_v1";
   const CROWN_ONLY_NAME = "__rivo_crown_only__";
+  const ADMIN_MESSAGE_STORE_PREFIX = "rivo_admin_direct_messages_v2";
+  const ADMIN_MESSAGE_TTL = 7 * 24 * 60 * 60 * 1000;
 
   const ROOM_ICONS = {
     lobby: "🌐", general: "🌐", iraq: "🇮🇶", syria: "🇸🇾", jordan: "🇯🇴",
@@ -658,16 +660,123 @@
     setTimeout(() => byId("privateMessageInput")?.focus(), 70);
   }
 
+  function adminMessageStorageKey() {
+    const identity = live.identity || {};
+    const id = identity.clientId || state.user?.id || identity.email || identity.googleSub || "device";
+    return `${ADMIN_MESSAGE_STORE_PREFIX}:${String(id).replace(/[^a-zA-Z0-9_.-]/g, "_")}`;
+  }
+
+  function normalizeAdminStoredMessage(message = {}) {
+    return {
+      id: String(message.id || `${message.createdAt || Date.now()}-${message.body || ""}`),
+      senderId: message.senderId || "owner-main",
+      senderNickname: message.senderNickname || "الإدارة",
+      senderAvatar: message.senderAvatar || "owner",
+      recipientId: message.recipientId || state.user?.id || "all",
+      body: String(message.body || "").trim(),
+      createdAt: Number(message.createdAt || Date.now()),
+      read: Boolean(message.read),
+      mine: Boolean(message.mine)
+    };
+  }
+
+  function persistAdminMessages() {
+    const messages = (Array.isArray(state.adminMessages) ? state.adminMessages : [])
+      .filter((message) => message.body && Number(message.createdAt || 0) >= Date.now() - ADMIN_MESSAGE_TTL)
+      .slice(-80);
+    state.adminMessages = messages;
+    try { localStorage.setItem(adminMessageStorageKey(), JSON.stringify(messages)); } catch {}
+  }
+
+  function restoreAdminMessages() {
+    let messages = [];
+    try { messages = safeParse(localStorage.getItem(adminMessageStorageKey()) || "[]", []); } catch {}
+    const unique = new Map();
+    for (const raw of Array.isArray(messages) ? messages : []) {
+      const message = normalizeAdminStoredMessage(raw);
+      if (!message.body || message.createdAt < Date.now() - ADMIN_MESSAGE_TTL) continue;
+      unique.set(message.id, message);
+    }
+    state.adminMessages = [...unique.values()].sort((a, b) => a.createdAt - b.createdAt).slice(-80);
+    state.privateUnread ||= {};
+    state.privateUnread["rivo-admin"] = state.adminMessages.filter((message) => !message.read).length;
+    persistAdminMessages();
+    syncAdminPrivateConversation();
+    if (typeof updatePrivateBadge === "function") updatePrivateBadge();
+    if (typeof renderPrivateInbox === "function") renderPrivateInbox();
+  }
+
+  function addAdminStoredMessage(rawMessage) {
+    const message = normalizeAdminStoredMessage({ ...rawMessage, read: false });
+    if (!message.body) return null;
+    if (!Array.isArray(state.adminMessages)) restoreAdminMessages();
+    const existing = new Map((state.adminMessages || []).map((item) => [item.id, item]));
+    existing.set(message.id, message);
+    state.adminMessages = [...existing.values()].sort((a, b) => a.createdAt - b.createdAt).slice(-80);
+    state.privateUnread ||= {};
+    state.privateUnread["rivo-admin"] = state.adminMessages.filter((item) => !item.read).length;
+    persistAdminMessages();
+    syncAdminPrivateConversation();
+    if (typeof updatePrivateBadge === "function") updatePrivateBadge();
+    if (typeof renderPrivateInbox === "function") renderPrivateInbox();
+    if (typeof renderHeader === "function") renderHeader();
+    return message;
+  }
+
+  function markAdminMessagesRead() {
+    if (!Array.isArray(state.adminMessages)) restoreAdminMessages();
+    state.adminMessages = (state.adminMessages || []).map((message) => ({ ...message, read: true }));
+    state.privateUnread ||= {};
+    state.privateUnread["rivo-admin"] = 0;
+    persistAdminMessages();
+    syncAdminPrivateConversation();
+    if (typeof updatePrivateBadge === "function") updatePrivateBadge();
+    if (typeof renderPrivateInbox === "function") renderPrivateInbox();
+    if (typeof renderHeader === "function") renderHeader();
+  }
+
+
+  function syncAdminPrivateConversation() {
+    state.privateChats ||= {};
+    state.privateChats["rivo-admin"] = (Array.isArray(state.adminMessages) ? state.adminMessages : []).map((message) => ({
+      from: message.mine ? "me" : "rivo-admin",
+      text: message.body,
+      time: nowTime(message.createdAt),
+      id: message.id
+    }));
+  }
+
+  function openAdminPrivateChatWindow(markRead = true) {
+    if (!Array.isArray(state.adminMessages)) restoreAdminMessages();
+    syncAdminPrivateConversation();
+    state.privateTarget = "rivo-admin";
+    if (markRead) markAdminMessagesRead();
+    const name = byId("privateChatName");
+    const avatar = byId("privateChatAvatar");
+    const status = byId("privateChatStatus");
+    if (name) name.textContent = "الإدارة";
+    if (avatar) avatar.src = av("owner");
+    if (status) status.textContent = "محادثة خاصة مع الإدارة";
+    if (typeof renderPrivateMessages === "function") renderPrivateMessages();
+    if (typeof updatePrivateMediaControls === "function") updatePrivateMediaControls();
+    const win = byId("privateChatWindow");
+    win?.classList.remove("hidden", "minimized");
+    if (typeof bringPrivateWindowFront === "function") bringPrivateWindowFront();
+    if (typeof closePrivateInbox === "function") closePrivateInbox();
+    setTimeout(() => byId("privateMessageInput")?.focus(), 70);
+  }
+  window.openAdminPrivateChat = () => openAdminPrivateChatWindow(true);
+
   function ensureAdminDirectMessageModal() {
     if (!document.getElementById("rivoAdminDirectMessageStyle")) {
       const style = document.createElement("style");
       style.id = "rivoAdminDirectMessageStyle";
       style.textContent = `
       .rivoAdminDirectOverlay{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px;backdrop-filter:blur(5px)}
-      .rivoAdminDirectCard{width:min(500px,94vw);background:#fff;border-radius:23px;padding:24px;box-shadow:0 35px 100px rgba(0,0,0,.34);position:relative;direction:rtl;text-align:right;border-top:7px solid #7257ff}
-      .rivoAdminDirectCard h2{margin:0 0 8px;font-size:25px}.rivoAdminDirectCard p{margin:0;color:#1f2937;font-size:18px;line-height:1.8;white-space:pre-wrap;word-break:break-word}
-      .rivoAdminDirectMeta{display:flex;align-items:center;gap:9px;color:#6b7280;margin-bottom:14px;font-size:13px}.rivoAdminDirectIcon{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#6547f4,#2f94ff);display:grid;place-items:center;color:#fff;font-size:23px}
-      .rivoAdminDirectClose{position:absolute;left:13px;top:12px;width:36px;height:36px;border:0;border-radius:50%;background:#eef2f7;font-size:21px}.rivoAdminDirectOk{width:100%;margin-top:18px;border:0;border-radius:13px;padding:12px;background:linear-gradient(135deg,#6547f4,#2f94ff);color:#fff;font-weight:900}
+      .rivoAdminDirectCard{width:min(560px,94vw);max-height:88vh;display:flex;flex-direction:column;background:#fff;border-radius:23px;padding:24px;box-shadow:0 35px 100px rgba(0,0,0,.34);position:relative;direction:rtl;text-align:right;border-top:7px solid #7257ff}
+      .rivoAdminDirectCard h2{margin:0 0 8px;font-size:25px}.rivoAdminDirectMeta{display:flex;align-items:center;gap:9px;color:#6b7280;margin-bottom:14px;font-size:13px}.rivoAdminDirectIcon{width:46px;height:46px;border-radius:15px;background:linear-gradient(135deg,#6547f4,#2f94ff);display:grid;place-items:center;color:#fff;font-size:23px}
+      .rivoAdminDirectClose{position:absolute;left:13px;top:12px;width:36px;height:36px;border:0;border-radius:50%;background:#eef2f7;font-size:21px}.rivoAdminDirectOk{width:100%;margin-top:14px;border:0;border-radius:13px;padding:12px;background:linear-gradient(135deg,#6547f4,#2f94ff);color:#fff;font-weight:900}
+      .rivoAdminDirectHistory{display:flex;flex-direction:column;gap:10px;overflow:auto;min-height:130px;max-height:52vh;padding:4px 2px 8px}.rivoAdminDirectEntry{background:#f6f7fb;border:1px solid #e2e7f0;border-radius:16px;padding:13px 14px}.rivoAdminDirectEntry.latest{background:#eef3ff;border-color:#bfd0ff;box-shadow:0 7px 18px rgba(55,93,200,.12)}.rivoAdminDirectEntry p{margin:5px 0 0;color:#1f2937;font-size:17px;line-height:1.7;white-space:pre-wrap;word-break:break-word}.rivoAdminDirectEntry small{color:#7b8494}.rivoAdminDirectEmpty{text-align:center;color:#7b8494;padding:35px 10px}
       `;
       document.head.appendChild(style);
     }
@@ -676,7 +785,7 @@
       overlay = document.createElement("div");
       overlay.id = "rivoAdminDirectOverlay";
       overlay.className = "rivoAdminDirectOverlay hidden";
-      overlay.innerHTML = `<div class="rivoAdminDirectCard"><button id="rivoAdminDirectClose" class="rivoAdminDirectClose">×</button><div class="rivoAdminDirectMeta"><span class="rivoAdminDirectIcon">👑</span><div><b>رسالة خاصة من الإدارة</b><small id="rivoAdminDirectTime" style="display:block"></small></div></div><h2 id="rivoAdminDirectTitle">الإدارة</h2><p id="rivoAdminDirectBody"></p><button id="rivoAdminDirectOk" class="rivoAdminDirectOk">حسناً</button></div>`;
+      overlay.innerHTML = `<div class="rivoAdminDirectCard"><button id="rivoAdminDirectClose" class="rivoAdminDirectClose">×</button><div class="rivoAdminDirectMeta"><span class="rivoAdminDirectIcon">👑</span><div><b>رسائل الإدارة</b><small style="display:block">تبقى محفوظة على جهازك لمدة 7 أيام</small></div></div><h2>رسالة خاصة من الإدارة</h2><div id="rivoAdminDirectHistory" class="rivoAdminDirectHistory"></div><button id="rivoAdminDirectOk" class="rivoAdminDirectOk">حسناً</button></div>`;
       document.body.appendChild(overlay);
       const close = () => overlay.classList.add("hidden");
       document.getElementById("rivoAdminDirectClose").onclick = close;
@@ -686,16 +795,31 @@
     return overlay;
   }
 
-  function showAdminDirectMessage(message) {
-    const overlay = ensureAdminDirectMessageModal();
-    const title = document.getElementById("rivoAdminDirectTitle");
-    const body = document.getElementById("rivoAdminDirectBody");
-    const time = document.getElementById("rivoAdminDirectTime");
-    if (title) title.textContent = message.senderNickname || "الإدارة";
-    if (body) body.textContent = message.body || "";
-    if (time) time.textContent = nowTime(message.createdAt || Date.now());
-    overlay.classList.remove("hidden");
-    toast("وصلتك رسالة جديدة من الإدارة");
+  function adminMessageEscape(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
+  }
+
+  function renderAdminMessageHistory(highlightId = "") {
+    const box = document.getElementById("rivoAdminDirectHistory");
+    if (!box) return;
+    const messages = Array.isArray(state.adminMessages) ? state.adminMessages : [];
+    box.innerHTML = messages.length ? messages.map((message) => `<article class="rivoAdminDirectEntry ${message.id === highlightId ? "latest" : ""}"><small>${adminMessageEscape(message.senderNickname || "الإدارة")} · ${adminMessageEscape(nowTime(message.createdAt || Date.now()))}</small><p>${adminMessageEscape(message.body || "")}</p></article>`).join("") : '<div class="rivoAdminDirectEmpty">لا توجد رسائل من الإدارة</div>';
+    requestAnimationFrame(() => { box.scrollTop = box.scrollHeight; });
+  }
+
+  window.openAdminMessageInbox = function openAdminMessageInbox() {
+    openAdminPrivateChatWindow(true);
+  };
+
+  function showAdminDirectMessage(rawMessage) {
+    const message = addAdminStoredMessage({ ...rawMessage, mine: false });
+    if (!message) return;
+    syncAdminPrivateConversation();
+    state.privateUnread ||= {};
+    state.privateUnread["rivo-admin"] = (state.adminMessages || []).filter((item) => !item.read).length;
+    if (typeof updatePrivateBadge === "function") updatePrivateBadge();
+    toast("وصلتك رسالة خاصة جديدة من الإدارة");
+    openAdminPrivateChatWindow(false);
   }
 
   function handlePrivateMessage(message) {
@@ -763,6 +887,7 @@
         setConnection("connected", "متصل");
         updateMicButtons();
         updateGoogleSessionUI();
+        restoreAdminMessages();
         requestAnimationFrame(() => { const box = byId("messages"); if (box) box.scrollTop = box.scrollHeight; });
         break;
       }
@@ -790,6 +915,9 @@
         break;
       case "admin-direct-message":
         showAdminDirectMessage(data.message || {});
+        break;
+      case "admin-private-reply-sent":
+        toast(data.message || (data.delivered ? "تم إرسال ردك إلى الإدارة" : "لوحة الإدارة غير متصلة الآن"));
         break;
       case "private-request": {
         live.pendingPrivate = data;
@@ -1140,18 +1268,43 @@
     const target = state.users.find((user) => user.id === userId);
     if (!target || target.id === state.user?.id) return;
     if (state.user?.authType === "guest") { toast("الرسائل الخاصة تحتاج تسجيل الدخول بحساب Google"); return; }
-    if (target.privateOpen === false) { toast("هذا المستخدم أغلق الرسائل الخاصة"); return; }
+    const ownerOverride = ["owner"].includes(userAccessRole(state.user || {}));
+    if (target.privateOpen === false && !ownerOverride) { toast("هذا المستخدم أغلق الرسائل الخاصة"); return; }
     send({ type: "private-request", to: target.id });
   }
 
   function sendPrivateLive() {
     const input = byId("privateMessageInput");
     const body = expandLiveMessageShortcuts(input?.value || "").trim();
-    if (!body || !live.privatePeer) return;
+    if (!body) return;
+    if (state.privateTarget === "rivo-admin") {
+      if (!send({ type: "admin-private-reply", body })) return;
+      addAdminStoredMessage({
+        id: `reply-${Date.now()}-${Math.random()}`,
+        senderId: state.user?.id || live.identity?.clientId || "me",
+        senderNickname: state.user?.name || live.identity?.nickname || "أنا",
+        senderAvatar: state.user?.avatar || live.identity?.avatar || "guest",
+        recipientId: "owner-main",
+        body,
+        createdAt: Date.now(),
+        read: true,
+        mine: true
+      });
+      syncAdminPrivateConversation();
+      if (typeof renderPrivateMessages === "function") renderPrivateMessages();
+      if (typeof renderPrivateInbox === "function") renderPrivateInbox();
+      input.value = "";
+      return;
+    }
+    if (!live.privatePeer) return;
     if (send({ type: "private-chat", to: live.privatePeer.clientId, body })) input.value = "";
   }
 
   function closePrivateLive() {
+    if (state.privateTarget === "rivo-admin") {
+      byId("privateChatWindow")?.classList.add("hidden");
+      return;
+    }
     if (live.privatePeer) send({ type: "private-end", with: live.privatePeer.clientId });
     live.privatePeer = null;
     byId("privateChatWindow")?.classList.add("hidden");

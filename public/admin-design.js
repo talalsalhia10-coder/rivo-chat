@@ -66,6 +66,11 @@ const adminFreeBadgeCatalog=[
 let selectedAdminBadgeUserId=null;
 let activeAdminSessionBadges={};
 let selectedAdminMessageUserId='all';
+let pendingAdminMessage=null;
+const ADMIN_PRIVATE_THREADS_KEY='rivoAdminPrivateThreadsV1';
+let adminPrivateThreads={};
+const adminPrivateReplyIds=new Set();
+try{adminPrivateThreads=JSON.parse(localStorage.getItem(ADMIN_PRIVATE_THREADS_KEY)||'{}')||{}}catch(_){adminPrivateThreads={}}
 
 
 
@@ -313,7 +318,7 @@ function connectPresenceSocket(roomKey,force=false){
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:`presence-${session.staffClientId||session.staffId||'owner'}-${backendRoom}`,visible:'0'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(backendRoom)}/admin-ws?${params}`);
  presenceSockets.set(backendRoom,socket);
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true)};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleAdminMessageSocketReply(data,backendRoom)};
  socket.onclose=()=>{if(presenceSockets.get(backendRoom)!==socket)return;presenceSockets.delete(backendRoom);clearTimeout(presenceReconnectTimers.get(backendRoom));presenceReconnectTimers.set(backendRoom,setTimeout(()=>connectPresenceSocket(backendRoom,true),2200))};
  socket.onerror=()=>{};
 }
@@ -352,7 +357,7 @@ function connectAdminSocket(force=false){
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
  socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة');if(data.type==='admin-message-sent')toast(data.message||'تم إرسال الرسالة')};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
@@ -610,23 +615,33 @@ function ensureAdminMessageUi(){
   .adminMessageIconBtn:hover{transform:translateY(-1px);filter:brightness(1.05)}
   .adminBroadcastMessageBtn{width:calc(100% - 18px);margin:6px 9px 8px;border:0;border-radius:11px;padding:10px 12px;background:linear-gradient(135deg,#653cff,#3188ff);color:#fff;font-weight:900;box-shadow:0 8px 18px rgba(73,76,220,.2)}
   .adminDirectMessageOverlay{position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:18px;backdrop-filter:blur(5px)}
-  .adminDirectMessageCard{width:min(520px,96vw);background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.3);position:relative;direction:rtl}
+  .adminDirectMessageCard{width:min(560px,96vw);max-height:90vh;background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 90px rgba(0,0,0,.3);position:relative;direction:rtl;display:flex;flex-direction:column}
   .adminDirectMessageCard h2{margin:0 0 6px;font-size:25px}.adminDirectMessageCard p{margin:0 0 14px;color:#667085}
-  .adminDirectMessageCard textarea{width:100%;min-height:145px;resize:vertical;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font:inherit;outline:none}
+  .adminDirectMessageCard textarea{width:100%;min-height:76px;max-height:150px;resize:vertical;border:1px solid #cbd5e1;border-radius:14px;padding:13px;font:inherit;outline:none}
   .adminDirectMessageCard textarea:focus{border-color:#4f7cff;box-shadow:0 0 0 3px rgba(79,124,255,.13)}
   .adminDirectMessageActions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:13px}
   .adminDirectMessageActions button{border:0;border-radius:12px;padding:12px;font-weight:900}
   .adminDirectMessageSend{background:linear-gradient(135deg,#5b46f4,#2f8cff);color:#fff}.adminDirectMessageCancel{background:#edf1f6;color:#334155}
   .adminDirectMessageClose{position:absolute;left:14px;top:13px;width:34px;height:34px;border:0;border-radius:50%;background:#eef2f7;font-size:20px}
   .adminDirectMessageTarget{display:inline-flex;align-items:center;gap:7px;background:#eef3ff;color:#3157b7;border-radius:999px;padding:7px 11px;font-weight:800;margin-bottom:12px}
+  .adminDirectMessageStatus{min-height:38px;margin-top:10px;border-radius:11px;padding:9px 11px;background:#f3f5f8;color:#526072;font-weight:700}.adminDirectMessageStatus.success{background:#e8fff3;color:#087b4c}.adminDirectMessageStatus.error{background:#fff0f1;color:#b42335}.adminDirectMessageStatus.sending{background:#eef4ff;color:#3157b7}
+  .adminDirectMessageSentCopy{margin-top:9px;border:1px solid #dce5f4;background:#f8faff;border-radius:12px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;color:#1f2937}
+
+  .adminDirectMessageThread{min-height:170px;max-height:42vh;overflow:auto;background:#f7f9fc;border:1px solid #e0e6ef;border-radius:16px;padding:12px;margin:2px 0 12px;display:flex;flex-direction:column;gap:9px}
+  .adminDirectMessageBubble{max-width:82%;border-radius:16px;padding:10px 12px;white-space:pre-wrap;word-break:break-word;line-height:1.55;box-shadow:0 4px 12px rgba(31,41,55,.07)}
+  .adminDirectMessageBubble.mine{align-self:flex-start;background:linear-gradient(135deg,#5b46f4,#2f8cff);color:#fff;border-bottom-left-radius:5px}
+  .adminDirectMessageBubble.theirs{align-self:flex-end;background:#fff;color:#1f2937;border:1px solid #e0e6ef;border-bottom-right-radius:5px}
+  .adminDirectMessageBubble small{display:block;margin-top:4px;font-size:10px;opacity:.78}
+  .adminDirectMessageEmpty{text-align:center;color:#7b8494;padding:34px 10px}
   `;document.head.appendChild(style);
  }
  if(!document.getElementById('adminDirectMessageOverlay')){
-  const overlay=document.createElement('div');overlay.id='adminDirectMessageOverlay';overlay.className='adminDirectMessageOverlay hidden';overlay.innerHTML=`<div class="adminDirectMessageCard"><button id="adminDirectMessageClose" class="adminDirectMessageClose">×</button><h2>إرسال رسالة من الإدارة</h2><p>تصل الرسالة فوراً للمستخدم أو لجميع الموجودين في الدردشة.</p><div id="adminDirectMessageTarget" class="adminDirectMessageTarget">👥 الجميع</div><textarea id="adminDirectMessageText" maxlength="500" placeholder="اكتب رسالة الإدارة هنا..."></textarea><div class="adminDirectMessageActions"><button id="adminDirectMessageSend" class="adminDirectMessageSend">إرسال الرسالة</button><button id="adminDirectMessageCancel" class="adminDirectMessageCancel">إلغاء</button></div></div>`;
+  const overlay=document.createElement('div');overlay.id='adminDirectMessageOverlay';overlay.className='adminDirectMessageOverlay hidden';overlay.innerHTML=`<div class="adminDirectMessageCard"><button id="adminDirectMessageClose" class="adminDirectMessageClose">×</button><h2>محادثة خاصة من الإدارة</h2><p>هذه المحادثة تتجاوز إغلاق الخاص، وتبقى النافذة مفتوحة حتى تغلقها بنفسك.</p><div id="adminDirectMessageTarget" class="adminDirectMessageTarget">👥 الجميع</div><div id="adminDirectMessageThread" class="adminDirectMessageThread"></div><textarea id="adminDirectMessageText" maxlength="500" placeholder="اكتب رسالتك الخاصة هنا..."></textarea><div id="adminDirectMessageStatus" class="adminDirectMessageStatus">اكتب الرسالة ثم اضغط إرسال.</div><div id="adminDirectMessageSentCopy" class="adminDirectMessageSentCopy hidden"></div><div class="adminDirectMessageActions"><button id="adminDirectMessageSend" class="adminDirectMessageSend">إرسال</button><button id="adminDirectMessageCancel" class="adminDirectMessageCancel">إغلاق</button></div></div>`;
   document.body.appendChild(overlay);
   $('#adminDirectMessageClose').onclick=closeAdminMessagePanel;
   $('#adminDirectMessageCancel').onclick=closeAdminMessagePanel;
   $('#adminDirectMessageSend').onclick=sendAdminMessageNow;
+  $('#adminDirectMessageText').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAdminMessageNow()}});
   overlay.onclick=e=>{if(e.target===overlay)closeAdminMessagePanel()};
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!overlay.classList.contains('hidden'))closeAdminMessagePanel()});
  }
@@ -637,34 +652,122 @@ function ensureAdminMessageUi(){
   panel.insertBefore(button,panel.querySelector('.communityCount')?.nextSibling||panel.firstChild);
  }
 }
+
+function saveAdminPrivateThreads(){
+ try{localStorage.setItem(ADMIN_PRIVATE_THREADS_KEY,JSON.stringify(adminPrivateThreads))}catch(_){}
+}
+function adminPrivateThread(userId){
+ const id=String(userId||'');
+ if(!Array.isArray(adminPrivateThreads[id]))adminPrivateThreads[id]=[];
+ return adminPrivateThreads[id];
+}
+function appendAdminPrivateThread(userId,message){
+ const id=String(userId||'');if(!id||id==='all')return;
+ const item={id:String(message.id||`${Date.now()}-${Math.random()}`),direction:message.direction==='in'?'in':'out',body:String(message.body||'').trim(),createdAt:Number(message.createdAt||Date.now()),name:String(message.name||'')};
+ if(!item.body)return;
+ const list=adminPrivateThread(id);
+ if(list.some(entry=>entry.id===item.id))return;
+ list.push(item);adminPrivateThreads[id]=list.slice(-120);saveAdminPrivateThreads();renderAdminPrivateThread();
+}
+function renderAdminPrivateThread(){
+ const box=$('#adminDirectMessageThread');if(!box)return;
+ const target=selectedAdminMessageUserId||'all';
+ if(target==='all'){box.innerHTML='<div class="adminDirectMessageEmpty">هذه رسالة جماعية، ولا توجد محادثة ردود جماعية.</div>';return}
+ const list=adminPrivateThread(target);
+ box.innerHTML=list.length?list.map(item=>`<div class="adminDirectMessageBubble ${item.direction==='in'?'theirs':'mine'}"><div>${esc(item.body)}</div><small>${item.direction==='in'?(item.name||'المستخدم'):'الإدارة'} · ${new Date(item.createdAt).toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'})}</small></div>`).join(''):'<div class="adminDirectMessageEmpty">ابدأ المحادثة الخاصة مع هذا المستخدم</div>';
+ requestAnimationFrame(()=>{box.scrollTop=box.scrollHeight});
+}
 function openAdminMessagePanel(userId='all'){
  ensureAdminMessageUi();selectedAdminMessageUserId=userId||'all';
  const user=selectedAdminMessageUserId==='all'?null:userById(selectedAdminMessageUserId);
  $('#adminDirectMessageTarget').textContent=user?`💬 إلى ${user.name}`:'📣 إلى جميع المتصلين';
  $('#adminDirectMessageText').value='';
+ renderAdminPrivateThread();
+ const status=$('#adminDirectMessageStatus');if(status){status.className='adminDirectMessageStatus';status.textContent='اكتب الرسالة ثم اضغط إرسال.'}
+ const copy=$('#adminDirectMessageSentCopy');if(copy){copy.classList.add('hidden');copy.textContent=''}
+ const sendButton=$('#adminDirectMessageSend');if(sendButton){sendButton.disabled=false;sendButton.textContent='إرسال'}
+ pendingAdminMessage=null;
  $('#adminDirectMessageOverlay').classList.remove('hidden');
  setTimeout(()=>$('#adminDirectMessageText')?.focus(),60);
 }
 function closeAdminMessagePanel(){$('#adminDirectMessageOverlay')?.classList.add('hidden')}
+function adminMessageSocketForRoom(roomId){
+ const backendRoom=normalizeLiveRoomId(roomId||selectedRoomId);
+ const presence=presenceSockets.get(backendRoom);
+ if(presence?.readyState===WebSocket.OPEN)return{socket:presence,room:backendRoom};
+ if(adminSocket?.readyState===WebSocket.OPEN&&adminSocketRoom===backendRoom)return{socket:adminSocket,room:backendRoom};
+ connectPresenceSocket(backendRoom,true);
+ return{socket:null,room:backendRoom};
+}
 function sendAdminMessageCommand(targetId,body){
  if(targetId==='all'){
-  let sent=0;
-  for(const socket of presenceSockets.values()){
-   if(socket?.readyState===WebSocket.OPEN){socket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',body,all:true}));sent++}
+  const sockets=[];
+  for(const [roomId,socket] of presenceSockets.entries()){
+   if(socket?.readyState===WebSocket.OPEN)sockets.push({roomId,socket});
   }
-  if(!sent&&adminSocket?.readyState===WebSocket.OPEN){adminSocket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',body,all:true}));sent=1}
-  return sent>0;
+  if(!sockets.length&&adminSocket?.readyState===WebSocket.OPEN)sockets.push({roomId:adminSocketRoom,socket:adminSocket});
+  for(const item of sockets)item.socket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',body,all:true}));
+  return{ok:sockets.length>0,expected:sockets.length,rooms:sockets.map(item=>item.roomId)};
  }
- const user=userById(targetId);return sendAdminCommand('send-admin-message',{clientId:targetId,nickname:user?.name||'مستخدم',body});
+ const user=userById(targetId);
+ if(!user)return{ok:false,expected:0,error:'المستخدم غير موجود في القائمة'};
+ const route=adminMessageSocketForRoom(user.room);
+ if(!route.socket)return{ok:false,expected:0,error:'جاري الاتصال بغرفة المستخدم، حاول الإرسال بعد لحظة'};
+ route.socket.send(JSON.stringify({type:'admin-command',action:'send-admin-message',clientId:targetId,nickname:user.name||'مستخدم',body}));
+ return{ok:true,expected:1,rooms:[route.room]};
+}
+function setAdminMessageStatus(text,type=''){
+ const status=$('#adminDirectMessageStatus');if(!status)return;
+ status.className=`adminDirectMessageStatus ${type}`.trim();status.textContent=text;
+}
+function handleAdminMessageSocketReply(data,roomId=''){
+ if(!data)return false;
+ if(data.type==='admin-private-reply'){
+  const message=data.message||{};const senderId=String(message.senderId||'');if(!senderId||!message.body)return true;
+  const mid=String(message.id||`${senderId}-${message.createdAt||Date.now()}-${message.body}`);if(adminPrivateReplyIds.has(mid))return true;adminPrivateReplyIds.add(mid);
+  appendAdminPrivateThread(senderId,{id:mid,direction:'in',body:message.body,createdAt:message.createdAt,name:message.senderNickname||'المستخدم'});
+  const user=userById(senderId);toast(`رد خاص جديد من ${user?.name||message.senderNickname||'مستخدم'}`);
+  if(selectedAdminMessageUserId===senderId&&!$('#adminDirectMessageOverlay')?.classList.contains('hidden')){renderAdminPrivateThread();setAdminMessageStatus('وصل رد جديد من المستخدم','success')}
+  return true;
+ }
+ if(!['admin-message-sent','admin-error'].includes(data.type))return false;
+ if(data.type==='admin-error'){
+  if(pendingAdminMessage){
+   pendingAdminMessage.errors=(pendingAdminMessage.errors||0)+1;
+   setAdminMessageStatus(data.message||'تعذر إرسال الرسالة','error');
+   const button=$('#adminDirectMessageSend');if(button){button.disabled=false;button.textContent='إعادة الإرسال'}
+  }else toast(data.message||'تعذر تنفيذ أمر الإدارة');
+  return true;
+ }
+ if(!pendingAdminMessage){toast(data.message||'تم إرسال الرسالة');return true}
+ pendingAdminMessage.acks=(pendingAdminMessage.acks||0)+1;
+ pendingAdminMessage.confirmations ||= [];
+ pendingAdminMessage.confirmations.push(data.message||'تم إرسال الرسالة');
+ const done=pendingAdminMessage.acks>=pendingAdminMessage.expected;
+ const targetUser=pendingAdminMessage.target==='all'?null:userById(pendingAdminMessage.target);
+ const label=targetUser?`تم إرسال الرسالة إلى ${targetUser.name}.`:`تم إرسال الرسالة إلى المتصلين في ${pendingAdminMessage.acks} من ${pendingAdminMessage.expected} غرفة.`;
+ setAdminMessageStatus(label,done?'success':'sending');
+ const copy=$('#adminDirectMessageSentCopy');if(copy){copy.textContent=pendingAdminMessage.body;copy.classList.remove('hidden')}
+ if(done){
+  const button=$('#adminDirectMessageSend');if(button){button.disabled=false;button.textContent='إرسال'}
+  addLog(targetUser?`أرسلت الإدارة رسالة إلى ${targetUser.name}`:'أرسلت الإدارة رسالة إلى جميع المتصلين');
+  toast(label);
+  pendingAdminMessage=null;
+ }
+ return true;
 }
 function sendAdminMessageNow(){
  const body=String($('#adminDirectMessageText')?.value||'').trim();
  if(!body){toast('اكتب الرسالة أولاً');$('#adminDirectMessageText')?.focus();return}
  const target=selectedAdminMessageUserId||'all';
- if(!sendAdminMessageCommand(target,body))return;
- const user=target==='all'?null:userById(target);
- addLog(user?`أرسلت الإدارة رسالة إلى ${user.name}`:'أرسلت الإدارة رسالة إلى جميع المتصلين');
- closeAdminMessagePanel();toast(user?`تم إرسال الرسالة إلى ${user.name}`:'تم إرسال الرسالة إلى جميع المتصلين');
+ const result=sendAdminMessageCommand(target,body);
+ if(!result.ok){setAdminMessageStatus(result.error||'تعذر إرسال الرسالة','error');return}
+ pendingAdminMessage={target,body,expected:Math.max(1,result.expected||1),acks:0,errors:0,rooms:result.rooms||[],sentAt:Date.now()};
+ if(target!=='all')appendAdminPrivateThread(target,{id:`admin-${Date.now()}-${Math.random()}`,direction:'out',body,createdAt:Date.now(),name:'الإدارة'});
+ if($('#adminDirectMessageText'))$('#adminDirectMessageText').value='';
+ const button=$('#adminDirectMessageSend');if(button){button.disabled=true;button.textContent='جارٍ الإرسال...'}
+ const copy=$('#adminDirectMessageSentCopy');if(copy){copy.classList.add('hidden');copy.textContent=''}
+ setAdminMessageStatus('جارٍ إرسال الرسالة إلى المستخدم...','sending');
 }
 
 function renderCommunityPanel(){normalizeAdminData();
