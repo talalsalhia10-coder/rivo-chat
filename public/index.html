@@ -14,7 +14,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=181">
+<link rel="stylesheet" href="styles.css?v=182">
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -42,7 +42,13 @@
       <div class="entryIntro"><small>مرحبًا بك</small><h1>دردشة ريفو العراقية</h1><p>دردشة ريفو العراقية منصة دردشة عربية كتابية للتواصل وتكوين الصداقات، تضم غرفًا عامة ومحادثات خاصة وهدايا ورتبًا ومزايا متقدمة للمستخدمين.</p></div>
       <div class="entryProfileSetup">
         <div class="entryAvatarArea"><div class="entryAvatarPreview entryAvatarPreviewStatic"><img id="entryAvatarPreview" src="assets/entry-avatars/rivo-avatar-young-man-purple.jpg" alt="معاينة الصورة الشخصية المختارة" width="900" height="900"></div><button id="entryAvatarPickerBtn" class="entryAvatarPickerBtn" type="button">اختيار صورة شخصية</button></div>
-        <div class="entryFormArea"><label for="entryName">الاسم الذي سيظهر في الدردشة</label><input id="entryName" maxlength="20" autocomplete="off" placeholder="اكتب اسمك هنا"><small class="entryNameHint">يجب أن يتكوّن الاسم من حرفين على الأقل.</small><div class="entryAvatarShowcaseLabel">صور ثابتة من دردشة ريفو</div><div id="entryAvatarShowcase" class="entryAvatarShowcase" aria-label="نماذج صور شخصية ثابتة">
+        <div class="entryFormArea"><label for="entryName">الاسم الذي سيظهر في الدردشة</label><input id="entryName" maxlength="20" autocomplete="off" placeholder="اكتب اسمك هنا"><small class="entryNameHint">يجب أن يتكوّن الاسم من حرفين على الأقل.</small>
+          <div class="entryRoomChooser">
+            <div class="entryRoomChooserHead"><b>اختر غرفة الدخول</b><small>اختر الغرفة أولاً، ثم ادخل كضيف أو بحسابك أو كمراقب.</small></div>
+            <div id="entryRoomList" class="entryRoomList" role="radiogroup" aria-label="اختيار غرفة الدخول"></div>
+            <small id="entryRoomSelectedHint" class="entryRoomSelectedHint"></small>
+          </div>
+          <div class="entryAvatarShowcaseLabel">صور ثابتة من دردشة ريفو</div><div id="entryAvatarShowcase" class="entryAvatarShowcase" aria-label="نماذج صور شخصية ثابتة">
   <img src="assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg" alt="صورة شخصية لفتاة ترتدي سترة بنفسجية" title="صورة شخصية لفتاة ترتدي سترة بنفسجية" width="900" height="900" loading="eager" decoding="async">
   <img src="assets/entry-avatars/rivo-avatar-woman-denim.jpg" alt="صورة شخصية لفتاة ترتدي سترة جينز" title="صورة شخصية لفتاة ترتدي سترة جينز" width="900" height="900" loading="eager" decoding="async">
   <img src="assets/entry-avatars/rivo-avatar-young-man-light.jpg" alt="صورة شخصية لشاب بخلفية فاتحة" title="صورة شخصية لشاب بخلفية فاتحة" width="900" height="900" loading="eager" decoding="async">
@@ -65,7 +71,7 @@
 
 <audio id="globalRadioAudio" preload="auto" autoplay loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v178</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v182</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -321,12 +327,12 @@
 <script src="./google-config.js?v=178"></script>
 <script src="./google-auth.js?v=178"></script>
 <script src="./relay-audio.js?v=178"></script>
-<script src="app.js?v=181"></script>
-<script src="./live-bridge.js?v=181"></script>
+<script src="app.js?v=182"></script>
+<script src="./live-bridge.js?v=182"></script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=181").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=182").catch(() => {});
   });
 }
 </script>

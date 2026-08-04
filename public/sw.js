@@ -1,16 +1,16 @@
-const RELEASE = "181-radio-resume-preference";
+const RELEASE = "182-entry-room-choice";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=181",
-  "./app.js?v=181",
-  "./live-bridge.js?v=181",
-  "./google-config.js?v=181",
-  "./google-auth.js?v=181",
-  "./relay-audio.js?v=181",
+  "./styles.css?v=182",
+  "./app.js?v=182",
+  "./live-bridge.js?v=182",
+  "./google-config.js?v=182",
+  "./google-auth.js?v=182",
+  "./relay-audio.js?v=182",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png"

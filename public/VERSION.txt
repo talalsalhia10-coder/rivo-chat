@@ -1,1 +1,1 @@
-Rivo Chat v181 — Remember radio playback and resume after refresh
+Rivo Chat v182 — Choose room before entering for guests, users and staff

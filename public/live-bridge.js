@@ -114,7 +114,8 @@
       byId("entryName")?.focus();
       return null;
     }
-    return { name: name.slice(0, 24), avatar: avatarId(state.entryAvatar) };
+    const roomId = String(state.room || live.roomId || "lobby");
+    return { name: name.slice(0, 24), avatar: avatarId(state.entryAvatar), roomId };
   }
   function avatarId(value) {
     const raw = String(value || "").replace(/^\.\//, "").trim();
@@ -217,6 +218,16 @@
   }
   function saveActiveRoom(roomId = live.roomId) {
     try { localStorage.setItem(ACTIVE_ROOM_KEY, roomId || "lobby"); } catch {}
+  }
+  function selectEntryRoomLive(roomId, persist = true) {
+    const requested = roomId === "general" ? "lobby" : String(roomId || "");
+    const selected = state.rooms.find((room) => room.id === requested) || state.rooms[0];
+    if (!selected) return false;
+    live.roomId = selected.id;
+    state.room = selected.id;
+    if (persist) saveActiveRoom(selected.id);
+    try { if (typeof renderEntryRoomChoices === "function") renderEntryRoomChoices(); } catch {}
+    return true;
   }
   function loadActiveRoom() {
     try { return String(localStorage.getItem(ACTIVE_ROOM_KEY) || "lobby"); } catch { return "lobby"; }
@@ -398,6 +409,7 @@
       if (!state.rooms.some((r) => r.id === live.roomId)) live.roomId = state.rooms[0]?.id || "lobby";
       state.room = live.roomId;
       renderRooms();
+      try { if (typeof renderEntryRoomChoices === "function") renderEntryRoomChoices(); } catch {}
       renderHeader();
       return true;
     } catch (error) {
@@ -1389,7 +1401,9 @@
       saveProfile(profile);
       saveIdentity(identity);
       live.ignoreHistoryOnce = true;
-      await fetchRooms(true);
+      const requestedRoom = profile.roomId || state.room || live.roomId;
+      await fetchRooms(false);
+      selectEntryRoomLive(requestedRoom, true);
       hideEntryScreen();
       connect(live.roomId);
     } catch (error) {
@@ -1440,7 +1454,9 @@
     saveProfile(profile);
     saveIdentity(identity);
     live.ignoreHistoryOnce = true;
-    await fetchRooms(true);
+    const requestedRoom = profile.roomId || state.room || live.roomId;
+    await fetchRooms(false);
+    selectEntryRoomLive(requestedRoom, true);
     close("googleAuthModal");
     hideEntryScreen();
     connect(live.roomId);
@@ -1473,7 +1489,9 @@
     try { localStorage.setItem(role === "owner" ? OWNER_STORAGE_KEY : MOD_STORAGE_KEY, JSON.stringify(panelIdentity)); } catch {}
     saveIdentity(identity);
     live.ignoreHistoryOnce = true;
+    const requestedRoom = state.room || live.roomId;
     await fetchRooms(false);
+    selectEntryRoomLive(requestedRoom, true);
     hideEntryScreen();
     connect(live.roomId);
   }
@@ -1688,6 +1706,12 @@
     else if (role === "moderator") location.href = `./moderator.html?room=${encodeURIComponent(state.room)}`;
   }
 
+  window.addEventListener("rivo-entry-room-selected", (event) => {
+    const roomId = event?.detail?.roomId;
+    if (!roomId || live.identity) return;
+    selectEntryRoomLive(roomId, true);
+  });
+
   function bindLiveUI() {
     enterFromEntry = (type) => type === "guest" ? enterGuest() : prepareGoogleButton();
     googleLogin = prepareGoogleButton;
@@ -1816,7 +1840,7 @@
     window.addEventListener("beforeunload", () => sendExplicitLeave("beforeunload"));
   }
 
-  window.RivoLive = { live, connect, send, logout: logoutLive, updateProfile: updateProfileLive };
+  window.RivoLive = { live, connect, send, logout: logoutLive, updateProfile: updateProfileLive, selectEntryRoom: selectEntryRoomLive };
   boot().catch((error) => {
     console.error("Rivo live boot failed", error);
     setConnection("disconnected", "بانتظار الدخول");

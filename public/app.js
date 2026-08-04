@@ -1999,7 +1999,7 @@ function renderStage(){const r=room(),active=state.stage.filter(s=>findUser(s.us
  if($('#privateMediaPaidOnly')) $('#privateMediaPaidOnly').checked=state.privateMedia.paidOnly;
 }
 function renderStageAdmin(){const a=state.stage.filter(s=>findUser(s.user)?.room===state.room);$('#stageAdmin').innerHTML=a.length?a.map(s=>{const u=findUser(s.user);return`<div class="stageUser"><span>${esc(u.name)} — ${s.mode}</span><button data-kick="${u.id}">إنزال</button></div>`}).join(''):'<small>لا يوجد مستخدمون على المنصة.</small>';$$('[data-kick]').forEach(b=>b.onclick=()=>{state.stage=state.stage.filter(s=>s.user!==b.dataset.kick);renderStage();toast('تم إنزال المستخدم')})}
-function renderAll(){renderRooms();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI()}
+function renderAll(){renderRooms();renderEntryRoomChoices();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI()}
 function showMenu(id,e){state.target=id;const target=findUser(id);$('#menuName').textContent=readableUserName(target);const m=$('#userMenu');m.style.top=Math.min(innerHeight-300,e.clientY)+'px';m.style.left=Math.max(10,e.clientX-235)+'px';m.classList.remove('hidden')}
 function showProfile(id){
  const u=findUser(id);if(!u)return;
@@ -2113,12 +2113,37 @@ function openEntryAvatarPicker(mode='entry'){
 }
 
 function updateEntryAvatarUI(){const preview=$('#entryAvatarPreview');const selected=findEntryAvatarOption(state.entryAvatar,state.entryAvatarOptions)||state.entryAvatarOptions?.[0]||defaultEntryAvatars[0];state.entryAvatar=selected?.id||defaultEntryAvatars[0].id;if(preview){preview.src=av(selected?.src||'guest');preview.alt=selected?.alt||'معاينة الصورة الشخصية المختارة'}$$('[data-picker-avatar]').forEach(b=>b.classList.toggle('selected',b.dataset.pickerAvatar===state.entryAvatar))}
+const RIVO_ENTRY_ROOM_KEY='rivoEntryRoomChoiceV1';
+function savedEntryRoom(){try{return String(localStorage.getItem(RIVO_ENTRY_ROOM_KEY)||'')}catch(_){return''}}
+function entryRoomById(id){const raw=String(id||'');return(Array.isArray(state.rooms)?state.rooms:[]).find(r=>String(r?.id)===raw)||null}
+function selectEntryRoom(id,persist=true){
+ const selected=entryRoomById(id);if(!selected)return false;
+ state.room=selected.id;
+ if(persist){try{localStorage.setItem(RIVO_ENTRY_ROOM_KEY,selected.id)}catch(_){}}
+ try{window.dispatchEvent(new CustomEvent('rivo-entry-room-selected',{detail:{roomId:selected.id}}))}catch(_){}
+ renderEntryRoomChoices();
+ return true;
+}
+function renderEntryRoomChoices(){
+ const wrap=$('#entryRoomList');if(!wrap)return;
+ const rooms=(Array.isArray(state.rooms)?state.rooms:[]).filter(r=>r&&r.id&&r.name);
+ if(!rooms.length){wrap.innerHTML='<div class="entryRoomEmpty">جاري تحميل الغرف…</div>';return}
+ let selected=entryRoomById(state.room)||entryRoomById(savedEntryRoom())||rooms[0];
+ if(selected&&state.room!==selected.id){state.room=selected.id;try{window.dispatchEvent(new CustomEvent('rivo-entry-room-selected',{detail:{roomId:selected.id}}))}catch(_){}}
+ wrap.innerHTML=rooms.map(r=>{
+  const active=selected&&String(r.id)===String(selected.id),count=Math.max(0,Number(r.count||0));
+  const full=Boolean(r.full),status=full?'ممتلئة الآن':`${count} متصل الآن`;
+  return `<button type="button" class="entryRoomOption ${active?'selected':''} ${full?'isFull':''}" data-entry-room="${esc(r.id)}" role="radio" aria-checked="${active?'true':'false'}"><span class="entryRoomIcon">${esc(r.icon||'🏠')}</span><span class="entryRoomText"><b>${esc(r.name)}</b><small>${esc(status)}</small></span><span class="entryRoomCheck">✓</span></button>`;
+ }).join('');
+ $$('[data-entry-room]',wrap).forEach(button=>button.onclick=()=>selectEntryRoom(button.dataset.entryRoom,true));
+ const hint=$('#entryRoomSelectedHint');if(hint&&selected)hint.textContent=`سيتم دخولك إلى غرفة ${selected.icon||'🏠'} ${selected.name}`;
+}
 function showEntryError(message=''){const box=$('#entryError');if(!box)return;box.textContent=message;box.classList.toggle('hidden',!message)}
-function showEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.remove('hidden');document.body.classList.add('entryLocked');showEntryError('');setTimeout(()=>$('#entryName')?.focus(),80)}
+function showEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.remove('hidden');document.body.classList.add('entryLocked');showEntryError('');renderEntryRoomChoices();setTimeout(()=>$('#entryName')?.focus(),80)}
 function hideEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.add('hidden');document.body.classList.remove('entryLocked');showEntryError('')}
-function initEntryScreen(){if(new URLSearchParams(location.search).has('adminPreview')){hideEntryScreen();return}renderEntryAvatarChoices();showEntryScreen()}
-function validateEntryProfile(){const name=String($('#entryName')?.value||'').trim();if(name.length<2){showEntryError('اكتب اسماً من حرفين على الأقل.');$('#entryName')?.focus();return null}return{name,avatar:normalizeEntryAvatarSelection(state.entryAvatar,currentEntryAvatarOptions())}}
-function enterFromEntry(type){const profile=validateEntryProfile();if(!profile)return;if(type==='guest'&&state.adminFeatures.guestEntry===false){showEntryError('دخول الضيف مغلق من الإدارة.');return}updateColorUI();if(type==='google'){state.user={id:'googleLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'مسجل بحساب Google',authType:'google',coins:50,role:'user',plan:'user',vip:false,verified:true,giftValue:0,friends:0,level:1};restoreLocalMembership(state.user);persistCurrentUserProfile()}else state.user={id:'guestLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'ضيف',authType:'guest',coins:0,role:'guest',plan:'guest',vip:false,verified:false,giftValue:0,friends:0,level:1};startFreshChatSession();hideEntryScreen();renderAll();toast(type==='google'?'تم التسجيل والدخول بحساب Google التجريبي':'تم الدخول كضيف')}
+function initEntryScreen(){if(new URLSearchParams(location.search).has('adminPreview')){hideEntryScreen();return}renderEntryAvatarChoices();renderEntryRoomChoices();showEntryScreen()}
+function validateEntryProfile(){const name=String($('#entryName')?.value||'').trim();if(name.length<2){showEntryError('اكتب اسماً من حرفين على الأقل.');$('#entryName')?.focus();return null}const selectedRoom=entryRoomById(state.room)||entryRoomById(savedEntryRoom())||state.rooms?.[0];if(!selectedRoom){showEntryError('اختر غرفة الدخول أولاً.');return null}state.room=selectedRoom.id;return{name,avatar:normalizeEntryAvatarSelection(state.entryAvatar,currentEntryAvatarOptions()),roomId:selectedRoom.id}}
+function enterFromEntry(type){const profile=validateEntryProfile();if(!profile)return;if(type==='guest'&&state.adminFeatures.guestEntry===false){showEntryError('دخول الضيف مغلق من الإدارة.');return}state.room=profile.roomId;updateColorUI();if(type==='google'){state.user={id:'googleLocal',name:profile.name,avatar:profile.avatar,room:profile.roomId,bio:'مسجل بحساب Google',authType:'google',coins:50,role:'user',plan:'user',vip:false,verified:true,giftValue:0,friends:0,level:1};restoreLocalMembership(state.user);persistCurrentUserProfile()}else state.user={id:'guestLocal',name:profile.name,avatar:profile.avatar,room:profile.roomId,bio:'ضيف',authType:'guest',coins:0,role:'guest',plan:'guest',vip:false,verified:false,giftValue:0,friends:0,level:1};startFreshChatSession();hideEntryScreen();renderAll();toast(type==='google'?'تم التسجيل والدخول بحساب Google التجريبي':'تم الدخول كضيف')}
 function googleLogin(){
  updateColorUI();
  state.user={
