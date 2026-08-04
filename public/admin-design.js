@@ -436,6 +436,45 @@ function saveConfig(message='تم حفظ الإعدادات'){
  renderOverview();
  return true;
 }
+async function saveEntryAvatarConfigToCloud(message='تم حفظ صور الدخول'){
+ if(!persistAdminConfig()){
+  const warning='تعذر الحفظ لأن مساحة المتصفح ممتلئة. احذف بعض صور الدخول القديمة ثم أعد المحاولة.';
+  setEntryAvatarUploadStatus(warning,'error');
+  toast(warning);
+  return false;
+ }
+ const serial=++remoteSaveSerial;
+ const snapshot=structuredClone(config);
+ try{
+  const saved=await saveRemoteAdminConfig(snapshot,serial);
+  if(!saved){
+   setEntryAvatarUploadStatus('لم يتم الحفظ على الخادم. سجّل دخول المالك ثم اضغط حفظ وإغلاق.','error');
+   return false;
+  }
+  sendConfigLive();
+  addLog(message);
+  const label=$('#lastSavedLabel');
+  if(label)label.textContent='حفظ سحابي: '+new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});
+  renderOverview();
+  return true;
+ }catch(error){
+  console.error('Entry avatars cloud save failed',error);
+  setServerSyncState('فشل حفظ الصور','error');
+  setEntryAvatarUploadStatus(error?.message||'تعذر حفظ صور الدخول على الخادم.','error');
+  toast(error?.message||'تعذر حفظ صور الدخول على الخادم');
+  return false;
+ }
+}
+async function saveEntryAvatarManagerAndClose(){
+ setEntryAvatarUploadBusy(true);
+ setEntryAvatarUploadStatus('جارٍ حفظ صور الدخول على الخادم…','loading');
+ const saved=await saveEntryAvatarConfigToCloud('تم حفظ صور الدخول ونشرها للمستخدمين');
+ setEntryAvatarUploadBusy(false);
+ if(!saved)return;
+ setEntryAvatarUploadStatus('تم الحفظ على الخادم وستظهر الصور للضيوف والمسجلين.','success');
+ toast('تم حفظ صور الدخول ونشرها للجميع');
+ setTimeout(closeEntryAvatarManager,250);
+}
 function saveMicRequests(){
  localStorage.setItem(MIC_KEY,JSON.stringify(micRequests));
  sendMicsLive();
@@ -1157,13 +1196,14 @@ async function handleEntryAvatarUpload(event){
   }
   latestUploadedEntryAvatarId=item.id;
   selectedEntryAvatarId=item.id;
-  sendConfigLive();
-  addLog('رفع صورة جديدة لواجهة الدخول');
+  setEntryAvatarUploadStatus('تم تجهيز الصورة. جارٍ حفظها على الخادم ونشرها للجميع…','loading');
+  const cloudSaved=await saveEntryAvatarConfigToCloud('رفع صورة جديدة لواجهة الدخول');
+  if(!cloudSaved)throw new Error('cloud_save_failed');
   renderEntryAvatarsAdmin();
   renderOverview();
   const sizeKb=Math.max(1,Math.round(dataUrlApproxBytes(item.src)/1024));
-  setEntryAvatarUploadStatus(`تم رفع الصورة بنجاح (${sizeKb} كيلوبايت). ظهرت هنا وداخل مربع اختيار الصورة في صفحة الدخول، وفي أعلى القائمة. `,'success');
-  toast('تم رفع الصورة وإظهارها في صفحة الدخول');
+  setEntryAvatarUploadStatus(`تم رفع الصورة وحفظها على الخادم بنجاح (${sizeKb} كيلوبايت). ستظهر للضيوف والمسجلين وفي بداية الدخول.`,'success');
+  toast('تم نشر الصورة الجديدة لجميع المستخدمين');
   const frame=$('#chatPreview');
   try{frame?.contentWindow?.postMessage({type:'rivo-admin-config',payload:structuredClone(config),source:'admin',time:Date.now()},'*')}catch(_){}
   requestAnimationFrame(()=>{
@@ -1171,10 +1211,16 @@ async function handleEntryAvatarUpload(event){
    card?.scrollIntoView({behavior:'smooth',block:'nearest'});
   });
  }catch(error){
-  if(item)config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);
+  if(item){
+   config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);
+   persistAdminConfig();
+   renderEntryAvatarsAdmin();
+  }
   const message=error?.message==='storage_failed'
    ?'تعذر حفظ الصورة لأن مساحة المتصفح ممتلئة. احذف بعض صور الدخول القديمة ثم أعد المحاولة.'
-   :'تعذر قراءة هذه الصورة. جرّب صورة JPG أو PNG أو WEBP أخرى.';
+   :error?.message==='cloud_save_failed'
+    ?'تم تجهيز الصورة لكن تعذر حفظها على الخادم، لذلك لم تُنشر للمستخدمين. تأكد من ظهور «متصل بالخادم والدردشة» ثم أعد الرفع.'
+    :'تعذر قراءة هذه الصورة. جرّب صورة JPG أو PNG أو WEBP أخرى.';
   setEntryAvatarUploadStatus(message,'error');
   toast(message);
  }finally{
@@ -1458,7 +1504,7 @@ function bind(){
  if(entryAvatarInput)entryAvatarInput.addEventListener('change',handleEntryAvatarUpload);
  if($('#closeEntryAvatarManager'))$('#closeEntryAvatarManager').onclick=closeEntryAvatarManager;
  if($('#cancelEntryAvatarManager'))$('#cancelEntryAvatarManager').onclick=closeEntryAvatarManager;
- if($('#saveEntryAvatarManager'))$('#saveEntryAvatarManager').onclick=closeEntryAvatarManager;
+ if($('#saveEntryAvatarManager'))$('#saveEntryAvatarManager').onclick=saveEntryAvatarManagerAndClose;
  if($('#entryAvatarManagerModal'))$('#entryAvatarManagerModal').onclick=e=>{if(e.target.id==='entryAvatarManagerModal')closeEntryAvatarManager()};
  if($('#promoteSelectedEntryAvatar'))$('#promoteSelectedEntryAvatar').onclick=()=>{if(selectedEntryAvatarId)promoteEntryAvatar(selectedEntryAvatarId)};
  if($('#deleteSelectedEntryAvatar'))$('#deleteSelectedEntryAvatar').onclick=()=>{if(selectedEntryAvatarId&&confirm('حذف الصورة المختارة؟'))removeEntryAvatar(selectedEntryAvatarId)};
