@@ -565,7 +565,9 @@
   }
 
   function messageUserFromPayload(message, historyOnly = false) {
+    const hiddenStaff = ["owner", "moderator"].includes(String(message.role || "")) && message.adminVisible === false;
     let user = state.users.find((u) => u.id === message.clientId);
+    if (user && hiddenStaff) user.isHidden = true;
     if (!user && message.clientId) {
       user = mapUser({
         clientId: message.clientId,
@@ -575,10 +577,13 @@
         isVip: message.isVip,
         verified: message.verified,
         isGuest: message.isGuest,
-        badge: message.badge
+        badge: message.badge,
+        adminVisible: message.adminVisible
       });
+      user.isHidden = hiddenStaff;
       user.isHistoryOnly = historyOnly;
-      state.users.push(user);
+      // رسالة الإدارة المخفية يجب أن تظهر، لكن الحساب لا يعود إلى قائمة المستخدمين.
+      if (!hiddenStaff) state.users.push(user);
     }
     return user;
   }
@@ -1568,7 +1573,6 @@
     const body = expandLiveMessageShortcuts(input?.value || "").trim();
     if (!body) return;
     if (!live.identity) { showEntryScreen(); return; }
-    if (hiddenMonitorMode()) { toast("أنت في وضع المراقبة المخفية. أظهر حسابك أولاً للكتابة."); return; }
     if (body.length > 800) { toast("الرسالة طويلة جداً"); return; }
     if (send({ type: "chat", body, color: normalizeColor(state.color) })) input.value = "";
   }

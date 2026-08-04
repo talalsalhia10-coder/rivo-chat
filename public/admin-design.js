@@ -463,11 +463,11 @@ function renderOwnerAdminSettings(){
  if(previewName)previewName.textContent=name||'التاج فقط';
  if(previewAvatar)previewAvatar.src=avatarSrc(ownerAdminSettingsState.avatar||'owner');
  if(previewVisibility){
-  previewVisibility.textContent=visible?'ظاهر للمستخدمين':'مخفي تماماً — مراقبة فقط';
+  previewVisibility.textContent=visible?'ظاهر للمستخدمين':'مخفي عن القائمة — الكتابة متاحة';
   previewVisibility.classList.toggle('hiddenState',!visible);
  }
  if(modePill){
-  modePill.textContent=visible?'وضع الظهور':'وضع المراقبة المخفية';
+  modePill.textContent=visible?'وضع الظهور':'وضع الدخول المخفي';
   modePill.classList.toggle('hiddenMode',!visible);
   modePill.classList.toggle('visibleMode',visible);
  }
@@ -480,7 +480,7 @@ function renderOwnerAdminSettings(){
   connection.classList.toggle('connected',ownerAdminSettingsState.connected);
  }
  const enterBtn=$('#ownerEnterChatNowBtn');
- if(enterBtn)enterBtn.textContent=visible?'فتح الدردشة كإدارة والكتابة الآن 👑':'فتح الدردشة بوضع المراقبة المخفية 🫥';
+ if(enterBtn)enterBtn.textContent=visible?'فتح الدردشة كإدارة والكتابة الآن 👑':'فتح الدردشة مخفياً والكتابة في العام 🫥';
 }
 function setOwnerAdminVisibility(visible){
  const nextVisible=Boolean(visible);
@@ -488,7 +488,7 @@ function setOwnerAdminVisibility(visible){
  updateLocalOwnerAdminState(ownerAdminSettingsState.name,nextVisible,ownerAdminSettingsState.avatar);
  const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,nextVisible);
  if(current)saveOwnerChatIdentity(current);
- setOwnerAdminStatus(nextVisible?'أصبحت الإدارة ظاهرة ويمكنك الكتابة والتفاعل.':'تم تفعيل المراقبة المخفية: اختفيت من المستخدمين وأصبحت الدردشة للمتابعة فقط.','success');
+ setOwnerAdminStatus(nextVisible?'أصبحت الإدارة ظاهرة ويمكنك الكتابة والتفاعل.':'تم تفعيل الدخول المخفي: اختفيت من قائمة المستخدمين ويمكنك الكتابة في العام.','success');
  // إعادة تحميل المعاينة تضمن تطبيق الاختفاء فوراً حتى لو كانت جلسة قديمة مفتوحة.
  setTimeout(()=>reloadChatPreviewAsOwner(),120);
  setTimeout(()=>connectAdminSocket(true),220);

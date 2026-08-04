@@ -986,3 +986,70 @@ body.entryAvatarManagerOpen{overflow:hidden}
 .ownerAdminFooterPro{border-top:1px solid #e8ebf2;padding-top:13px;justify-content:flex-start}.ownerAdminFooterPro span{font-size:13px}
 @media(max-width:800px){.ownerAdminSettingsGrid{grid-template-columns:1fr}.ownerAdminHero{grid-template-columns:auto 1fr}.ownerAdminModePill{grid-column:1/-1;justify-self:start}.ownerAdminPrimaryActions{grid-template-columns:1fr}.ownerAdminPrimaryActions a{padding:13px}.ownerAdminModeGrid{grid-template-columns:1fr}}
 @media(max-width:520px){.ownerAdminProCard{padding:12px}.ownerAdminHero{padding:14px}.ownerAdminAvatarShell{width:66px;height:66px}.ownerAdminHeroText b{font-size:21px}.ownerAdminModeCard{min-height:125px;padding:14px}.ownerAdminNameRow{grid-template-columns:1fr}.ownerSaveNameBtn{padding:13px}}
+
+/* v188 — إعدادات الإدارة بحجم متوازن ومضغوط */
+.ownerAdminProCard{
+  max-width:860px;
+  padding:15px;
+  gap:12px;
+}
+.ownerAdminHero{
+  gap:12px;
+  padding:12px 14px;
+  border-radius:16px;
+}
+.ownerAdminAvatarShell{width:62px;height:62px;border-radius:18px}
+.ownerAdminAvatarShell img{border-radius:15px}
+.ownerAdminCrownBadge{width:28px;height:28px;border-radius:9px;font-size:16px;right:-6px;bottom:-5px}
+.ownerAdminHeroText b{font-size:20px}
+.ownerAdminModePill{padding:7px 10px;font-size:11px}
+.ownerAdminModeGrid{gap:9px}
+.ownerAdminModeCard{
+  min-height:82px;
+  border-radius:14px;
+  padding:10px 12px;
+  column-gap:10px;
+  box-shadow:0 4px 12px rgba(35,47,84,.045);
+}
+.ownerAdminModeCard:hover{transform:none;box-shadow:0 7px 17px rgba(35,47,84,.075)}
+.ownerAdminModeIcon{width:38px;height:38px;border-radius:11px;font-size:20px}
+.ownerAdminModeCard strong{font-size:15px}
+.ownerAdminModeCard small{font-size:11px;line-height:1.45;margin-top:2px}
+.ownerHiddenNotice{padding:9px 12px;border-radius:12px;gap:9px}
+.ownerHiddenNotice>span{font-size:20px}
+.ownerHiddenNotice small{font-size:11px}
+.ownerAdminSettingsGrid{gap:10px}
+.ownerAdminPanel{border-radius:14px;padding:12px}
+.ownerPanelTitle{margin-bottom:10px;gap:8px}
+.ownerPanelTitle>span{width:32px;height:32px;border-radius:10px;font-size:16px}
+.ownerPanelTitle h2{font-size:15px}
+.ownerPanelTitle p{font-size:11px;line-height:1.45}
+.ownerIdentityOption{border-radius:11px;padding:9px 10px;gap:8px;margin-bottom:10px}
+.ownerIdentityOption>span{font-size:21px}
+.ownerIdentityOption b{font-size:13px}
+.ownerIdentityOption small{font-size:10px}
+.ownerAdminNameLabel{font-size:12px;margin-bottom:5px}
+.ownerAdminNameInput{border-radius:10px;padding:10px 11px;font-size:13px}
+.ownerSaveNameBtn{border-radius:10px;padding:0 13px;font-size:12px}
+.ownerAdminAvatarUploadBtn{gap:9px;border-radius:12px;padding:10px}
+.ownerUploadIcon{width:36px;height:36px;border-radius:10px;font-size:17px}
+.ownerAdminAvatarUploadBtn b{font-size:13px}
+.ownerAdminAvatarUploadBtn small{font-size:10px}
+.ownerAdminAvatarUploadState{margin-top:7px;padding:7px 9px;font-size:10px}
+.ownerAdminPrimaryActions{gap:8px}
+.ownerEnterChatNowBtn{border-radius:12px;padding:11px 14px;font-size:14px;box-shadow:0 6px 15px rgba(36,126,171,.14)}
+.ownerAdminPrimaryActions a{border-radius:12px;padding:0 14px;font-size:12px}
+.ownerAdminFooterPro{padding-top:9px}
+.ownerAdminFooterPro span{font-size:11px}
+
+@media(max-width:800px){
+  .ownerAdminProCard{max-width:none}
+  .ownerAdminModeGrid{grid-template-columns:1fr 1fr}
+  .ownerAdminSettingsGrid{grid-template-columns:1fr}
+}
+@media(max-width:560px){
+  .ownerAdminModeGrid{grid-template-columns:1fr}
+  .ownerAdminModeCard{min-height:74px}
+  .ownerAdminHero{grid-template-columns:auto 1fr}
+  .ownerAdminModePill{grid-column:1/-1}
+}
