@@ -48,7 +48,7 @@ const PERSIST_LIVE_IDENTITY_KEY='rivo_live_identity_persistent_v1';
 const ACTIVE_ROOM_KEY='rivo_live_active_room_v1';
 const CROWN_ONLY_NAME='__rivo_crown_only__';
 let ownerSession=null;
-let ownerAdminSettingsState={name:'الإدارة',visible:true,connected:false};
+let ownerAdminSettingsState={name:'الإدارة',avatar:'owner',visible:true,connected:false};
 let remoteSaveTimer=null;
 let remoteSaveSerial=0;
 let adminSocket=null;
@@ -346,6 +346,7 @@ function syncPresenceSockets(force=false){
 }
 function applyAdminSocketState(data,sourceRoomId=selectedRoomId,fromPresenceSocket=false){
  if(data?.staff?.role==='owner')ownerAdminSettingsState.name=data.staff.name||ownerAdminSettingsState.name||'الإدارة';
+ if(data?.staffAvatar)ownerAdminSettingsState.avatar=data.staffAvatar;
  if(typeof data?.staffVisible==='boolean')ownerAdminSettingsState.visible=data.staffVisible;
  ownerAdminSettingsState.connected=true;
  renderOwnerAdminSettings();
@@ -374,7 +375,7 @@ function connectAdminSocket(force=false){
  if(!force&&adminSocket&&adminSocket.readyState<=WebSocket.OPEN&&adminSocketRoom===roomId)return;
  closeAdminSocket();adminSocketClosing=false;adminSocketRoom=roomId;
  const protocol=location.protocol==='https:'?'wss:':'ws:';
- const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:'1'});
+ const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:ownerAdminSettingsState.visible===false?'0':'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
  socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
  socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
@@ -386,7 +387,7 @@ function buildOwnerChatIdentity(name=ownerAdminSettingsState.name,visible=ownerA
  if(!session?.staffSessionToken)return null;
  const staffId=session.staffClientId||session.staffId||session.clientId||'owner-main';
  return{
-  type:'owner',role:'owner',name:name||'الإدارة',avatar:'owner',
+  type:'owner',role:'owner',name:name||'الإدارة',avatar:ownerAdminSettingsState.avatar||'owner',
   staffSessionToken:session.staffSessionToken,staffClientId:staffId,clientId:staffId,
   visible:visible!==false,expiresAt:Number(session.expiresAt||session.staffExpiresAt||0)
  };
@@ -426,12 +427,14 @@ function ownerAdminPublicName(value=ownerAdminSettingsState.name){
  const raw=String(value||'').trim();
  return raw===CROWN_ONLY_NAME?'':raw;
 }
-function updateLocalOwnerAdminState(name=ownerAdminSettingsState.name,visible=ownerAdminSettingsState.visible){
+function updateLocalOwnerAdminState(name=ownerAdminSettingsState.name,visible=ownerAdminSettingsState.visible,avatar=ownerAdminSettingsState.avatar){
  ownerAdminSettingsState.name=name||'الإدارة';
+ ownerAdminSettingsState.avatar=avatar||'owner';
  ownerAdminSettingsState.visible=Boolean(visible);
  for(const user of config.users){
   if(userAccessRole(user)!=='owner')continue;
   user.name=ownerAdminPublicName(ownerAdminSettingsState.name);
+  user.avatar=ownerAdminSettingsState.avatar||user.avatar||'owner';
   user.isHidden=!ownerAdminSettingsState.visible;
  }
  renderOwnerAdminSettings();
@@ -450,15 +453,25 @@ function renderOwnerAdminSettings(){
  const visible=ownerAdminSettingsState.visible!==false;
  const previewName=$('#ownerAdminPreviewName');
  const previewVisibility=$('#ownerAdminPreviewVisibility');
+ const previewAvatar=$('#ownerAdminAvatarPreview');
+ const modePill=$('#ownerAdminModePill');
+ const hiddenNotice=$('#ownerHiddenNotice');
  const nameInput=$('#ownerAdminDisplayName');
  const showBtn=$('#ownerShowAdminBtn');
  const hideBtn=$('#ownerHideAdminBtn');
  const connection=$('#ownerAdminConnectionState');
  if(previewName)previewName.textContent=name||'التاج فقط';
+ if(previewAvatar)previewAvatar.src=avatarSrc(ownerAdminSettingsState.avatar||'owner');
  if(previewVisibility){
-  previewVisibility.textContent=visible?'ظاهر للمستخدمين':'مخفي عن المستخدمين';
+  previewVisibility.textContent=visible?'ظاهر للمستخدمين':'مخفي تماماً — مراقبة فقط';
   previewVisibility.classList.toggle('hiddenState',!visible);
  }
+ if(modePill){
+  modePill.textContent=visible?'وضع الظهور':'وضع المراقبة المخفية';
+  modePill.classList.toggle('hiddenMode',!visible);
+  modePill.classList.toggle('visibleMode',visible);
+ }
+ hiddenNotice?.classList.toggle('hidden',visible);
  if(nameInput&&document.activeElement!==nameInput&&ownerAdminSettingsState.name!==CROWN_ONLY_NAME)nameInput.value=name||'الإدارة';
  if(showBtn)showBtn.classList.toggle('active',visible);
  if(hideBtn)hideBtn.classList.toggle('active',!visible);
@@ -466,13 +479,19 @@ function renderOwnerAdminSettings(){
   connection.textContent=ownerAdminSettingsState.connected?'متصل بالدردشة':'بانتظار اتصال الدردشة…';
   connection.classList.toggle('connected',ownerAdminSettingsState.connected);
  }
+ const enterBtn=$('#ownerEnterChatNowBtn');
+ if(enterBtn)enterBtn.textContent=visible?'فتح الدردشة كإدارة والكتابة الآن 👑':'فتح الدردشة بوضع المراقبة المخفية 🫥';
 }
 function setOwnerAdminVisibility(visible){
- if(!sendAdminCommand('set-staff-visible',{visible:Boolean(visible)}))return false;
- updateLocalOwnerAdminState(ownerAdminSettingsState.name,Boolean(visible));
- const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,Boolean(visible));
+ const nextVisible=Boolean(visible);
+ if(!sendAdminCommand('set-staff-visible',{visible:nextVisible}))return false;
+ updateLocalOwnerAdminState(ownerAdminSettingsState.name,nextVisible,ownerAdminSettingsState.avatar);
+ const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,nextVisible);
  if(current)saveOwnerChatIdentity(current);
- setOwnerAdminStatus(visible?'أصبحت الإدارة ظاهرة في الدردشة.':'أصبحت الإدارة مخفية عن المستخدمين.','success');
+ setOwnerAdminStatus(nextVisible?'أصبحت الإدارة ظاهرة ويمكنك الكتابة والتفاعل.':'تم تفعيل المراقبة المخفية: اختفيت من المستخدمين وأصبحت الدردشة للمتابعة فقط.','success');
+ // إعادة تحميل المعاينة تضمن تطبيق الاختفاء فوراً حتى لو كانت جلسة قديمة مفتوحة.
+ setTimeout(()=>reloadChatPreviewAsOwner(),120);
+ setTimeout(()=>connectAdminSocket(true),220);
  return true;
 }
 function applyOwnerAdminIdentity(crownOnly=false){
@@ -489,6 +508,56 @@ function applyOwnerAdminIdentity(crownOnly=false){
  updateLocalOwnerAdminState(name,true);
  if(!enterOwnerChatNow(name,true))return;
  toast(crownOnly?'دخلت إلى الدردشة بالتاج فقط 👑':'دخلت إلى الدردشة باسم الإدارة مع التاج 👑');
+}
+function setOwnerAvatarUploadState(text='',type=''){
+ const el=$('#ownerAdminAvatarUploadState');
+ if(!el)return;
+ el.textContent=text||'لم يتم اختيار صورة جديدة.';
+ el.className=`ownerAdminAvatarUploadState ${type}`.trim();
+}
+function setOwnerAvatarUploadBusy(busy){
+ const label=$('#ownerAdminAvatarUploadBtn');
+ const input=$('#ownerAdminAvatarInput');
+ label?.classList.toggle('uploading',Boolean(busy));
+ if(input)input.disabled=Boolean(busy);
+}
+async function handleOwnerAdminAvatarUpload(event){
+ const input=event.currentTarget||event.target;
+ const file=input?.files?.[0];
+ if(!file)return;
+ const looksLikeImage=file.type.startsWith('image/')||/\.(png|jpe?g|webp|gif|bmp)$/i.test(file.name||'');
+ if(!looksLikeImage){setOwnerAvatarUploadState('اختر ملف صورة صالحاً.','error');input.value='';return}
+ if(file.size>20*1024*1024){setOwnerAvatarUploadState('حجم الصورة أكبر من 20 ميغابايت.','error');input.value='';return}
+ setOwnerAvatarUploadBusy(true);
+ setOwnerAvatarUploadState('جارٍ قص الصورة وضغطها وحفظها…','loading');
+ let item=null;
+ try{
+  const cropped=await prepareEntryAvatarData(file,true);
+  config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
+  item={id:`entry_avatar_admin_${Date.now()}`,src:cropped,alt:'صورة الإدارة',title:'صورة الإدارة',custom:true,ownerAvatar:true,createdAt:Date.now()};
+  config.entryAvatars=config.entryAvatars.filter(entry=>!entry?.ownerAvatar);
+  config.entryAvatars.splice(Math.min(1,config.entryAvatars.length),0,item);
+  if(!persistAdminConfig())throw new Error('storage_failed');
+  const cloudSaved=await saveEntryAvatarConfigToCloud('تحديث صورة الإدارة');
+  if(!cloudSaved)throw new Error('cloud_save_failed');
+  if(!sendAdminCommand('update-staff-avatar',{avatar:item.id}))throw new Error('admin_socket_failed');
+  ownerAdminSettingsState.avatar=item.id;
+  updateLocalOwnerAdminState(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,item.id);
+  const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+  if(current)saveOwnerChatIdentity(current);
+  renderOwnerAdminSettings();
+  sendConfigLive();
+  setOwnerAvatarUploadState('تم حفظ صورة الإدارة ونشرها لجميع المستخدمين.','success');
+  setOwnerAdminStatus('تم تغيير صورة الإدارة بنجاح.','success');
+  setTimeout(()=>reloadChatPreviewAsOwner(),160);
+ }catch(error){
+  if(item){config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);persistAdminConfig()}
+  const message=error?.message==='cloud_save_failed'?'تعذر حفظ الصورة على الخادم. أعد المحاولة بعد التأكد من اتصال لوحة الإدارة.':'تعذر تجهيز صورة الإدارة. جرّب صورة JPG أو PNG أو WEBP أخرى.';
+  setOwnerAvatarUploadState(message,'error');
+ }finally{
+  setOwnerAvatarUploadBusy(false);
+  if(input)input.value='';
+ }
 }
 function renderAdminDesignAll(){
  ensureAdminMessageUi();
@@ -1831,6 +1900,8 @@ function bind(){
  if($('#ownerEnterChatNowBtn'))$('#ownerEnterChatNowBtn').onclick=()=>enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
  if($('#ownerOpenChatBtn'))$('#ownerOpenChatBtn').onclick=event=>{event.preventDefault();enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,{openWindow:true})};
  if($('#ownerAdminDisplayName'))$('#ownerAdminDisplayName').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyOwnerAdminIdentity(false)}});
+ const ownerAvatarInput=$('#ownerAdminAvatarInput');
+ if(ownerAvatarInput)ownerAvatarInput.addEventListener('change',handleOwnerAdminAvatarUpload);
  $('#roomAdminSearch').oninput=renderRoomsAdmin;
  $('#saveRoomBtn').onclick=saveRoom;$('#addRoomBtn').onclick=addRoom;$('#deleteRoomBtn').onclick=deleteRoom;
  $('#userAdminSearch').oninput=renderUsersAdmin;$('#userRoleFilter').onchange=renderUsersAdmin;

@@ -1865,9 +1865,17 @@ function switchRoom(id){
 }
 
 function isHiddenStaff(u){return Boolean(u?.isHidden)&&['owner','moderator'].includes(userAccessRole(u))}
-function publicMessageUser(u){
- // وضع التخفي يزيل الإدارة أو المراقب من قائمة المتصلين فقط؛ الرسائل تبقى بهويته المختارة.
- return u;
+function publicMessageUser(u){return u}
+function applyHiddenMonitorModeUI(){
+ const hidden=isHiddenStaff(state.user);
+ const input=$('#messageInput'),send=$('#sendBtn');
+ if(input){
+  input.disabled=hidden;
+  input.placeholder=hidden?'أنت في وضع المراقبة المخفية — أظهر حسابك للكتابة':'اكتب رسالة إلى الغرفة...';
+ }
+ if(send)send.disabled=hidden;
+ ['#micBtn','#cameraBtn','#composerMicBtn','#composerCameraBtn'].forEach(selector=>{const el=$(selector);if(el&&hidden)el.disabled=true});
+ document.body.classList.toggle('ownerHiddenMonitorMode',hidden);
 }
 function updateStaffVisibilityUI(){
  const button=$('#visibilityBtn');
@@ -1876,8 +1884,8 @@ function updateStaffVisibilityUI(){
  if(button){
   button.classList.toggle('hidden',!staff);
   if(staff){
-   button.textContent=state.user.isHidden?'👁️ إظهار':'🫥 مخفي';
-   button.title=state.user.isHidden?'إظهار الحساب في قائمة المستخدمين':'الاختفاء من قائمة المستخدمين مع استمرار الكتابة';
+   button.textContent=state.user.isHidden?'👁️ إظهار':'🫥 اختفاء';
+   button.title=state.user.isHidden?'إظهار الحساب والعودة للكتابة':'الاختفاء التام والدخول في وضع المراقبة فقط';
    button.classList.toggle('hiddenState',Boolean(state.user.isHidden));
   }
  }
@@ -1917,7 +1925,7 @@ function toggleMyVisibility(){
  if(!state.user||!['owner','moderator'].includes(userAccessRole(state.user)))return;
  state.user.isHidden=!state.user.isHidden;const listed=findUser(state.user.id);if(listed)listed.isHidden=state.user.isHidden;
  const cfg=readAdminConfig();if(cfg&&Array.isArray(cfg.users)){const saved=cfg.users.find(u=>u.id===state.user.id||u.moderatorTokenId===state.user.moderatorTokenId);if(saved)saved.isHidden=state.user.isHidden;if(state.user.moderatorTokenId&&Array.isArray(cfg.moderatorTokens)){const token=cfg.moderatorTokens.find(t=>t.id===state.user.moderatorTokenId);if(token)token.isHidden=state.user.isHidden}localStorage.setItem(RIVO_ADMIN_CONFIG_KEY,JSON.stringify(cfg))}
- notifyAdminLive('rivo-staff-visibility',{userId:state.user.id,hidden:state.user.isHidden});renderAll();toast(state.user.isHidden?'أنت الآن مخفي عن الزوار':'أنت الآن ظاهر للزوار');
+ notifyAdminLive('rivo-staff-visibility',{userId:state.user.id,hidden:state.user.isHidden});renderAll();toast(state.user.isHidden?'أنت الآن مخفي تماماً وفي وضع المراقبة فقط':'أنت الآن ظاهر ويمكنك الكتابة');
 }
 function moderatorLogin(){
  const code=String($('#moderatorCodeInput')?.value||'').trim().toUpperCase();if(!code){toast('اكتب رمز المراقب');return}
@@ -1999,7 +2007,7 @@ function renderStage(){const r=room(),active=state.stage.filter(s=>findUser(s.us
  if($('#privateMediaPaidOnly')) $('#privateMediaPaidOnly').checked=state.privateMedia.paidOnly;
 }
 function renderStageAdmin(){const a=state.stage.filter(s=>findUser(s.user)?.room===state.room);$('#stageAdmin').innerHTML=a.length?a.map(s=>{const u=findUser(s.user);return`<div class="stageUser"><span>${esc(u.name)} — ${s.mode}</span><button data-kick="${u.id}">إنزال</button></div>`}).join(''):'<small>لا يوجد مستخدمون على المنصة.</small>';$$('[data-kick]').forEach(b=>b.onclick=()=>{state.stage=state.stage.filter(s=>s.user!==b.dataset.kick);renderStage();toast('تم إنزال المستخدم')})}
-function renderAll(){renderRooms();renderEntryRoomChoices();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI()}
+function renderAll(){renderRooms();renderEntryRoomChoices();renderUsers();renderMessages();renderHeader();renderStage();updateStaffVisibilityUI();applyHiddenMonitorModeUI()}
 function showMenu(id,e){state.target=id;const target=findUser(id);$('#menuName').textContent=readableUserName(target);const m=$('#userMenu');m.style.top=Math.min(innerHeight-300,e.clientY)+'px';m.style.left=Math.max(10,e.clientX-235)+'px';m.classList.remove('hidden')}
 function showProfile(id){
  const u=findUser(id);if(!u)return;
@@ -2068,6 +2076,7 @@ function sendMessage(){
  const input=$('#messageInput');
  const t=replaceMessageShortcuts(input?.value||'').trim();
  if(!t)return;
+ if(isHiddenStaff(state.user)){toast('أنت في وضع المراقبة المخفية. اضغط «إظهار» للكتابة.');return}
  if(permissionValue('publicMessages')===false){toast('الكتابة غير مسموحة لرتبتك');return}
  if(state.user?.status==='muted'){toast('الإدارة قامت بكتم حسابك');return}
  if(t.length>state.adminFeatures.maxMessageLength){toast('الرسالة أطول من الحد الذي حددته الإدارة');return}

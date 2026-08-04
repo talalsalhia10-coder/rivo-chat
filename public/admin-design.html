@@ -87,47 +87,83 @@
     </section>
 
     <section id="section-adminsettings" class="adminSection">
-      <div class="sectionHeading">
-        <div><h1>إعدادات الإدارة 👑</h1><p>اختر الاسم والظهور، ثم اضغط زر الدخول. ستتحول معاينة الدردشة في الوسط إلى حساب الإدارة وتستطيع الكتابة منها مباشرة.</p></div>
+      <div class="sectionHeading ownerSettingsHeading">
+        <div>
+          <h1>إعدادات ظهور الإدارة 👑</h1>
+          <p>تحكم بهويتك داخل الدردشة من مكان واحد: ظهور كامل، مراقبة مخفية، اسم الإدارة، والصورة الشخصية.</p>
+        </div>
         <span id="ownerAdminConnectionState" class="ownerAdminConnectionState">بانتظار اتصال الدردشة…</span>
       </div>
 
-      <article class="adminCard ownerAdminSettingsCard">
-        <div class="ownerAdminPreviewBox">
-          <div id="ownerAdminPreviewCrown" class="ownerAdminPreviewCrown">👑</div>
-          <div>
-            <small>معاينة ظهورك في الدردشة</small>
+      <article class="adminCard ownerAdminSettingsCard ownerAdminProCard">
+        <div class="ownerAdminHero">
+          <div class="ownerAdminAvatarShell">
+            <img id="ownerAdminAvatarPreview" src="assets/avatars/owner.svg" alt="صورة الإدارة">
+            <span class="ownerAdminCrownBadge">👑</span>
+          </div>
+          <div class="ownerAdminHeroText">
+            <small>هويتك الحالية داخل الدردشة</small>
             <b id="ownerAdminPreviewName">الإدارة</b>
             <span id="ownerAdminPreviewVisibility">ظاهر للمستخدمين</span>
           </div>
+          <div id="ownerAdminModePill" class="ownerAdminModePill visibleMode">وضع الظهور</div>
         </div>
 
-        <div class="ownerAdminControlBlock">
-          <h2>الظهور أو الاختفاء</h2>
-          <p>عند اختيار «مخفي» تستطيع متابعة الدردشة والكتابة، لكن اسمك وصورتك لا يظهران في قائمة المستخدمين.</p>
-          <div class="ownerAdminChoiceRow">
-            <button id="ownerShowAdminBtn" type="button" class="ownerAdminChoice active">👁️ ظهور في الدردشة</button>
-            <button id="ownerHideAdminBtn" type="button" class="ownerAdminChoice hiddenChoice">🫥 مخفي عن المستخدمين</button>
-          </div>
+        <div class="ownerAdminModeGrid" role="group" aria-label="وضع ظهور الإدارة">
+          <button id="ownerShowAdminBtn" type="button" class="ownerAdminModeCard visibleCard active">
+            <span class="ownerAdminModeIcon">👁️</span>
+            <strong>ظاهر في الدردشة</strong>
+            <small>يظهر اسمك وصورتك والتاج، وتستطيع الكتابة والتفاعل بصورة طبيعية.</small>
+          </button>
+          <button id="ownerHideAdminBtn" type="button" class="ownerAdminModeCard hiddenCard">
+            <span class="ownerAdminModeIcon">🫥</span>
+            <strong>مراقبة مخفية</strong>
+            <small>تختفي تماماً من قائمة المستخدمين، وتراقب الدردشة فقط من دون أن يراك أحد.</small>
+          </button>
         </div>
 
-        <div class="ownerAdminControlBlock">
-          <h2>الدخول بالتاج فقط</h2>
-          <p>يظهر تاج الإدارة الكبير 👑 من دون أي اسم قربه، ثم تدخل المعاينة وتستطيع الكتابة فوراً.</p>
-          <button id="ownerEnterCrownOnlyBtn" type="button" class="ownerEnterModeBtn crownOnlyBtn">👑 ادخل بدون اسم — التاج فقط</button>
+        <div id="ownerHiddenNotice" class="ownerHiddenNotice hidden">
+          <span>🛡️</span>
+          <div><b>أنت الآن في وضع المراقبة المخفية</b><small>لن تظهر للزوار، ولن تُرسل رسائل عامة حتى تعود إلى وضع الظهور.</small></div>
         </div>
 
-        <div class="ownerAdminControlBlock">
-          <h2>الدخول باسم مع التاج</h2>
-          <label class="ownerAdminNameLabel" for="ownerAdminDisplayName">اسم الإدارة داخل الدردشة</label>
-          <input id="ownerAdminDisplayName" class="ownerAdminNameInput" maxlength="24" autocomplete="off" placeholder="مثلاً: الإدارة أو طلال">
-          <button id="ownerEnterNamedBtn" type="button" class="ownerEnterModeBtn namedOwnerBtn">حفظ الاسم والدخول مع التاج 👑</button>
+        <div class="ownerAdminSettingsGrid">
+          <section class="ownerAdminPanel ownerIdentityPanel">
+            <div class="ownerPanelTitle">
+              <span>✍️</span>
+              <div><h2>اسم الإدارة</h2><p>اختر الظهور بالتاج فقط أو باسم مع التاج.</p></div>
+            </div>
+            <button id="ownerEnterCrownOnlyBtn" type="button" class="ownerIdentityOption crownOnlyBtn">
+              <span>👑</span><div><b>الدخول بالتاج فقط</b><small>من دون كتابة اسم بجانب التاج.</small></div>
+            </button>
+            <label class="ownerAdminNameLabel" for="ownerAdminDisplayName">اسم الإدارة داخل الدردشة</label>
+            <div class="ownerAdminNameRow">
+              <input id="ownerAdminDisplayName" class="ownerAdminNameInput" maxlength="24" autocomplete="off" placeholder="مثلاً: الإدارة أو طلال">
+              <button id="ownerEnterNamedBtn" type="button" class="ownerSaveNameBtn">حفظ الاسم</button>
+            </div>
+          </section>
+
+          <section class="ownerAdminPanel ownerAvatarPanel">
+            <div class="ownerPanelTitle">
+              <span>🖼️</span>
+              <div><h2>صورة الإدارة</h2><p>ارفع صورة من الحاسوب؛ تُقص وتُضغط تلقائياً ثم تظهر مع التاج.</p></div>
+            </div>
+            <label id="ownerAdminAvatarUploadBtn" class="ownerAdminAvatarUploadBtn" for="ownerAdminAvatarInput">
+              <span class="ownerUploadIcon">⬆️</span>
+              <div><b>رفع صورة من الحاسوب</b><small>JPG أو PNG أو WEBP — حتى 20 ميغابايت</small></div>
+            </label>
+            <input id="ownerAdminAvatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+            <div id="ownerAdminAvatarUploadState" class="ownerAdminAvatarUploadState">لم يتم اختيار صورة جديدة.</div>
+          </section>
         </div>
 
-        <button id="ownerEnterChatNowBtn" type="button" class="ownerEnterChatNowBtn">👑 دخول الإدارة داخل الدردشة والكتابة الآن</button>
-        <div class="ownerAdminSettingsFooter">
-          <span id="ownerAdminSaveState">اختر اسماً أو التاج فقط، ثم ادخل إلى الدردشة.</span>
-          <a id="ownerOpenChatBtn" href="index.html" target="_blank" rel="noopener">فتح الدردشة كإدارة في نافذة مستقلة ←</a>
+        <div class="ownerAdminPrimaryActions">
+          <button id="ownerEnterChatNowBtn" type="button" class="ownerEnterChatNowBtn">فتح الدردشة كإدارة والكتابة الآن 👑</button>
+          <a id="ownerOpenChatBtn" href="index.html" target="_blank" rel="noopener">فتحها في نافذة مستقلة ↗</a>
+        </div>
+
+        <div class="ownerAdminSettingsFooter ownerAdminFooterPro">
+          <span id="ownerAdminSaveState">اختر وضع الظهور والاسم والصورة، ثم افتح الدردشة.</span>
         </div>
       </article>
     </section>

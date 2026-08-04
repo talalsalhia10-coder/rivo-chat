@@ -948,3 +948,41 @@ body.entryAvatarManagerOpen{overflow:hidden}
 .ownerEnterChatNowBtn{width:100%;border:0;border-radius:16px;padding:15px 18px;background:linear-gradient(135deg,#159765,#2f80ed);color:#fff;font-size:17px;font-weight:950;cursor:pointer;box-shadow:0 10px 24px rgba(36,126,171,.18)}
 .ownerEnterChatNowBtn:hover{filter:brightness(1.04);transform:translateY(-1px)}
 .ownerEnterChatNowBtn:active{transform:none}
+
+/* v187 — professional owner controls */
+.ownerSettingsHeading{align-items:center}
+.ownerAdminProCard{max-width:980px;padding:20px;gap:18px;background:linear-gradient(150deg,#ffffff 0%,#fafbff 55%,#f6f2ff 100%);border:1px solid #e6e9f4;box-shadow:0 18px 45px rgba(44,57,99,.08)}
+.ownerAdminHero{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:16px;padding:18px;border-radius:20px;background:linear-gradient(135deg,#252f63 0%,#5147c9 58%,#2d8be7 100%);color:#fff;position:relative;overflow:hidden}
+.ownerAdminHero:after{content:"";position:absolute;inset:auto -50px -70px auto;width:190px;height:190px;border-radius:50%;background:rgba(255,255,255,.09)}
+.ownerAdminAvatarShell{width:82px;height:82px;border-radius:24px;padding:4px;background:linear-gradient(145deg,#fff4b7,#e6b92e);position:relative;box-shadow:0 12px 30px rgba(0,0,0,.22);z-index:1}
+.ownerAdminAvatarShell img{width:100%;height:100%;border-radius:20px;object-fit:cover;background:#fff;display:block}
+.ownerAdminCrownBadge{position:absolute;right:-8px;bottom:-7px;width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:#fff;box-shadow:0 5px 14px rgba(0,0,0,.22);font-size:19px}
+.ownerAdminHeroText{display:grid;gap:3px;z-index:1}.ownerAdminHeroText small{color:#dce6ff}.ownerAdminHeroText b{font-size:26px}.ownerAdminHeroText span{font-weight:900;color:#c8ffe1}
+.ownerAdminHeroText span.hiddenState{color:#ffe4a9}
+.ownerAdminModePill{z-index:1;white-space:nowrap;border-radius:999px;padding:9px 14px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.23);font-size:12px;font-weight:950;backdrop-filter:blur(8px)}
+.ownerAdminModePill.hiddenMode{background:rgba(255,194,94,.2);color:#fff2cf}
+.ownerAdminModeGrid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+.ownerAdminModeCard{min-height:142px;text-align:right;border:2px solid #e4e8f1;border-radius:18px;padding:17px;background:#fff;color:#2a334b;display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;column-gap:13px;align-content:center;cursor:pointer;transition:.18s ease;box-shadow:0 8px 22px rgba(35,47,84,.05)}
+.ownerAdminModeCard:hover{transform:translateY(-2px);box-shadow:0 13px 28px rgba(35,47,84,.1)}
+.ownerAdminModeIcon{grid-row:1/3;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:26px;background:#eff4ff}
+.ownerAdminModeCard strong{font-size:18px;align-self:end}.ownerAdminModeCard small{line-height:1.65;color:#6d768b;margin-top:4px}
+.ownerAdminModeCard.visibleCard.active{border-color:#27a96c;background:linear-gradient(145deg,#f3fff8,#e9fbf2);box-shadow:0 10px 25px rgba(39,169,108,.14)}
+.ownerAdminModeCard.visibleCard.active .ownerAdminModeIcon{background:#d9f7e7}
+.ownerAdminModeCard.hiddenCard.active{border-color:#6d56d9;background:linear-gradient(145deg,#f8f6ff,#eeeaff);box-shadow:0 10px 25px rgba(109,86,217,.14)}
+.ownerAdminModeCard.hiddenCard.active .ownerAdminModeIcon{background:#e4ddff}
+.ownerHiddenNotice{display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid #eed290;border-radius:15px;background:#fff8e8;color:#6f5111}
+.ownerHiddenNotice>span{font-size:25px}.ownerHiddenNotice div{display:grid;gap:2px}.ownerHiddenNotice small{color:#866c36}
+.ownerHiddenNotice.hidden{display:none!important}
+.ownerAdminSettingsGrid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
+.ownerAdminPanel{border:1px solid #e4e8f1;border-radius:18px;background:#fff;padding:17px;box-shadow:0 7px 20px rgba(38,50,87,.045)}
+.ownerPanelTitle{display:flex;gap:11px;align-items:flex-start;margin-bottom:15px}.ownerPanelTitle>span{width:40px;height:40px;border-radius:13px;background:#f0edff;display:grid;place-items:center;font-size:20px}.ownerPanelTitle h2{font-size:17px;margin:0 0 3px}.ownerPanelTitle p{margin:0;color:#747d91;font-size:12px;line-height:1.6}
+.ownerIdentityOption{width:100%;border:1px solid #efd076;border-radius:14px;padding:12px 13px;background:linear-gradient(135deg,#fff9df,#fff1ad);color:#503a00;display:flex;align-items:center;gap:11px;text-align:right;cursor:pointer;margin-bottom:14px}
+.ownerIdentityOption>span{font-size:26px}.ownerIdentityOption div{display:grid;gap:2px}.ownerIdentityOption small{color:#80661e}
+.ownerAdminNameRow{display:grid;grid-template-columns:1fr auto;gap:9px}.ownerAdminNameInput{margin:0}.ownerSaveNameBtn{border:0;border-radius:13px;padding:0 17px;background:linear-gradient(135deg,#6650e8,#348af2);color:#fff;font-weight:950;cursor:pointer}
+.ownerAdminAvatarUploadBtn{display:flex;align-items:center;gap:13px;border:2px dashed #b9c5dc;border-radius:16px;padding:16px;background:#f8faff;cursor:pointer;transition:.18s}.ownerAdminAvatarUploadBtn:hover{border-color:#6551df;background:#f3f0ff}.ownerAdminAvatarUploadBtn.uploading{pointer-events:none;opacity:.7}
+.ownerUploadIcon{width:46px;height:46px;border-radius:14px;background:#e9e4ff;display:grid;place-items:center;font-size:22px}.ownerAdminAvatarUploadBtn div{display:grid;gap:3px}.ownerAdminAvatarUploadBtn b{color:#2d3750}.ownerAdminAvatarUploadBtn small{color:#778095}
+.ownerAdminAvatarUploadState{margin-top:10px;border-radius:11px;padding:9px 11px;background:#f4f6fa;color:#70798c;font-size:12px;font-weight:800}.ownerAdminAvatarUploadState.loading{background:#fff6dc;color:#8b6500}.ownerAdminAvatarUploadState.success{background:#e8f9f0;color:#08784a}.ownerAdminAvatarUploadState.error{background:#ffebee;color:#bd3343}
+.ownerAdminPrimaryActions{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:stretch}.ownerEnterChatNowBtn{margin:0}.ownerAdminPrimaryActions a{display:grid;place-items:center;text-decoration:none;border:1px solid #cfd8e8;border-radius:16px;padding:0 18px;background:#fff;color:#334e80;font-weight:950}
+.ownerAdminFooterPro{border-top:1px solid #e8ebf2;padding-top:13px;justify-content:flex-start}.ownerAdminFooterPro span{font-size:13px}
+@media(max-width:800px){.ownerAdminSettingsGrid{grid-template-columns:1fr}.ownerAdminHero{grid-template-columns:auto 1fr}.ownerAdminModePill{grid-column:1/-1;justify-self:start}.ownerAdminPrimaryActions{grid-template-columns:1fr}.ownerAdminPrimaryActions a{padding:13px}.ownerAdminModeGrid{grid-template-columns:1fr}}
+@media(max-width:520px){.ownerAdminProCard{padding:12px}.ownerAdminHero{padding:14px}.ownerAdminAvatarShell{width:66px;height:66px}.ownerAdminHeroText b{font-size:21px}.ownerAdminModeCard{min-height:125px;padding:14px}.ownerAdminNameRow{grid-template-columns:1fr}.ownerSaveNameBtn{padding:13px}}

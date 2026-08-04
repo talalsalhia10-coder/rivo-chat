@@ -158,6 +158,9 @@
     try { return JSON.parse(text); } catch { return fallback; }
   }
   function socketReady() { return live.socket?.readyState === WebSocket.OPEN; }
+  function hiddenMonitorMode() {
+    return Boolean((live.identity?.type === "owner" || live.identity?.type === "moderator") && live.identity?.visible === false);
+  }
   function send(payload) {
     if (!socketReady()) {
       toast("الدردشة غير متصلة الآن");
@@ -361,15 +364,18 @@
   }
 
   function syncUsers(rawUsers = []) {
-    const users = rawUsers.map(mapUser);
+    let users = rawUsers.map(mapUser);
+    const hiddenSelf = Boolean(live.self && hiddenMonitorMode());
+    if (hiddenSelf) users = users.filter((user) => String(user.id) !== String(live.self.clientId || live.self.id));
     syncBadges(users);
     state.users = users;
     if (live.self) {
-      const selfMapped = mapUser({ ...live.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google" });
+      const selfMapped = mapUser({ ...live.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google", adminVisible: live.identity?.visible !== false });
       const existing = state.users.find((u) => u.id === selfMapped.id);
       if (existing) Object.assign(existing, selfMapped);
-      else state.users.unshift(selfMapped);
+      else if (!hiddenSelf) state.users.unshift(selfMapped);
       state.user = existing || selfMapped;
+      state.user.isHidden = hiddenSelf || state.user.isHidden;
     }
     const room = state.rooms.find((r) => r.id === state.room);
     if (room) room.count = state.users.filter((u) => u.room === state.room && !u.isHidden).length;
@@ -1562,11 +1568,13 @@
     const body = expandLiveMessageShortcuts(input?.value || "").trim();
     if (!body) return;
     if (!live.identity) { showEntryScreen(); return; }
+    if (hiddenMonitorMode()) { toast("أنت في وضع المراقبة المخفية. أظهر حسابك أولاً للكتابة."); return; }
     if (body.length > 800) { toast("الرسالة طويلة جداً"); return; }
     if (send({ type: "chat", body, color: normalizeColor(state.color) })) input.value = "";
   }
 
   function openPrivateLive(userId) {
+    if (hiddenMonitorMode()) { toast("وضع المراقبة المخفية للمتابعة فقط."); return; }
     const target = state.users.find((user) => user.id === userId);
     if (!target || target.id === state.user?.id) return;
     if (state.user?.authType === "guest") { toast("الرسائل الخاصة تحتاج تسجيل الدخول بحساب Google"); return; }
@@ -1576,6 +1584,7 @@
   }
 
   function sendPrivateLive() {
+    if (hiddenMonitorMode()) { toast("وضع المراقبة المخفية للمتابعة فقط."); return; }
     const input = byId("privateMessageInput");
     const body = expandLiveMessageShortcuts(input?.value || "").trim();
     if (!body) return;
