@@ -1039,9 +1039,19 @@
     await connect(next);
   }
 
+  function expandLiveMessageShortcuts(value) {
+    const raw = String(value ?? "");
+    try {
+      if (typeof replaceMessageShortcuts === "function") {
+        return replaceMessageShortcuts(raw);
+      }
+    } catch (_) {}
+    return raw;
+  }
+
   function sendMessageLive() {
     const input = byId("messageInput");
-    const body = String(input?.value || "").trim();
+    const body = expandLiveMessageShortcuts(input?.value || "").trim();
     if (!body) return;
     if (!live.identity) { showEntryScreen(); return; }
     if (body.length > 800) { toast("الرسالة طويلة جداً"); return; }
@@ -1058,7 +1068,7 @@
 
   function sendPrivateLive() {
     const input = byId("privateMessageInput");
-    const body = String(input?.value || "").trim();
+    const body = expandLiveMessageShortcuts(input?.value || "").trim();
     if (!body || !live.privatePeer) return;
     if (send({ type: "private-chat", to: live.privatePeer.clientId, body })) input.value = "";
   }
