@@ -58,7 +58,14 @@
     free_butterfly: "butterfly",
     free_heart: "heart",
     free_fire: "flame",
-    free_medal: "medal"
+    free_medal: "medal",
+    free_diamond: "diamond",
+    free_ruby: "ruby",
+    free_emerald: "emerald",
+    free_rose: "rose",
+    free_moon: "moon",
+    free_pink_heart: "pinkHeart",
+    free_wings: "wings"
   };
 
   const live = {

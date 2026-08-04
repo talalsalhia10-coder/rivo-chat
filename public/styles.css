@@ -1582,3 +1582,40 @@ body.owner .composerToolbar {
     padding-right: 4px !important;
   }
 }
+
+
+/* v165 — الشارة الممنوحة تحل محل التوثيق وتظهر بلا خلفية */
+.adminGrantedBadge.nameGiftBadge{
+  min-width:28px!important;
+  width:auto!important;
+  height:30px!important;
+  padding:0 2px!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+  transform:translateY(-1px);
+}
+.adminGrantedBadge.nameGiftBadge::before,
+.adminGrantedBadge.nameGiftBadge::after{display:none!important;content:none!important}
+.adminGrantedBadge .giftBadgeInner{
+  font-size:25px!important;
+  line-height:1!important;
+  filter:drop-shadow(0 3px 4px rgba(30,41,59,.22)) drop-shadow(0 0 5px rgba(255,255,255,.9));
+  animation:rivoCleanBadgeFloat 1.55s ease-in-out infinite!important;
+}
+.listGiftBadge.adminGrantedBadge .giftBadgeInner{font-size:26px!important}
+.chatGiftBadge.adminGrantedBadge .giftBadgeInner{font-size:24px!important}
+.communitySide .adminGrantedBadge.nameGiftBadge{min-width:25px!important;height:27px!important;padding:0!important}
+.communitySide .adminGrantedBadge .giftBadgeInner{font-size:23px!important}
+@keyframes rivoCleanBadgeFloat{
+  0%,100%{transform:translateY(0) scale(1)}
+  50%{transform:translateY(-3px) scale(1.08)}
+}
+.freeBadgeChoice.diamond{background:linear-gradient(160deg,#fff,#dff5ff)}
+.freeBadgeChoice.ruby{background:linear-gradient(160deg,#fff,#ffe1e5)}
+.freeBadgeChoice.emerald{background:linear-gradient(160deg,#fff,#dcffe8)}
+.freeBadgeChoice.rose,.freeBadgeChoice.pinkHeart{background:linear-gradient(160deg,#fff,#ffe1ef)}
+.freeBadgeChoice.moon{background:linear-gradient(160deg,#fff,#e7e9ff)}
+.freeBadgeChoice.wings{background:linear-gradient(160deg,#fff,#edf6ff)}

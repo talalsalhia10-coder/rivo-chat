@@ -23,7 +23,7 @@ const liveUsersByRoom=new Map();
 const presenceSockets=new Map();
 const presenceReconnectTimers=new Map();
 let presenceSyncStarted=false;
-const badgeBackendMap={free_star:'star',free_shining_star:'galaxy',free_sparkles:'crystal',free_flower:'blossom',free_butterfly:'butterfly',free_heart:'heart',free_fire:'flame',free_medal:'medal'};
+const badgeBackendMap={free_star:'star',free_shining_star:'galaxy',free_sparkles:'crystal',free_flower:'blossom',free_butterfly:'butterfly',free_heart:'heart',free_fire:'flame',free_medal:'medal',free_diamond:'diamond',free_ruby:'ruby',free_emerald:'emerald',free_rose:'rose',free_moon:'moon',free_pink_heart:'pinkHeart',free_wings:'wings'};
 
 const adminFreeBadgeCatalog=[
  {id:'free_star',name:'نجمة ذهبية',icon:'⭐',style:'gold'},
@@ -33,7 +33,14 @@ const adminFreeBadgeCatalog=[
  {id:'free_butterfly',name:'فراشة ملونة',icon:'🦋',style:'butterfly'},
  {id:'free_heart',name:'قلب مميز',icon:'💖',style:'heart'},
  {id:'free_fire',name:'شعلة حماس',icon:'🔥',style:'fire'},
- {id:'free_medal',name:'وسام تقدير',icon:'🏅',style:'medal'}
+ {id:'free_medal',name:'وسام تقدير',icon:'🏅',style:'medal'},
+ {id:'free_diamond',name:'جوهرة زرقاء',icon:'💎',style:'diamond'},
+ {id:'free_ruby',name:'ياقوتة حمراء',icon:'♦️',style:'ruby'},
+ {id:'free_emerald',name:'زمردة خضراء',icon:'💚',style:'emerald'},
+ {id:'free_rose',name:'وردة فاخرة',icon:'🌹',style:'rose'},
+ {id:'free_moon',name:'قمر مضيء',icon:'🌙',style:'moon'},
+ {id:'free_pink_heart',name:'قلب وردي',icon:'💗',style:'pinkHeart'},
+ {id:'free_wings',name:'أجنحة جميلة',icon:'🪽',style:'wings'}
 ];
 let selectedAdminBadgeUserId=null;
 let activeAdminSessionBadges={};

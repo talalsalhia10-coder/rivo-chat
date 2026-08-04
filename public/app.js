@@ -91,7 +91,14 @@ const state={
   {id:'free_butterfly',name:'فراشة ملونة',icon:'🦋',style:'butterfly'},
   {id:'free_heart',name:'قلب مميز',icon:'💖',style:'heart'},
   {id:'free_fire',name:'شعلة حماس',icon:'🔥',style:'fire'},
-  {id:'free_medal',name:'وسام تقدير',icon:'🏅',style:'medal'}
+  {id:'free_medal',name:'وسام تقدير',icon:'🏅',style:'medal'},
+  {id:'free_diamond',name:'جوهرة زرقاء',icon:'💎',style:'diamond'},
+  {id:'free_ruby',name:'ياقوتة حمراء',icon:'♦️',style:'ruby'},
+  {id:'free_emerald',name:'زمردة خضراء',icon:'💚',style:'emerald'},
+  {id:'free_rose',name:'وردة فاخرة',icon:'🌹',style:'rose'},
+  {id:'free_moon',name:'قمر مضيء',icon:'🌙',style:'moon'},
+  {id:'free_pink_heart',name:'قلب وردي',icon:'💗',style:'pinkHeart'},
+  {id:'free_wings',name:'أجنحة جميلة',icon:'🪽',style:'wings'}
  ],
  roleGiftCatalog:{
   plus:[
@@ -733,6 +740,8 @@ function isRegisteredAccount(u){
  return !u.isHidden&&u.authType==='google';
 }
 function verifiedBadgeHtml(u,scope='list'){
+ // عندما تمنح الإدارة أو المراقب شارة للمستخدم، تحل الشارة محل علامة التوثيق الزرقاء.
+ if(activeNameGift(u?.id))return '';
  if(!state.economyConfig.verifyEnabled||!isRegisteredAccount(u))return '';
  const scopeClass=scope==='chat'?' verifiedBadgeChat':' verifiedBadgeList';
  return `<span class="verifiedBadge${scopeClass}" title="مستخدم مسجل" aria-label="مستخدم مسجل">
@@ -1808,7 +1817,7 @@ function showMenu(id,e){state.target=id;const target=findUser(id);$('#menuName')
 function showProfile(id){
  const u=findUser(id);if(!u)return;
  state.target=id;
- $('#profileAvatar').src=av(u.avatar);$('#profileName').textContent=readableUserName(u);$('#profileBadges').innerHTML=`${verifiedBadgeHtml(u,'list')}${roleBadgeHtml(u,'list')}`;$('#profileBio').textContent=u.bio;$('#profileGiftValue').textContent=u.giftValue;$('#profileFriends').textContent=u.friends;$('#profileLevel').textContent=u.level;
+ $('#profileAvatar').src=av(u.avatar);$('#profileName').textContent=readableUserName(u);$('#profileBadges').innerHTML=`${verifiedBadgeHtml(u,'list')}${giftBadgeHtml(u,'list')}${roleBadgeHtml(u,'list')}`;$('#profileBio').textContent=u.bio;$('#profileGiftValue').textContent=u.giftValue;$('#profileFriends').textContent=u.friends;$('#profileLevel').textContent=u.level;
  const mine=Boolean(state.user&&state.user.id===id);
  const editBtn=$('#profileAvatarEdit');if(editBtn)editBtn.classList.toggle('hidden',!mine);
  const coinBtn=$('#profileCoins');if(coinBtn)coinBtn.classList.toggle('hidden',mine);
