@@ -167,7 +167,7 @@ function defaultConfig(){
   users:structuredClone(defaultUsers),
   entryAvatars:structuredClone(defaultEntryAvatars),
   private:{enabled:true,mic:false,camera:false,paidOnly:true},
-  radio:{status:'stopped',scope:'all',roomId:'general',title:'موسيقى ريفو التجريبية',source:'assets/audio/rivo-radio-demo.wav'},
+  radio:{status:'stopped',scope:'all',roomId:'general',title:'راديو ريفو',sourceType:'audio',source:'',startedAt:0},
   economy:{giftsEnabled:true,vipEnabled:true,verifyEnabled:true,gifts:structuredClone(defaultGifts)},
   plans:defaultPlans(),
   permissions:defaultPermissions(),
@@ -878,6 +878,10 @@ function normalizeAdminData(){
 }
 
 function showSection(name){
+ if(name==='radio'){
+  openRadioAdminWindow();
+  return;
+ }
  if(name==='avatars'){
   openEntryAvatarManager();
   return;
@@ -1494,27 +1498,188 @@ function closeAllCameras(){
 function populateRoomSelect(selectId,value){
  const s=$(selectId);if(!s)return;s.innerHTML=config.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');s.value=value||config.rooms[0]?.id;
 }
+const RADIO_WINDOW_POSITION_KEY='rivoAdminRadioWindowPositionV177';
+let radioAdminTestAudio=null;
+let radioWindowDragState=null;
+function radioWindowElement(){return $('#section-radio')}
+function setRadioNavWindowState(open){
+ const button=$('.adminNav button[data-section="radio"]');
+ if(button)button.classList.toggle('radioWindowSelected',Boolean(open));
+}
+function clampRadioWindowToViewport(){
+ const win=radioWindowElement();
+ if(!win||!win.classList.contains('radioWindowOpen')||window.innerWidth<=720)return;
+ const rect=win.getBoundingClientRect();
+ const left=Math.max(8,Math.min(rect.left,window.innerWidth-rect.width-8));
+ const top=Math.max(78,Math.min(rect.top,window.innerHeight-Math.min(rect.height,window.innerHeight-16)-8));
+ win.style.left=`${left}px`;win.style.top=`${top}px`;win.style.right='auto';win.style.transform='none';
+}
+function restoreRadioWindowPosition(){
+ const win=radioWindowElement();if(!win||window.innerWidth<=720)return;
+ try{
+  const pos=JSON.parse(localStorage.getItem(RADIO_WINDOW_POSITION_KEY)||'null');
+  if(pos&&Number.isFinite(+pos.left)&&Number.isFinite(+pos.top)){
+   win.style.left=`${+pos.left}px`;win.style.top=`${+pos.top}px`;win.style.right='auto';win.style.transform='none';
+   requestAnimationFrame(clampRadioWindowToViewport);
+  }
+ }catch(_){ }
+}
+function openRadioAdminWindow(){
+ const win=radioWindowElement();if(!win)return;
+ renderRadioAdmin();
+ win.classList.add('radioWindowOpen');
+ win.setAttribute('aria-hidden','false');
+ $('#radioWindowRestoreBtn')?.classList.add('hidden');
+ setRadioNavWindowState(true);
+ restoreRadioWindowPosition();
+ setTimeout(()=>$('#radioAdminSource')?.focus(),80);
+}
+function stopRadioAdminTest(){
+ if(radioAdminTestAudio){radioAdminTestAudio.pause();radioAdminTestAudio.src='';radioAdminTestAudio=null}
+ const button=$('#radioTestBtn');if(button)button.textContent='اختبار الرابط';
+}
+function closeRadioAdminWindow(){
+ const win=radioWindowElement();if(!win)return;
+ stopRadioAdminTest();
+ win.classList.remove('radioWindowOpen');
+ win.setAttribute('aria-hidden','true');
+ $('#radioWindowRestoreBtn')?.classList.add('hidden');
+ setRadioNavWindowState(false);
+}
+function minimizeRadioAdminWindow(){
+ const win=radioWindowElement();if(!win)return;
+ stopRadioAdminTest();
+ win.classList.remove('radioWindowOpen');
+ win.setAttribute('aria-hidden','true');
+ $('#radioWindowRestoreBtn')?.classList.remove('hidden');
+ setRadioNavWindowState(true);
+}
+function beginRadioWindowDrag(event){
+ const win=radioWindowElement();
+ if(!win||window.innerWidth<=720||event.button!==0||event.target.closest('button'))return;
+ const rect=win.getBoundingClientRect();
+ win.style.left=`${rect.left}px`;win.style.top=`${rect.top}px`;win.style.right='auto';win.style.transform='none';
+ radioWindowDragState={pointerId:event.pointerId,startX:event.clientX,startY:event.clientY,left:rect.left,top:rect.top};
+ event.currentTarget.setPointerCapture?.(event.pointerId);event.preventDefault();
+}
+function moveRadioWindowDrag(event){
+ if(!radioWindowDragState||radioWindowDragState.pointerId!==event.pointerId)return;
+ const win=radioWindowElement();if(!win)return;
+ const width=win.offsetWidth,height=Math.min(win.offsetHeight,window.innerHeight-16);
+ const left=Math.max(8,Math.min(radioWindowDragState.left+event.clientX-radioWindowDragState.startX,window.innerWidth-width-8));
+ const top=Math.max(78,Math.min(radioWindowDragState.top+event.clientY-radioWindowDragState.startY,window.innerHeight-height-8));
+ win.style.left=`${left}px`;win.style.top=`${top}px`;
+}
+function endRadioWindowDrag(event){
+ if(!radioWindowDragState||radioWindowDragState.pointerId!==event.pointerId)return;
+ const win=radioWindowElement();radioWindowDragState=null;
+ if(win){const rect=win.getBoundingClientRect();localStorage.setItem(RADIO_WINDOW_POSITION_KEY,JSON.stringify({left:rect.left,top:rect.top}))}
+}
+function initRadioAdminWindow(){
+ const handle=$('#radioWindowDragHandle');
+ if(handle){handle.addEventListener('pointerdown',beginRadioWindowDrag);handle.addEventListener('pointermove',moveRadioWindowDrag);handle.addEventListener('pointerup',endRadioWindowDrag);handle.addEventListener('pointercancel',endRadioWindowDrag)}
+ $('#radioWindowCloseBtn')?.addEventListener('click',closeRadioAdminWindow);
+ $('#radioWindowMinimizeBtn')?.addEventListener('click',minimizeRadioAdminWindow);
+ $('#radioWindowRestoreBtn')?.addEventListener('click',openRadioAdminWindow);
+ window.addEventListener('resize',clampRadioWindowToViewport);
+ document.addEventListener('keydown',event=>{if(event.key==='Escape'&&radioWindowElement()?.classList.contains('radioWindowOpen'))closeRadioAdminWindow()});
+}
+function detectRadioTypeFromSource(value){
+ const source=String(value||'').trim();
+ if(!source)return '';
+ if(youtubeIdFromUrl(source))return 'youtube';
+ try{
+  const url=new URL(source);const path=(url.pathname||'').toLowerCase();
+  if(/\.(mp4|webm|ogv|mov)$/.test(path))return 'video';
+  if(/\.(mp3|aac|m4a|ogg|oga|wav|m3u8|pls|m3u)$/.test(path))return 'audio';
+ }catch(_){ }
+ return '';
+}
+function applyRadioWindowDraft(){
+ updateRadioFromForm();persistLiveDraft();
+}
+function syncRadioTypeFromSource(){
+ const select=$('#radioAdminType');if(!select)return;
+ const detected=detectRadioTypeFromSource($('#radioAdminSource')?.value||'');
+ if(detected&&select.value!==detected){select.value=detected;updateRadioSourceUi()}
+}
+function normalizedRadioType(value){return ['audio','youtube','video'].includes(String(value||''))?String(value):'audio'}
+function youtubeIdFromUrl(value){
+ const raw=String(value||'').trim();
+ if(/^[A-Za-z0-9_-]{11}$/.test(raw))return raw;
+ try{
+  const url=new URL(raw);
+  if(url.hostname==='youtu.be')return url.pathname.split('/').filter(Boolean)[0]||'';
+  if(url.hostname.includes('youtube.com')){
+   if(url.pathname==='/watch')return url.searchParams.get('v')||'';
+   const parts=url.pathname.split('/').filter(Boolean);
+   if(['embed','shorts','live'].includes(parts[0]))return parts[1]||'';
+  }
+ }catch(_){ }
+ return '';
+}
+function isExternalHttpsUrl(value){try{return new URL(String(value||'')).protocol==='https:'}catch(_){return false}}
+function radioTypeLabel(type){return type==='youtube'?'فيديو YouTube':type==='video'?'فيديو خارجي':'راديو أو صوت مباشر'}
+function updateRadioSourceUi(){
+ const type=normalizedRadioType($('#radioAdminType')?.value||config.radio.sourceType);
+ const label=$('#radioAdminSourceLabel'),input=$('#radioAdminSource');
+ if(label)label.textContent=type==='youtube'?'رابط فيديو YouTube أو البث المباشر':type==='video'?'رابط فيديو خارجي مباشر':'رابط راديو أو صوت مباشر';
+ if(input)input.placeholder=type==='youtube'?'https://www.youtube.com/watch?v=...':type==='video'?'https://.../video.mp4':'https://.../stream.mp3';
+}
+function validateRadioAdminSource(showMessage=true){
+ const type=normalizedRadioType($('#radioAdminType')?.value||config.radio.sourceType);
+ const source=String($('#radioAdminSource')?.value||'').trim();
+ let error='';
+ if(!source)error='ضع رابط البث أولاً.';
+ else if(type==='youtube'&&!youtubeIdFromUrl(source))error='رابط YouTube غير صحيح.';
+ else if(type!=='youtube'&&!isExternalHttpsUrl(source))error='يجب أن يكون الرابط خارجياً وآمناً ويبدأ بـ https://';
+ if(error&&showMessage)toast(error);
+ return error?'':source;
+}
 function renderRadioAdmin(){
- $('#radioAdminTitle').value=config.radio.title;
- $('#radioAdminSource').value=config.radio.source;
+ config.radio.sourceType=normalizedRadioType(config.radio.sourceType);
+ $('#radioAdminTitle').value=config.radio.title||'راديو ريفو';
+ $('#radioAdminType').value=config.radio.sourceType;
+ $('#radioAdminSource').value=config.radio.source||'';
  $('#radioAdminScope').value=config.radio.scope;
  populateRoomSelect('#radioAdminRoom',config.radio.roomId);
  $('#radioAdminRoomField').classList.toggle('hidden',config.radio.scope!=='room');
- renderRadioState();
+ updateRadioSourceUi();renderRadioState();
 }
 function updateRadioFromForm(){
  config.radio.title=$('#radioAdminTitle').value.trim()||'راديو ريفو';
- config.radio.source=$('#radioAdminSource').value.trim()||'assets/audio/rivo-radio-demo.wav';
+ config.radio.sourceType=normalizedRadioType($('#radioAdminType').value);
+ config.radio.source=$('#radioAdminSource').value.trim();
  config.radio.scope=$('#radioAdminScope').value;
  config.radio.roomId=$('#radioAdminRoom').value||'general';
 }
 function setRadioStatus(status){
- updateRadioFromForm();config.radio.status=status;saveConfig(status==='playing'?'بدأ بث الراديو':status==='paused'?'تم إيقاف الراديو مؤقتاً':'تم إيقاف الراديو');renderRadioState();
+ updateRadioFromForm();
+ if(status==='playing'&&!validateRadioAdminSource(true))return;
+ if(status==='playing')config.radio.startedAt=Date.now();
+ config.radio.status=status;
+ saveConfig(status==='playing'?'بدأ بث الراديو':status==='paused'?'تم إيقاف الراديو مؤقتاً':'تم إيقاف الراديو');
+ renderRadioState();
 }
 function renderRadioState(){
  const box=$('#radioAdminState'),r=config.radio;
  box.className='bigStatus '+r.status;
- box.textContent=r.status==='playing'?`يبث الآن: ${r.title} — ${r.scope==='all'?'جميع الغرف':roomById(r.roomId)?.name}`:r.status==='paused'?`متوقف مؤقتاً: ${r.title}`:'لا يوجد بث الآن.';
+ const type=radioTypeLabel(normalizedRadioType(r.sourceType));
+ box.textContent=r.status==='playing'?`يبث الآن: ${r.title} · ${type} — ${r.scope==='all'?'جميع الغرف':roomById(r.roomId)?.name}`:r.status==='paused'?`متوقف مؤقتاً: ${r.title}`:'لا يوجد بث الآن.';
+}
+async function testRadioAdminSource(){
+ const source=validateRadioAdminSource(true);if(!source)return;
+ const type=normalizedRadioType($('#radioAdminType').value),button=$('#radioTestBtn');
+ if(radioAdminTestAudio){radioAdminTestAudio.pause();radioAdminTestAudio.src='';radioAdminTestAudio=null;if(button)button.textContent='اختبار الرابط';return}
+ if(type==='youtube'){
+  const id=youtubeIdFromUrl(source);window.open(`https://www.youtube.com/watch?v=${encodeURIComponent(id)}`,'_blank','noopener');toast('تم فتح فيديو YouTube للاختبار');return;
+ }
+ if(type==='video'){window.open(source,'_blank','noopener');toast('تم فتح رابط الفيديو للاختبار');return}
+ const audio=new Audio();radioAdminTestAudio=audio;audio.preload='none';audio.volume=.55;audio.src=source;
+ if(button)button.textContent='إيقاف الاختبار';
+ const reset=()=>{if(radioAdminTestAudio===audio)radioAdminTestAudio=null;if(button)button.textContent='اختبار الرابط'};
+ audio.onended=reset;audio.onerror=()=>{reset();toast('تعذر تشغيل رابط الصوت. تحقق من رابط البث الحقيقي.')};
+ try{await audio.play();toast('الرابط يعمل، بدأ صوت الاختبار عندك فقط.')}catch(_){reset();toast('تعذر تشغيل الرابط. قد تمنع المحطة التشغيل داخل المواقع.')}
 }
 function renderPrivateAdmin(){
  $('#privateEnabledAdmin').checked=config.private.enabled;
@@ -1668,6 +1833,7 @@ function bind(){
 
  $$('.adminNav button').forEach(b=>b.onclick=()=>showSection(b.dataset.section));
  $$('[data-jump]').forEach(b=>b.onclick=()=>showSection(b.dataset.jump));
+ initRadioAdminWindow();
  if($('#resetAdminDataBtn')) $('#resetAdminDataBtn').onclick=resetAdminData;
  $('#saveAllBtn').onclick=saveAll;
  if($('#compactSettingsBtn')) $('#compactSettingsBtn').onclick=toggleSettingsColumn;
@@ -1688,10 +1854,10 @@ function bind(){
    sendCamerasLive();
  });
  window.addEventListener('resize',fitChatPreview);
- $('#radioAdminTitle').addEventListener('input',applyActiveSectionDraft);
- $('#radioAdminSource').addEventListener('input',applyActiveSectionDraft);
- $('#radioAdminScope').addEventListener('change',applyActiveSectionDraft);
- $('#radioAdminRoom').addEventListener('change',applyActiveSectionDraft);
+ $('#radioAdminTitle').addEventListener('input',applyRadioWindowDraft);
+ $('#radioAdminSource').addEventListener('input',()=>{syncRadioTypeFromSource();applyRadioWindowDraft()});
+ $('#radioAdminScope').addEventListener('change',applyRadioWindowDraft);
+ $('#radioAdminRoom').addEventListener('change',applyRadioWindowDraft);
  $('#section-rooms').addEventListener('input',e=>{if(e.target.id!=='roomAdminSearch')applyActiveSectionDraft()});
  $('#section-rooms').addEventListener('change',e=>{if(e.target.id!=='roomAdminSearch')applyActiveSectionDraft()});
  $('#section-private').addEventListener('change',applyActiveSectionDraft);
@@ -1716,7 +1882,8 @@ function bind(){
  $('#closeAllCamerasAdmin').onclick=closeAllCameras;
  if($('#closeAllMicsAdmin')) $('#closeAllMicsAdmin').onclick=closeAllMics;
  $('#radioAdminScope').onchange=()=>{$('#radioAdminRoomField').classList.toggle('hidden',$('#radioAdminScope').value!=='room')};
- $('#radioDemoBtn').onclick=()=>{$('#radioAdminTitle').value='موسيقى ريفو التجريبية';$('#radioAdminSource').value='assets/audio/rivo-radio-demo.wav';toast('تم اختيار المقطع التجريبي')};
+ $('#radioAdminType').onchange=()=>{updateRadioSourceUi();applyRadioWindowDraft()};
+ $('#radioTestBtn').onclick=testRadioAdminSource;
  $('#radioStartBtn').onclick=()=>setRadioStatus('playing');$('#radioPauseBtn').onclick=()=>setRadioStatus('paused');$('#radioStopBtn').onclick=()=>setRadioStatus('stopped');
  $('#savePrivateBtn').onclick=savePrivate;if($('#savePermissionsBtn'))$('#savePermissionsBtn').onclick=savePermissions;$('#saveEconomyBtn').onclick=saveEconomy;
  $('#announcementAdminScope').onchange=()=>$('#announcementRoomField').classList.toggle('hidden',$('#announcementAdminScope').value!=='room');

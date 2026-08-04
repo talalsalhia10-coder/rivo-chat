@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=163">
+<link rel="stylesheet" href="admin-design.css?v=177">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -12,7 +12,7 @@
 <header class="adminTopbar">
   <div class="adminBrand">
     <span>R</span>
-    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v50</small></div>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v52</small></div>
   </div>
   <div class="adminTopActions">
     <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
@@ -143,23 +143,36 @@
       </article>
     </section>
 
-    <section id="section-radio" class="adminSection">
-      <div class="sectionHeading"><div><h1>الراديو والأغاني</h1><p>بث لجميع الغرف أو غرفة محددة.</p></div></div>
-      <article class="adminCard radioControlCard">
-        <div class="formGrid">
-          <label>اسم الأغنية أو المحطة<input id="radioAdminTitle"></label>
-          <label class="fullField">رابط مباشر للصوت<input id="radioAdminSource" dir="ltr" placeholder="https://.../song.mp3"></label>
-          <label>مكان البث<select id="radioAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
-          <label id="radioAdminRoomField">الغرفة<select id="radioAdminRoom"></select></label>
+    <section id="section-radio" class="adminSection radioAdminWindow" role="dialog" aria-modal="false" aria-hidden="true" aria-labelledby="radioWindowTitle">
+      <header id="radioWindowDragHandle" class="radioWindowHead">
+        <div class="radioWindowTitleBox">
+          <span class="radioWindowIcon">🎵</span>
+          <div><b id="radioWindowTitle">الراديو والأغاني</b><small>نافذة تحكم مستقلة للإدارة فقط</small></div>
         </div>
-        <div class="radioAdminButtons">
-          <button id="radioDemoBtn" class="secondaryAdminBtn">استخدام المقطع التجريبي</button>
-          <button id="radioStartBtn" class="primaryAdminBtn">▶ بدء البث</button>
-          <button id="radioPauseBtn" class="secondaryAdminBtn">Ⅱ إيقاف مؤقت</button>
-          <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
+        <div class="radioWindowActions">
+          <button id="radioWindowMinimizeBtn" type="button" title="تصغير النافذة" aria-label="تصغير">—</button>
+          <button id="radioWindowCloseBtn" type="button" title="إغلاق النافذة" aria-label="إغلاق">×</button>
         </div>
-        <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
-      </article>
+      </header>
+      <div class="radioWindowBody">
+        <article class="adminCard radioControlCard">
+          <div class="formGrid">
+            <label>اسم الأغنية أو المحطة<input id="radioAdminTitle" maxlength="80" placeholder="مثلاً: راديو ريفو"></label>
+            <label>نوع البث<select id="radioAdminType"><option value="audio">راديو أو صوت مباشر</option><option value="youtube">فيديو YouTube أو YouTube Live</option><option value="video">رابط فيديو مباشر MP4 / WebM</option></select></label>
+            <label class="fullField"><span id="radioAdminSourceLabel">رابط البث الخارجي</span><input id="radioAdminSource" dir="ltr" inputmode="url" placeholder="https://.../stream.mp3"></label>
+            <label>مكان البث<select id="radioAdminScope"><option value="all">جميع الغرف</option><option value="room">غرفة واحدة</option></select></label>
+            <label id="radioAdminRoomField">الغرفة<select id="radioAdminRoom"></select></label>
+          </div>
+          <div class="radioExternalNote">🔒 لا يوجد رفع من اللابتوب ولا تخزين للصوت أو الفيديو على Cloudflare. الزوار يستلمون المحتوى مباشرة من الراديو الخارجي أو YouTube.</div>
+          <div class="radioAdminButtons">
+            <button id="radioTestBtn" class="secondaryAdminBtn">اختبار الرابط</button>
+            <button id="radioStartBtn" class="primaryAdminBtn">▶ بدء البث</button>
+            <button id="radioPauseBtn" class="secondaryAdminBtn">Ⅱ إيقاف مؤقت</button>
+            <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
+          </div>
+          <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
+        </article>
+      </div>
     </section>
 
     <section id="section-private" class="adminSection">
@@ -395,6 +408,8 @@
 
 
 
+<button id="radioWindowRestoreBtn" class="radioWindowRestore hidden" type="button">🎵 فتح نافذة الراديو</button>
+
 <div id="entryAvatarManagerModal" class="entryAvatarManagerModal hidden" role="dialog" aria-modal="true" aria-labelledby="entryAvatarManagerTitle">
   <div class="entryAvatarManagerCard">
     <header class="entryAvatarManagerHead">
@@ -465,6 +480,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=163"></script>
+<script src="admin-design.js?v=177"></script>
 </body>
 </html>
