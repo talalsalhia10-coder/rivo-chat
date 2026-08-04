@@ -10,7 +10,14 @@ const RIVO_LIVE_AVATAR_MAP={
  lina:'characters/lina/portrait-small.webp',girl2:'characters/girl2/portrait-small.webp',girl3:'characters/girl3/portrait-small.webp',girl4:'characters/girl4/portrait-small.webp',man1:'characters/man1/portrait-small.webp',avatar6:'characters/avatar6/portrait-small.webp',avatar7:'characters/avatar7/portrait-small.webp',
  owner:'assets/avatars/owner.svg',guest:'assets/avatars/guest.svg'
 };
-const av=n=>isDirectAvatarSource(n)?n:(RIVO_LIVE_AVATAR_MAP[n]||`assets/avatars/${n||'guest'}.svg`);
+const av=n=>{
+ const raw=String(n||'');
+ if(isDirectAvatarSource(raw))return raw;
+ let managed=null;
+ try{managed=(Array.isArray(state.entryAvatarOptions)?state.entryAvatarOptions:[]).find(item=>item&&(String(item.id)===raw||String(item.src)===raw))||null}catch(_){}
+ if(managed?.src)return managed.src;
+ return RIVO_LIVE_AVATAR_MAP[raw]||`assets/avatars/${raw||'guest'}.svg`;
+};
 const state={
  room:'general', user:null, target:null, color:'#111827', guestAvatar:'guest', localStream:null,
  inbox:{messages:0,alerts:0},
@@ -156,16 +163,24 @@ function normalizeEntryAvatarOptions(list){
  const fallback=structuredClone(defaultEntryAvatars);
  if(!Array.isArray(list)||!list.length)return fallback;
  const normalized=list.filter(Boolean).map((item,index)=>({
-  id:item.id||`entry_avatar_${index+1}`,
+  id:String(item.id||`entry_avatar_${index+1}`).toLowerCase().replace(/[^a-z0-9_-]/g,'_').slice(0,40)||`entry_avatar_${index+1}`,
   src:item.src||item.path||'',
   alt:item.alt||item.title||`صورة شخصية ${index+1}`,
   title:item.title||item.alt||`صورة شخصية ${index+1}`
  })).filter(item=>isDirectAvatarSource(item.src));
  return normalized.length?normalized:fallback;
 }
+function findEntryAvatarOption(value,list=state.entryAvatarOptions){
+ const raw=String(value||'');
+ return(Array.isArray(list)?list:[]).find(item=>item&&(String(item.id)===raw||String(item.src)===raw))||null;
+}
+function normalizeEntryAvatarSelection(value,list=state.entryAvatarOptions){
+ const options=Array.isArray(list)&&list.length?list:defaultEntryAvatars;
+ return(findEntryAvatarOption(value,options)||options[0])?.id||defaultEntryAvatars[0].id;
+}
 const avatarEditor={image:null,scale:1,minScale:1,offsetX:0,offsetY:0,dragging:false,pointerId:null,startX:0,startY:0,originX:0,originY:0,size:320,padding:12,target:'profile'};
 let avatarPickerMode='entry';
-state.entryAvatar=defaultEntryAvatars[0].src;
+state.entryAvatar=defaultEntryAvatars[0].id;
 state.entryAvatarOptions=structuredClone(defaultEntryAvatars);
 function normalizeDemoAccountTypes(users){
  return(Array.isArray(users)?users:[]).map(user=>{
@@ -227,6 +242,7 @@ function persistCurrentUserProfile(){
    notifyAdminLive('rivo-admin-config',cfg);
   }
  }
+ try{window.RivoLive?.updateProfile?.({nickname:state.user.name,avatar:state.user.avatar})}catch(_){}
 }
 function cropDiameter(){return avatarEditor.size-avatarEditor.padding*2}
 function clampAvatarEditorOffsets(){
@@ -454,7 +470,7 @@ function applyExternalAdminConfig(showNotice=false,suppliedConfig=null){
    }
  }
  state.entryAvatarOptions=normalizeEntryAvatarOptions(cfg.entryAvatars||state.entryAvatarOptions);
- if(!state.entryAvatarOptions.some(item=>item.src===state.entryAvatar))state.entryAvatar=state.entryAvatarOptions[0]?.src||defaultEntryAvatars[0].src;
+ state.entryAvatar=normalizeEntryAvatarSelection(state.entryAvatar,state.entryAvatarOptions);
  renderEntryAvatarChoices();
  updateEntryAvatarUI();
  syncSharedMicRequests();syncSharedCameraRequests();
@@ -1912,9 +1928,9 @@ function currentEntryAvatarOptions(){return normalizeEntryAvatarOptions(state.en
 function renderEntryAvatarChoices(){
  const wrap=$('#entryAvatarPickerGrid');
  state.entryAvatarOptions=currentEntryAvatarOptions();
- if(!state.entryAvatarOptions.some(item=>item.src===state.entryAvatar))state.entryAvatar=state.entryAvatarOptions[0]?.src||defaultEntryAvatars[0].src;
+ state.entryAvatar=normalizeEntryAvatarSelection(state.entryAvatar,state.entryAvatarOptions);
  if(wrap){
-  wrap.innerHTML=state.entryAvatarOptions.map(item=>`<button type="button" class="entryAvatarPickerOption" data-picker-avatar="${item.src}" aria-label="${esc(item.alt)}"><img src="${av(item.src)}" alt="${esc(item.alt)}" title="${esc(item.title||item.alt)}" loading="lazy" decoding="async"><span>${esc(item.title||item.alt)}</span></button>`).join('');
+  wrap.innerHTML=state.entryAvatarOptions.map(item=>`<button type="button" class="entryAvatarPickerOption" data-picker-avatar="${item.id}" aria-label="${esc(item.alt)}"><img src="${av(item.src)}" alt="${esc(item.alt)}" title="${esc(item.title||item.alt)}" loading="lazy" decoding="async"><span>${esc(item.title||item.alt)}</span></button>`).join('');
   $$('[data-picker-avatar]',wrap).forEach(button=>button.onclick=()=>{
    const selected=button.dataset.pickerAvatar;
    if(avatarPickerMode==='profile'&&state.user){
@@ -1945,12 +1961,12 @@ function openEntryAvatarPicker(mode='entry'){
  open('entryAvatarPickerModal');
 }
 
-function updateEntryAvatarUI(){const preview=$('#entryAvatarPreview');const selected=(state.entryAvatarOptions||[]).find(item=>item.src===state.entryAvatar)||state.entryAvatarOptions?.[0]||defaultEntryAvatars[0];if(preview){preview.src=av(selected?.src||'guest');preview.alt=selected?.alt||'معاينة الصورة الشخصية المختارة'}$$('[data-picker-avatar]').forEach(b=>b.classList.toggle('selected',b.dataset.pickerAvatar===state.entryAvatar))}
+function updateEntryAvatarUI(){const preview=$('#entryAvatarPreview');const selected=findEntryAvatarOption(state.entryAvatar,state.entryAvatarOptions)||state.entryAvatarOptions?.[0]||defaultEntryAvatars[0];state.entryAvatar=selected?.id||defaultEntryAvatars[0].id;if(preview){preview.src=av(selected?.src||'guest');preview.alt=selected?.alt||'معاينة الصورة الشخصية المختارة'}$$('[data-picker-avatar]').forEach(b=>b.classList.toggle('selected',b.dataset.pickerAvatar===state.entryAvatar))}
 function showEntryError(message=''){const box=$('#entryError');if(!box)return;box.textContent=message;box.classList.toggle('hidden',!message)}
 function showEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.remove('hidden');document.body.classList.add('entryLocked');showEntryError('');setTimeout(()=>$('#entryName')?.focus(),80)}
 function hideEntryScreen(){const screen=$('#entryScreen');if(screen)screen.classList.add('hidden');document.body.classList.remove('entryLocked');showEntryError('')}
 function initEntryScreen(){if(new URLSearchParams(location.search).has('adminPreview')){hideEntryScreen();return}renderEntryAvatarChoices();showEntryScreen()}
-function validateEntryProfile(){const name=String($('#entryName')?.value||'').trim();if(name.length<2){showEntryError('اكتب اسماً من حرفين على الأقل.');$('#entryName')?.focus();return null}return{name,avatar:state.entryAvatar||currentEntryAvatarOptions()[0]?.src||'guest'}}
+function validateEntryProfile(){const name=String($('#entryName')?.value||'').trim();if(name.length<2){showEntryError('اكتب اسماً من حرفين على الأقل.');$('#entryName')?.focus();return null}return{name,avatar:normalizeEntryAvatarSelection(state.entryAvatar,currentEntryAvatarOptions())}}
 function enterFromEntry(type){const profile=validateEntryProfile();if(!profile)return;if(type==='guest'&&state.adminFeatures.guestEntry===false){showEntryError('دخول الضيف مغلق من الإدارة.');return}updateColorUI();if(type==='google'){state.user={id:'googleLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'مسجل بحساب Google',authType:'google',coins:50,role:'user',plan:'user',vip:false,verified:true,giftValue:0,friends:0,level:1};restoreLocalMembership(state.user);persistCurrentUserProfile()}else state.user={id:'guestLocal',name:profile.name,avatar:profile.avatar,room:state.room,bio:'ضيف',authType:'guest',coins:0,role:'guest',plan:'guest',vip:false,verified:false,giftValue:0,friends:0,level:1};startFreshChatSession();hideEntryScreen();renderAll();toast(type==='google'?'تم التسجيل والدخول بحساب Google التجريبي':'تم الدخول كضيف')}
 function googleLogin(){
  updateColorUI();

@@ -114,10 +114,13 @@
     return { name: name.slice(0, 24), avatar: avatarId(state.entryAvatar) };
   }
   function avatarId(value) {
-    const raw = String(value || "").replace(/^\.\//, "");
+    const raw = String(value || "").replace(/^\.\//, "").trim();
     if (AVATAR_ID_BY_SOURCE[raw]) return AVATAR_ID_BY_SOURCE[raw];
-    if (/^(entry[1-6]|lina|girl2|girl3|girl4|man1|avatar6|avatar7|owner|guest)$/.test(raw)) return raw;
-    return "entry1";
+    const managed = (Array.isArray(state.entryAvatarOptions) ? state.entryAvatarOptions : [])
+      .find((item) => item && (String(item.id) === raw || String(item.src) === raw));
+    if (managed?.id) return String(managed.id).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 40);
+    if (/^[a-z0-9][a-z0-9_-]{0,39}$/i.test(raw)) return raw.toLowerCase();
+    return "entry_avatar_1";
   }
   function isGuestUser(user) {
     return Boolean(user?.isGuest) || /(?:^|\s)•?\s*ضيف$/.test(String(user?.nickname || user?.name || ""));
@@ -607,6 +610,29 @@
     }
     renderAll();
     syncLiveChrome();
+  }
+
+  function updateProfileLive(patch = {}) {
+    const nickname = cleanName(patch.nickname ?? state.user?.name ?? live.identity?.name ?? "مستخدم Rivo");
+    const avatar = avatarId(patch.avatar ?? state.user?.avatar ?? live.identity?.avatar ?? "entry_avatar_1");
+    if (state.user) {
+      state.user.name = nickname;
+      state.user.avatar = avatar;
+      const listed = state.users.find((user) => user.id === state.user.id);
+      if (listed) { listed.name = nickname; listed.avatar = avatar; }
+    }
+    if (live.identity) {
+      live.identity.name = nickname;
+      live.identity.avatar = avatar;
+      saveIdentity(live.identity);
+    }
+    saveProfile({ name: nickname, avatar });
+    if (socketReady()) {
+      try { live.socket.send(JSON.stringify({ type: "profile", nickname, avatar })); } catch {}
+    }
+    renderAll();
+    syncLiveChrome();
+    return true;
   }
 
   function applyBadge(clientId, badge) {
@@ -1649,12 +1675,18 @@
     if (savedProfile) {
       if (byId("entryName")) byId("entryName").value = savedProfile.name || "";
       if (savedProfile.avatar) state.entryAvatar = savedProfile.avatar;
-      renderEntryAvatarChoices();
     }
     const restoredIdentity = loadIdentity();
     updateGoogleSessionUI();
     await fetchRooms(false);
     await syncRemoteAdminSettings(false);
+    if (savedProfile?.avatar) state.entryAvatar = avatarId(savedProfile.avatar);
+    renderEntryAvatarChoices();
+    if (restoredIdentity && savedProfile) {
+      restoredIdentity.name = savedProfile.name || restoredIdentity.name;
+      restoredIdentity.avatar = avatarId(savedProfile.avatar || restoredIdentity.avatar);
+      saveIdentity(restoredIdentity);
+    }
     live.roomId = state.rooms.some((room) => room.id === live.roomId) ? live.roomId : (state.rooms[0]?.id || "lobby");
     state.room = live.roomId;
     if (restoredIdentity && getRoomCutoff(live.roomId) <= 0) setRoomCutoff(live.roomId, Date.now());
@@ -1701,7 +1733,7 @@
     });
   }
 
-  window.RivoLive = { live, connect, send, logout: logoutLive };
+  window.RivoLive = { live, connect, send, logout: logoutLive, updateProfile: updateProfileLive };
   boot().catch((error) => {
     console.error("Rivo live boot failed", error);
     setConnection("disconnected", "بانتظار الدخول");
