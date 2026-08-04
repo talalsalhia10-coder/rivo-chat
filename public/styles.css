@@ -1469,21 +1469,78 @@
   .composerToolbar .composerToolButton{min-width:61px;padding:0 8px}
 }
 
-/* v158.1 — تثبيت أدوات الدردشة في الجهة اليسرى */
-.composerDock > .composerToolbar{
-  display:flex!important;
-  flex-direction:row!important;
-  direction:ltr!important;
-  justify-content:flex-start!important;
-  align-items:center!important;
-  width:100%!important;
-  max-width:none!important;
-  margin:0!important;
-  padding-left:4px!important;
-  padding-right:4px!important;
-  text-align:left!important;
+
+/* v159 — side account avatar clarity + move alert icons away from avatar */
+.communitySide .sideAccount{
+  direction:ltr;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 12px;
 }
-.composerDock > .composerToolbar > .composerToolButton{
-  flex:0 0 auto!important;
-  margin:0!important;
+.communitySide .sideMenu{
+  order:3;
+  margin-left:auto;
+  flex:0 0 auto;
+}
+.communitySide .sideIdentity{
+  order:2;
+  flex:1 1 auto;
+  min-width:0;
+  direction:rtl;
+}
+.communitySide #sideAvatar{
+  order:1;
+  flex:0 0 auto;
+  width:54px;
+  height:54px;
+  border-radius:16px;
+  object-fit:cover;
+  box-shadow:0 8px 18px rgba(29,41,68,.18);
+  border:2px solid #fff;
+  background:#eef2f7;
+}
+.communitySide .sideIdentityRow{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-start;
+}
+.communitySide .sideAccountName{
+  order:1;
+  flex:1 1 100%;
+  min-width:0;
+  margin-bottom:2px;
+  font-size:16px;
+}
+.communitySide .sideMiniAlerts{
+  order:2;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  margin-inline-start:0;
+}
+.communitySide .miniAlertBtn{
+  width:30px;
+  height:30px;
+  border-radius:10px;
+}
+.communitySide .logoutMini,
+.communitySide .visibilityMini,
+.communitySide .ownerIdentityMini{
+  order:3;
+  flex:0 0 auto;
+}
+.communitySide .sideIdentity > small{
+  display:block;
+  margin-top:4px;
+  font-size:11px;
+}
+@media (max-width: 520px){
+  .communitySide .sideAccount{padding:8px 10px;gap:8px;}
+  .communitySide #sideAvatar{width:50px;height:50px;border-radius:15px;}
+  .communitySide .sideMenu{width:34px;height:34px;font-size:17px;}
+  .communitySide .sideMiniAlerts{gap:5px;}
+  .communitySide .miniAlertBtn{width:28px;height:28px;}
 }

@@ -532,133 +532,7 @@ function handleAdminLiveMessage(message){
  }
 }
 
-const emojis=['😱','😂','😍','🥰','😘','😊','😎','🤩','🥳','😭','🥺','😔','😡','🤬','🤔','🤭','🫢','🙄','😴','🤒','😀','😃','😄','😁','😆','😉','😋','😛','😜','🤪','🥸','🤓','🧐','😮','😯','😲','🥹','😢','😥','😰','❤️','💖','💕','💞','💓','💗','💙','💚','💜','🖤','🤍','💔','💋','🌹','🌸','🌺','🌷','💐','🔥','✨','⭐','🌟','💫','🎉','🎊','🎂','🎁','🎈','🧸','🦋','🐝','🐱','🐶','🦁','🐯','🐼','🐵','🦄','🐉','👻','👍','👎','👏','🙌','🫶','🤝','💪','✌️','🤞','👋','🫡','🙏','🤷‍♂️','🤦‍♂️','👑','💎','🏅','🪙','☕','🍰','🍕','🍔','🍓','🍉','🥤','🎵','🎤','📷','🎬','⚽','🚗','🏎️','✈️','🚀','🛥️','🏠','🌙','☀️','🌈','🌌','🎆','💯','✅','❌','🎯','🥇','🕊️','🫂'];
-const emojiCatalog=emojis.map((emoji,index)=>({emoji,code:`ص${index+1}`}));
-const emojiShortcutMap=new Map(emojiCatalog.map(item=>[item.code,item.emoji]));
-const oldEmojiCatalog=Array.from({length:70},(_,index)=>{
- const number=index+1;
- return {
-  number,
-  code:`ق${number}`,
-  token:`[[rivo-old-${number}]]`,
-  src:`assets/old-emojis/e${String(number).padStart(2,'0')}.png`
- };
-});
-const oldEmojiShortcutMap=new Map(oldEmojiCatalog.map(item=>[item.code,item.token]));
-const textShortcutMap=new Map([
- ['س1','السلام عليكم'],
- ['س2','عليكم السلام'],
- ['و1','ولكمو'],
- ['ي2','يسلمو']
-]);
-function normalizeShortcutCode(value=''){
- const arabicDigits='٠١٢٣٤٥٦٧٨٩';
- const persianDigits='۰۱۲۳۴۵۶۷۸۹';
- return String(value)
-  .replace(/[٠-٩]/g,d=>String(arabicDigits.indexOf(d)))
-  .replace(/[۰-۹]/g,d=>String(persianDigits.indexOf(d)))
-  .replace(/[ىی]/g,'ي');
-}
-function replaceMessageShortcuts(value=''){
- const text=String(value??'').replace(/[\u200e\u200f\u061c]/g,'');
- return text.replace(/(^|[^\p{L}\p{N}_])(ص[0-9٠-٩۰-۹]{1,3}|ق[0-9٠-٩۰-۹]{1,3}|س[12١٢۱۲]|و[1١۱]|[يىی][2٢۲])(?=$|[^\p{L}\p{N}_])/gu,(whole,prefix,rawCode)=>{
-  const code=normalizeShortcutCode(rawCode);
-  const replacement=oldEmojiShortcutMap.get(code)||emojiShortcutMap.get(code)||textShortcutMap.get(code);
-  return replacement?`${prefix}${replacement}`:whole;
- });
-}
-function replaceEmojiShortcuts(value=''){
- return replaceMessageShortcuts(value);
-}
-function replaceTextShortcuts(value=''){
- return replaceMessageShortcuts(value);
-}
-function insertEmojiAtCursor(emoji){
- const input=$('#messageInput');if(!input)return;
- const start=Number.isInteger(input.selectionStart)?input.selectionStart:input.value.length;
- const end=Number.isInteger(input.selectionEnd)?input.selectionEnd:start;
- input.value=input.value.slice(0,start)+emoji+input.value.slice(end);
- const next=start+emoji.length;
- input.focus();
- try{input.setSelectionRange(next,next)}catch(_){ }
-}
-function installEmojiPickerStyles(){
- if(document.getElementById('rivoEmojiShortcutStyles'))return;
- const style=document.createElement('style');style.id='rivoEmojiShortcutStyles';
- style.textContent=`
-  #emojiGrid{grid-template-columns:repeat(7,minmax(42px,1fr));gap:7px}
-  #emojiGrid .emojiShortcutHint{grid-column:1/-1;background:#eef4ff;border:1px solid #d5e2ff;color:#36507a;border-radius:11px;padding:8px 10px;font-size:12px;line-height:1.5;text-align:center;position:sticky;top:0;z-index:2}
-  #emojiGrid .emojiChoice{height:58px!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:3px!important;overflow:visible}
-  #emojiGrid .emojiGlyph{font-size:27px;line-height:1;display:inline-block;transform-origin:center;will-change:transform}
-  #emojiGrid .emojiSectionTitle{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff7df;border:1px solid #f5d98a;color:#7c5710;border-radius:11px;padding:8px 10px;font-size:13px;font-weight:900;position:sticky;top:58px;z-index:1}
-  #emojiGrid .emojiSectionTitle.modern{background:#eef4ff;border-color:#d5e2ff;color:#36507a;position:static}
-  #emojiGrid .oldEmojiChoice .oldEmojiGlyph{width:33px;height:33px;object-fit:contain;display:block;transform-origin:center;will-change:transform}
-  #emojiGrid .emojiShortcutCode{font-size:10px;line-height:1;color:#64748b;font-weight:800;direction:rtl}
-  .rivoOldEmoji{width:30px;height:30px;object-fit:contain;vertical-align:middle;display:inline-block;margin-inline:3px;transform-origin:center;will-change:transform}
-  #emojiGrid .emojiMotion0 .emojiGlyph,.rivoEmojiMotion0{animation:rivoEmojiBounce 1.25s ease-in-out infinite}
-  #emojiGrid .emojiMotion1 .emojiGlyph,.rivoEmojiMotion1{animation:rivoEmojiSwing 1.55s ease-in-out infinite}
-  #emojiGrid .emojiMotion2 .emojiGlyph,.rivoEmojiMotion2{animation:rivoEmojiPulse 1.1s ease-in-out infinite}
-  #emojiGrid .emojiMotion3 .emojiGlyph,.rivoEmojiMotion3{animation:rivoEmojiFloat 1.7s ease-in-out infinite}
-  .rivoAnimatedEmoji{display:inline-block;transform-origin:center;will-change:transform;margin-inline:1px}
-  .emojiOnlyBubble .rivoAnimatedEmoji{font-size:1.08em;margin-inline:3px}
-  .emojiOnlyBubble .rivoOldEmoji{width:42px;height:42px;margin-inline:5px}
-  @keyframes rivoEmojiBounce{0%,100%{transform:translateY(0) scale(1)}45%{transform:translateY(-6px) scale(1.08)}65%{transform:translateY(1px) scale(.98)}}
-  @keyframes rivoEmojiSwing{0%,100%{transform:rotate(0deg)}25%{transform:rotate(-11deg) scale(1.05)}75%{transform:rotate(11deg) scale(1.05)}}
-  @keyframes rivoEmojiPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
-  @keyframes rivoEmojiFloat{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-5px) rotate(6deg)}}
-  @media(max-width:520px){#emojiGrid{grid-template-columns:repeat(6,minmax(40px,1fr))}#emojiGrid .emojiChoice{height:56px!important}}
-  @media(prefers-reduced-motion:reduce){#emojiGrid .emojiGlyph,.rivoAnimatedEmoji{animation:none!important}}
- `;
- document.head.appendChild(style);
-}
-const rivoEmojiSegmenter=(typeof Intl!=='undefined'&&Intl.Segmenter)?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
-function rivoEmojiMotionIndex(value=''){
- let total=0;
- for(const char of String(value))total=(total+(char.codePointAt(0)||0))%4;
- return total;
-}
-function renderStandardAnimatedEmojiText(text=''){
- const parts=rivoEmojiSegmenter?[...rivoEmojiSegmenter.segment(String(text))].map(item=>item.segment):Array.from(String(text));
- return parts.map(part=>/\p{Extended_Pictographic}/u.test(part)
-  ?`<span class="rivoAnimatedEmoji rivoEmojiMotion${rivoEmojiMotionIndex(part)}">${esc(part)}</span>`
-  :esc(part)).join('');
-}
-function oldEmojiFromToken(token=''){
- const match=/^\[\[rivo-old-(\d{1,3})\]\]$/.exec(String(token));
- if(!match)return null;
- const number=Number(match[1]);
- return oldEmojiCatalog.find(item=>item.number===number)||null;
-}
-function renderAnimatedEmojiText(value=''){
- const text=String(value??'');
- return text.split(/(\[\[rivo-old-\d{1,3}\]\])/g).map(part=>{
-  const item=oldEmojiFromToken(part);
-  if(item)return`<img class="rivoOldEmoji rivoEmojiMotion${item.number%4}" src="${esc(item.src)}" alt="${esc(item.code)}" title="${esc(item.code)}" loading="eager" decoding="async">`;
-  return renderStandardAnimatedEmojiText(part);
- }).join('');
-}
-function isEmojiOnlyMessage(value=''){
- const text=String(value??'');
- const hasOld=/\[\[rivo-old-\d{1,3}\]\]/.test(text);
- const remaining=text.replace(/\[\[rivo-old-\d{1,3}\]\]/g,'');
- if(hasOld&&!remaining.trim())return true;
- return /^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(remaining);
-}
-function renderEmojiPicker(){
- installEmojiPickerStyles();
- const grid=$('#emojiGrid');if(!grid)return;
- const oldButtons=oldEmojiCatalog.map((item,index)=>`<button type="button" class="emojiChoice oldEmojiChoice emojiMotion${index%4}" data-old-emoji-code="${item.code}" title="${item.code}" aria-label="رمز قديم ${item.code}"><img class="oldEmojiGlyph emojiGlyph" src="${item.src}" alt="${item.code}" loading="lazy" decoding="async"><small class="emojiShortcutCode">${item.code}</small></button>`).join('');
- const modernButtons=emojiCatalog.map((item,index)=>`<button type="button" class="emojiChoice emojiMotion${index%4}" data-emoji="${item.emoji}" title="${item.code}" aria-label="${item.code} ${item.emoji}"><span class="emojiGlyph">${item.emoji}</span><small class="emojiShortcutCode">${item.code}</small></button>`).join('');
- grid.innerHTML=`<div class="emojiShortcutHint">اضغط على الرمز وسيُغلق المربع تلقائياً. الرموز القديمة اختصارها <b>ق1</b> إلى <b>ق70</b>، والحديثة <b>ص1</b> وما بعدها. اختصارات الكلمات: <b>س1</b> السلام عليكم، <b>س2</b> عليكم السلام، <b>و1</b> ولكمو، <b>ي2</b> يسلمو.</div><div class="emojiSectionTitle"><span>الرموز القديمة المحبوبة</span><small>ق1 — ق70</small></div>${oldButtons}<div class="emojiSectionTitle modern"><span>الرموز الحديثة</span><small>ص1 وما بعدها</small></div>${modernButtons}`;
- $$('[data-old-emoji-code]',grid).forEach(button=>button.onclick=()=>{
-  insertEmojiAtCursor(button.dataset.oldEmojiCode||'');
-  $('#emojiPicker')?.classList.add('hidden');
- });
- $$('[data-emoji]',grid).forEach(button=>button.onclick=()=>{
-  insertEmojiAtCursor(button.dataset.emoji||'');
-  $('#emojiPicker')?.classList.add('hidden');
- });
-}
+const emojis=['😀','😍','😂','🥰','😎','😭','🤔','😮','🥳','❤️','💞','💋','🧸','🎂','🎆','🌹','🔥','👏','👍','🫶','✨','💜','💙','💚','🪙','💎','🐅','🦁','🏎️','🛥️','✈️','🐉','🌌','😊','😉','🙌','🎉','💐','☕','🍰','🎈','🤍'];
 const colors=['#111827','#dc2626','#ef4444','#f97316','#eab308','#16a34a','#059669','#0891b2','#2563eb','#4f46e5','#7c3aed','#9333ea','#db2777','#be123c','#6b7280','#000000','#8b4513','#0f766e'];
 function room(){return state.rooms.find(r=>r.id===state.room)||state.rooms[0]||{id:"lobby",name:"العامة",count:0,cams:0,mics:0,camOn:false,micOn:false,music:false,announcement:"",announcementOn:false}} function findUser(id){return state.users.find(u=>u.id===id)||(state.user?.id===id?state.user:null)}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -1755,7 +1629,7 @@ function renderUsers(){
   showMenu(x.dataset.user,e);
  });
 }
-function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble"><span class="rivoAnimatedEmoji rivoEmojiMotion2">🔊</span> ${renderAnimatedEmojiText(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user)||m.author,u=publicMessageUser(realUser);const safeText=renderAnimatedEmojiText(m.text);const emojiOnly=isEmojiOnlyMessage(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
+function renderMessages(){const a=state.messages.filter(m=>m.room===state.room);$('#messages').innerHTML=a.map(m=>{if(m.type==='system')return`<div class="msg system"><div class="msgStack"><div class="bubble">🔊 ${esc(m.text)}</div></div></div>`;if(m.type==='gift'){const realSender=findUser(m.sender),s=publicMessageUser(realSender),r=findUser(m.receiver);return`<div class="msg polishedMsg"><img src="${av(s?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta giftMeta">${displayNameHtml(s,'chat')}<time>${m.time||''}</time></div><div class="giftCard premiumGiftCard"><div class="giftGlow"></div><div class="miniGift">${m.icon}</div><div class="giftCardCopy"><b>${esc(readableUserName(s))} أرسل «${esc(m.gift)}» إلى ${esc(readableUserName(r))}</b><span class="giftCardSubline"><strong>${esc(readableUserName(r))}</strong> حصل على هدية تظهر قرب اسمه طوال وجوده</span></div></div></div></div>`}const realUser=findUser(m.user)||m.author,u=publicMessageUser(realUser);const safeText=esc(m.text);const emojiOnly=/^(?:[\p{Extended_Pictographic}\u200d\ufe0f\s])+$/u.test(m.text||'');return`<div class="msg polishedMsg"><img src="${av(u?.avatar||'guest')}"><div class="msgStack"><div class="meta polishedMeta prominentMeta">${displayNameHtml(u,'chat')}<time>${m.time||''}</time></div><div class="bubble polishedBubble ${emojiOnly?'emojiOnlyBubble':''}" style="color:${m.color||'#111827'}">${safeText}</div></div></div>`}).join('')}
 function renderHeader(){
  const r=room(),u=state.user;
  const setText=(id,value)=>{const el=$(id);if(el)el.textContent=value};
@@ -1870,13 +1744,12 @@ function giftSound(level){
 }
 function sendMessage(){
  updateColorUI();
- const input=$('#messageInput');
- const t=replaceMessageShortcuts(input?.value||'').trim();
+ const t=$('#messageInput').value.trim();
  if(!t)return;
  if(permissionValue('publicMessages')===false){toast('الكتابة غير مسموحة لرتبتك');return}
  if(state.user?.status==='muted'){toast('الإدارة قامت بكتم حسابك');return}
  if(t.length>state.adminFeatures.maxMessageLength){toast('الرسالة أطول من الحد الذي حددته الإدارة');return}
-if(!state.user){open('loginModal');return}appendRoomMessage({room:state.room,user:state.user.id,text:t,color:state.color,time:new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}),createdAt:Date.now()});if(input)input.value='';$('#emojiPicker')?.classList.add('hidden');renderMessages();$('#messages').scrollTop=$('#messages').scrollHeight}
+if(!state.user){open('loginModal');return}appendRoomMessage({room:state.room,user:state.user.id,text:t,color:state.color,time:new Date().toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'}),createdAt:Date.now()});$('#messageInput').value='';renderMessages();$('#messages').scrollTop=$('#messages').scrollHeight}
 
 function entryAvatarNames(){return['guest','ahmed','samar','ali','noor','mira']}
 function currentEntryAvatarOptions(){return normalizeEntryAvatarOptions(state.entryAvatarOptions)}
@@ -2141,7 +2014,7 @@ function positionColorPicker(){
 }
 
 function initUI(){
- renderEmojiPicker();
+ $('#emojiGrid').innerHTML=emojis.map((e,i)=>`<button class="emojiChoice emojiMotion${i%4}" aria-label="إيموجي ${e}">${e}</button>`).join('');$$('#emojiGrid button').forEach(b=>b.onclick=()=>{$('#messageInput').value+=b.textContent;$('#messageInput').focus()});
  $('#colorGrid').innerHTML=colors.map(c=>`<button type="button" class="colorChoice" style="--choice-color:${c};background:${c}" data-color="${c}" title="اختيار هذا اللون" aria-label="لون ${c}"></button>`).join('');
  $$('#colorGrid [data-color]').forEach(b=>b.onclick=()=>chooseTextColor(b.dataset.color));
  updateColorUI();
@@ -2165,7 +2038,7 @@ function bind(){
  $('#coinSend').onclick=()=>{if(!member('تحويل العملات'))return;const n=+$('#coinAmount').value,u=findUser(state.target);if(n<1||n>state.user.coins){toast('تحقق من الكمية والرصيد');return}state.user.coins-=n;u.coins+=n;appendRoomMessage({type:'system',room:state.room,text:`${state.user.name} أرسل ${n} عملة ذهبية إلى ${u.name}`});close('coinModal');renderAll();toast('تم تحويل الذهب')};
  $('#storeBtn').onclick=()=>{showStore('coins');open('storeModal')};$$('[data-tab]').forEach(b=>b.onclick=()=>showStore(b.dataset.tab)); if($('#cameraBtn')) $('#cameraBtn').onclick=joinCamera; if($('#micBtn')) $('#micBtn').onclick=joinMic; if($('#composerCameraBtn')) $('#composerCameraBtn').onclick=joinCamera; if($('#composerMicBtn')) $('#composerMicBtn').onclick=joinMic; if($('#leaveStage')) $('#leaveStage').onclick=leaveStage; if($('#avatarToggle')) $('#avatarToggle').onclick=toggleAvatar;
  if($('#soundBtn')) $('#soundBtn').onclick=()=>{document.body.classList.toggle('muted');$('#soundBtn').textContent=document.body.classList.contains('muted')?'🔇 صوت الغرفة':'🔊 صوت الغرفة';toast('تحكم صوت تجريبي')}; $('#radioBtn').onclick=toggleRadioListener;
- if($('#adminBtn')) $('#adminBtn').onclick=(e)=>{e.stopPropagation();location.href='admin.html'};$('#cameraLimit').oninput=e=>$('#cameraLimitText').textContent=e.target.value;$('#micLimit').oninput=e=>$('#micLimitText').textContent=e.target.value;$('#saveAnnouncement').onclick=saveAnnouncement;$('#applySettings').onclick=applySettings;
+ if($('#adminBtn')) $('#adminBtn').onclick=(e)=>{e.stopPropagation();if(!state.user){open('loginModal');return}showProfile(state.user.id)};$('#cameraLimit').oninput=e=>$('#cameraLimitText').textContent=e.target.value;$('#micLimit').oninput=e=>$('#micLimitText').textContent=e.target.value;$('#saveAnnouncement').onclick=saveAnnouncement;$('#applySettings').onclick=applySettings;
 
  if($('#musicVolume')) $('#musicVolume').oninput=e=>{
    const audio=radioAudio();
