@@ -2592,6 +2592,20 @@ export class ChatRoom extends DurableObject {
       session.nickname = nextNickname;
       session.avatar = nextAvatar;
       ws.serializeAttachment(session);
+
+      // Push the avatar/name change immediately to every connected client.
+      this.broadcast({
+        type: "profile-updated",
+        clientId: session.clientId,
+        nickname: session.nickname,
+        avatar: session.avatar
+      });
+      this.safeSend(ws, {
+        type: "profile-saved",
+        clientId: session.clientId,
+        nickname: session.nickname,
+        avatar: session.avatar
+      });
       this.broadcastPresence();
       return;
     }
