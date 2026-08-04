@@ -1918,6 +1918,7 @@ function startFreshChatSession(){
  startFreshRoomConversation(state.room);
 }
 function logoutChat(){
+ try{window.RivoMobileBeforeLogout?.()}catch(_){}
  if(state.localStream){
   state.localStream.getTracks().forEach(track=>track.stop());
   state.localStream=null;
@@ -1938,6 +1939,7 @@ function logoutChat(){
  renderPrivateInbox();
  updatePrivateBadge();
  showEntryScreen();
+ try{window.dispatchEvent(new CustomEvent('rivo-chat-logged-out'))}catch(_){}
  toast('تم تسجيل الخروج ومسح رسائل الجلسة');
 }
 
@@ -1954,11 +1956,13 @@ function switchRoom(id){
  // الانتقال بين الغرف لا يزيل الشارة؛ تبقى حتى تسجيل الخروج أو إغلاق الموقع.
  state.room=id;
  if(state.user)state.user.room=id;
+ try{localStorage.setItem('rivoEntryRoomChoiceV1',id)}catch(_){}
  startFreshRoomConversation(id);
  renderAll();
  syncRadioForRoom();
  setSideTab('users');
  $('#messages').scrollTop=$('#messages').scrollHeight;
+ try{window.dispatchEvent(new CustomEvent('rivo-room-switched',{detail:{roomId:id,roomName:r.name}}))}catch(_){}
 }
 
 function isHiddenStaff(u){return Boolean(u?.isHidden)&&['owner','moderator'].includes(userAccessRole(u))}

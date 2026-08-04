@@ -1,1 +1,1 @@
-Rivo Chat v192 — Mobile video window can be dragged freely, true fullscreen, landscape orientation request, and restore to floating mode
+Rivo Chat v193 — Mobile logout reliably returns to entry screen, room switching works with one tap, and drawers never remain stuck

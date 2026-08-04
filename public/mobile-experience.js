@@ -1,4 +1,4 @@
-/* Rivo v192 — mobile-first entry, fixed chat, draggable/fullscreen video */
+/* Rivo v193 — reliable mobile logout and room switching */
 (() => {
   'use strict';
 
@@ -177,6 +177,25 @@
     $('.communitySide')?.setAttribute('aria-hidden', 'true');
   }
 
+
+  function resetMobileUiForEntry() {
+    closeMobileDrawer();
+    document.body.classList.remove('rivoKeyboardOpen', 'mobileStageActive', 'mobileAvatarEntryPending');
+    document.documentElement.classList.remove('rivoMobileChatLocked', 'rivoKeyboardViewport');
+    const screen = $('#entryScreen');
+    if (screen) screen.classList.remove('hidden');
+    document.body.classList.add('entryLocked');
+    window.scrollTo(0, 0);
+    window.setTimeout(() => {
+      setViewportVars();
+      syncPageLock();
+      $('#entryName')?.focus({ preventScroll: true });
+    }, 80);
+  }
+
+  window.RivoMobileBeforeLogout = resetMobileUiForEntry;
+  window.RivoMobileCloseDrawer = closeMobileDrawer;
+
   function openMobileDrawer(tabName) {
     if (!isMobile()) return;
     activateSideTab(tabName);
@@ -278,10 +297,46 @@
   }
 
   function bindDrawerAutoClose() {
+    // نعالج تغيير الغرفة في مرحلة capture حتى لا تضيع اللمسة خلف الغطاء على بعض الهواتف.
     document.addEventListener('click', (event) => {
-      if (!isMobile() || !document.body.classList.contains('mobileSideOpen')) return;
-      if (event.target.closest('#roomsList .roomItem')) window.setTimeout(closeMobileDrawer, 120);
+      if (!isMobile()) return;
+
+      const roomButton = event.target.closest('#roomsList [data-room]');
+      if (roomButton) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        const roomId = String(roomButton.dataset.room || '');
+        const roomName = String(roomButton.querySelector('b')?.textContent || 'الغرفة').trim();
+        if (roomId && typeof window.switchRoom === 'function') {
+          window.switchRoom(roomId);
+          try { localStorage.setItem('rivoEntryRoomChoiceV1', roomId); } catch (_) {}
+          window.setTimeout(() => {
+            closeMobileDrawer();
+            syncMobileLabels();
+            const messages = $('#messages');
+            if (messages) messages.scrollTop = messages.scrollHeight;
+            if (typeof window.toast === 'function') window.toast(`تم الدخول إلى غرفة ${roomName}`);
+          }, 60);
+        }
+        return;
+      }
+
+      // زر الخروج يجب أن يعيد صفحة الدخول، لا أن يترك درجاً أو غطاءً عالقاً.
+      if (event.target.closest('#logoutBtn')) {
+        closeMobileDrawer();
+        window.setTimeout(resetMobileUiForEntry, 30);
+      }
+    }, true);
+
+    window.addEventListener('rivo-chat-logged-out', resetMobileUiForEntry);
+    window.addEventListener('rivo-room-switched', () => {
+      window.setTimeout(() => {
+        closeMobileDrawer();
+        syncMobileLabels();
+      }, 30);
     });
+
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') closeMobileDrawer();
     });

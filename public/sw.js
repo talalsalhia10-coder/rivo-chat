@@ -1,14 +1,14 @@
-const RELEASE = "192-mobile-video-fullscreen-drag";
+const RELEASE = "193-mobile-room-exit-fix";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=192",
-  "./app.js?v=192",
-  "./live-bridge.js?v=192",
-  "./mobile-experience.js?v=192",
+  "./styles.css?v=193",
+  "./app.js?v=193",
+  "./live-bridge.js?v=193",
+  "./mobile-experience.js?v=193",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
   "./relay-audio.js?v=178",

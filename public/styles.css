@@ -2099,3 +2099,43 @@ body.owner .composerToolbar {
   .radioVideoWindow:-webkit-full-screen .radioVideoHeading small,
   .radioVideoWindow.fullscreenFallback .radioVideoHeading small{display:none}
 }
+
+
+/* =====================================================================
+   Rivo v193 — reliable mobile exit and room switching
+   ===================================================================== */
+@media (max-width:820px){
+  /* صفحة الدخول يجب أن تعود دائماً فوق كل نوافذ الدردشة بعد الضغط على خروج. */
+  body.entryLocked #entryScreen{
+    display:grid!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+    z-index:1000!important;
+  }
+  body.entryLocked .communitySide,
+  body.entryLocked .mobileSideBackdrop,
+  body.entryLocked .mobileChatNav{
+    display:none!important;
+    pointer-events:none!important;
+  }
+
+  /* اجعل عناصر الغرف قابلة للضغط والتمرير من دون أن يلتقط الغطاء اللمسة. */
+  body.mobileSideOpen .communitySide{
+    pointer-events:auto!important;
+  }
+  body.mobileSideOpen #roomsPanel,
+  body.mobileSideOpen #roomsList,
+  body.mobileSideOpen #roomsList .roomItem{
+    pointer-events:auto!important;
+    touch-action:manipulation!important;
+  }
+  body.mobileSideOpen #roomsList{
+    overflow-y:auto!important;
+    overscroll-behavior:contain!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  #mobileRoomsOpen,#mobileUsersOpen,#mobileSideClose,#logoutBtn{
+    touch-action:manipulation!important;
+  }
+}
