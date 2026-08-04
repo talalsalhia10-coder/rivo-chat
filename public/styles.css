@@ -1468,3 +1468,22 @@
   .composerToolbar::-webkit-scrollbar{display:none}
   .composerToolbar .composerToolButton{min-width:61px;padding:0 8px}
 }
+
+/* v158.1 — تثبيت أدوات الدردشة في الجهة اليسرى */
+.composerDock > .composerToolbar{
+  display:flex!important;
+  flex-direction:row!important;
+  direction:ltr!important;
+  justify-content:flex-start!important;
+  align-items:center!important;
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding-left:4px!important;
+  padding-right:4px!important;
+  text-align:left!important;
+}
+.composerDock > .composerToolbar > .composerToolButton{
+  flex:0 0 auto!important;
+  margin:0!important;
+}
