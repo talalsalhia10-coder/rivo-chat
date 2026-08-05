@@ -1889,19 +1889,27 @@
       toast("الغرفة ممتلئة الآن. اختر غرفة أخرى.");
       return;
     }
+    const previousRoom = live.roomId;
     clearRoomSnapshot(state.room);
     clearRoomSnapshot(next);
     state.activeNameGifts = {};
-    live.roomId = next;
+
+    // لا نغيّر live.roomId قبل connect؛ وإلا يظن المحرك أن الغرفة لم تتغير
+    // ويبقى WebSocket القديم مربوطاً بالغرفة الأولى رغم تغيّر الواجهة.
     state.room = next;
     saveActiveRoom(next);
     setRoomCutoff(next, Date.now());
     state.messages = [];
     startFreshRoomConversation(next);
     live.ignoreHistoryOnce = true;
+
+    // لا نسمح لرسالة كانت بانتظار اتصال الغرفة السابقة أن تُرسل بعد الانتقال.
+    live.pendingOutgoing = (Array.isArray(live.pendingOutgoing) ? live.pendingOutgoing : [])
+      .filter((item) => item?.roomId === next);
+
     renderAll();
     setSideTab("users");
-    await connect(next);
+    await connect(next, { force: true, reason: `room-switch-${previousRoom}-to-${next}` });
   }
 
   function expandLiveMessageShortcuts(value) {
