@@ -983,7 +983,13 @@ function radioType(value=state.radioBroadcast.sourceType,source=state.radioBroad
  if(looksLikeDirectAudioUrl(source))return 'audio';
  return requested;
 }
-function radioAutoPlayEnabled(){try{return localStorage.getItem(RIVO_RADIO_AUTOPLAY_KEY)==='1'}catch(_){return false}}
+function radioAutoPlayEnabled(){
+ try{
+  const saved=localStorage.getItem(RIVO_RADIO_AUTOPLAY_KEY);
+  // المستخدم الجديد يدخل والصوت مفعّل افتراضياً. إذا أوقفه سابقاً نحترم اختياره.
+  return saved===null?true:saved==='1';
+ }catch(_){return true}
+}
 function setRadioAutoPlayEnabled(enabled){try{localStorage.setItem(RIVO_RADIO_AUTOPLAY_KEY,enabled?'1':'0')}catch(_){ }}
 function radioTargetRoom(){return state.rooms.find(r=>r.id===state.radioBroadcast.roomId)}
 function radioIsInCurrentRoom(){
@@ -999,7 +1005,15 @@ function youtubeIdFromRadioUrl(value){
  return '';
 }
 function loadRadioPreferences(){
- const slider=$('#musicVolume');let volume=30;try{volume=Math.max(0,Math.min(100,Number(localStorage.getItem(RIVO_RADIO_VOLUME_KEY)||30)))}catch(_){ }
+ const slider=$('#musicVolume');
+ let volume=35;
+ try{
+  const savedVolume=localStorage.getItem(RIVO_RADIO_VOLUME_KEY);
+  volume=Math.max(0,Math.min(100,Number(savedVolume===null?35:savedVolume)));
+  if(savedVolume===null)localStorage.setItem(RIVO_RADIO_VOLUME_KEY,String(volume));
+  if(localStorage.getItem(RIVO_RADIO_MUTED_KEY)===null)localStorage.setItem(RIVO_RADIO_MUTED_KEY,'0');
+  if(localStorage.getItem(RIVO_RADIO_AUTOPLAY_KEY)===null)localStorage.setItem(RIVO_RADIO_AUTOPLAY_KEY,'1');
+ }catch(_){ }
  if(slider)slider.value=String(volume);
  try{state.radioBroadcast.userMuted=localStorage.getItem(RIVO_RADIO_MUTED_KEY)==='1'}catch(_){state.radioBroadcast.userMuted=false}
  applyRadioVolume();
@@ -1135,6 +1149,20 @@ function renderRadioUI(){
  if(audioOnlyBtn){audioOnlyBtn.classList.toggle('hidden',!['youtube','video'].includes(type)||broadcast.status==='stopped');audioOnlyBtn.textContent=broadcast.audioOnly?'🎬 إظهار الفيديو':'🎧 صوت فقط';audioOnlyBtn.title=broadcast.audioOnly?'إظهار صورة الفيديو':'إخفاء الصورة والاستماع فقط'}
  videoWin?.classList.toggle('audioOnlyMode',Boolean(broadcast.audioOnly));
  const videoTitle=$('#radioVideoTitle'),videoStatus=$('#radioVideoStatus');if(videoTitle)videoTitle.textContent=broadcast.title||'فيديو ريفو';if(videoStatus)videoStatus.textContent=broadcast.status==='paused'?'متوقف مؤقتاً':broadcast.audioOnly&&localPlaying?'الصوت يعمل الآن':localPlaying?'يعمل الآن':'جاهز للتشغيل';
+ try{
+  window.dispatchEvent(new CustomEvent('rivo-radio-ui',{detail:{
+   status:broadcast.status,
+   available,
+   playing:localPlaying,
+   muted:radioIsMuted(),
+   audible,
+   volume:radioVolume(),
+   title:broadcast.title||'راديو ريفو',
+   sourceType:type,
+   autoplay:radioAutoPlayEnabled(),
+   blocked:radioAutoplayBlocked
+  }}));
+ }catch(_){ }
 }
 async function startRadioListener(showError=true,rememberChoice=showError){
  const broadcast=state.radioBroadcast;
@@ -1212,6 +1240,64 @@ function armRadioAutoplayUnlock(){
  window.addEventListener('online',scheduleSavedRadioResume);
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)scheduleSavedRadioResume()});
 }
+
+const RIVO_SILENT_WAV='data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+function primeRadioFromGesture(){
+ if(!radioAutoPlayEnabled()||radioIsMuted())return false;
+ if(state.radioBroadcast.status==='playing'&&radioIsInCurrentRoom()){
+  startSavedRadioFromGesture();
+  return true;
+ }
+ const audio=radioAudio();
+ if(!audio||radioMediaPlaying())return false;
+ try{
+  const previousMuted=audio.muted,previousVolume=audio.volume,previousLoop=audio.loop;
+  audio.muted=false;audio.volume=0;audio.loop=false;audio.src=RIVO_SILENT_WAV;
+  const attempt=audio.play();
+  Promise.resolve(attempt).then(()=>{
+   try{audio.pause();audio.currentTime=0;audio.removeAttribute('src');audio.load()}catch(_){ }
+   audio.muted=previousMuted;audio.volume=previousVolume;audio.loop=previousLoop;
+   state.radioBroadcast.loadedSource='';
+   scheduleSavedRadioResume();
+  }).catch(()=>{
+   audio.muted=previousMuted;audio.volume=previousVolume;audio.loop=previousLoop;
+  });
+  return true;
+ }catch(_){return false}
+}
+function radioPublicState(){
+ return{
+  status:state.radioBroadcast.status,
+  available:radioIsInCurrentRoom(),
+  playing:radioMediaPlaying(),
+  muted:radioIsMuted(),
+  audible:radioMediaPlaying()&&radioIsInCurrentRoom()&&state.radioBroadcast.status==='playing'&&!radioIsMuted(),
+  volume:radioVolume(),
+  title:state.radioBroadcast.title||'راديو ريفو',
+  sourceType:radioType(),
+  autoplay:radioAutoPlayEnabled(),
+  blocked:radioAutoplayBlocked
+ };
+}
+window.RivoRadio={
+ getState:radioPublicState,
+ primeFromGesture:primeRadioFromGesture,
+ resume:()=>{if(!radioAutoPlayEnabled()||radioIsMuted())return Promise.resolve(false);scheduleSavedRadioResume();return startRadioListener(false,false)},
+ toggle:()=>toggleRadioListener(),
+ toggleMute:()=>toggleRadioMute(),
+ setVolume:(value)=>{
+  const slider=$('#musicVolume');
+  const next=Math.max(0,Math.min(100,Number(value)||0));
+  if(slider)slider.value=String(next);
+  state.radioBroadcast.userMuted=next<=0;
+  try{localStorage.setItem(RIVO_RADIO_VOLUME_KEY,String(next));localStorage.setItem(RIVO_RADIO_MUTED_KEY,state.radioBroadcast.userMuted?'1':'0')}catch(_){ }
+  if(next>0)setRadioAutoPlayEnabled(true);
+  applyRadioVolume();
+  if(next>0&&state.radioBroadcast.status==='playing'&&!radioMediaPlaying())startRadioListener(false,false).catch(()=>{});
+  return radioPublicState();
+ },
+ enable:()=>{setRadioAutoPlayEnabled(true);if(!radioIsMuted())scheduleSavedRadioResume();return radioPublicState()}
+};
 async function syncRadioForRoom(){
  const broadcast=state.radioBroadcast;
  if(broadcast.status==='stopped'){

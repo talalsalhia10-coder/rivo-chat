@@ -2522,3 +2522,120 @@ body.owner .composerToolbar {
 @media (max-width:820px){
   html.rivoMobileChatLocked body>*{max-inline-size:100%!important;min-inline-size:0!important}
 }
+
+/* =========================================================
+   Rivo v198 — mobile radio icon and compact sound controller
+   ========================================================= */
+.mobileRadioPopup{display:none}
+@media (max-width:820px){
+  .mobileChatNav{
+    gap:3px!important;
+    padding-inline-start:4px!important;
+    min-inline-size:0!important;
+  }
+  .mobileChatNav button{
+    min-width:42px!important;
+    max-width:74px!important;
+    padding:3px 5px!important;
+    flex:0 1 auto!important;
+  }
+  #mobileRadioOpen{
+    position:relative!important;
+    overflow:visible!important;
+    border-color:#cfd8ff!important;
+    background:linear-gradient(145deg,#f4f2ff,#edf7ff)!important;
+  }
+  #mobileRadioOpen.isLive{
+    border-color:#8d7bff!important;
+    box-shadow:0 0 0 3px rgba(113,87,255,.10)!important;
+  }
+  #mobileRadioOpen.isAudible{
+    background:linear-gradient(135deg,#735cff,#328ee9)!important;
+    color:#fff!important;
+  }
+  #mobileRadioOpen.isMuted{background:#f2f5f9!important;color:#526079!important}
+  #mobileRadioIcon{font-size:17px;line-height:1}
+  .mobileRadioWaves{
+    position:absolute;
+    inset-block-start:4px;
+    inset-inline-end:4px;
+    display:flex;
+    align-items:flex-end;
+    gap:1px;
+    block-size:12px;
+    opacity:0;
+    pointer-events:none;
+  }
+  .mobileRadioWaves.active{opacity:1}
+  .mobileRadioWaves em{
+    inline-size:2px;
+    block-size:4px;
+    border-radius:3px;
+    background:currentColor;
+    animation:rivoMobileRadioWave .62s ease-in-out infinite alternate;
+  }
+  .mobileRadioWaves em:nth-child(2){block-size:9px;animation-delay:.12s}
+  .mobileRadioWaves em:nth-child(3){block-size:6px;animation-delay:.24s}
+  @keyframes rivoMobileRadioWave{to{block-size:12px}}
+
+  .mobileRadioPopup{
+    position:fixed!important;
+    inset-block-start:calc(62px + env(safe-area-inset-top))!important;
+    inset-inline:8px!important;
+    z-index:1800!important;
+    inline-size:auto!important;
+    max-inline-size:none!important;
+    display:block;
+    padding:12px!important;
+    border:1px solid #d9e1f0!important;
+    border-radius:17px!important;
+    background:rgba(255,255,255,.98)!important;
+    color:#17233a!important;
+    box-shadow:0 18px 55px rgba(22,38,72,.24)!important;
+    backdrop-filter:blur(12px)!important;
+    direction:rtl!important;
+    touch-action:manipulation!important;
+  }
+  .mobileRadioPopup.hidden{display:none!important}
+  .mobileRadioPopupHead{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:10px;
+  }
+  .mobileRadioPopupHead>div{min-width:0}
+  .mobileRadioPopupHead b,.mobileRadioPopupHead small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mobileRadioPopupHead b{font-size:14px}
+  .mobileRadioPopupHead small{margin-top:3px;color:#6f7d94;font-size:11px}
+  #mobileRadioPopupClose{
+    flex:0 0 34px!important;
+    inline-size:34px!important;
+    block-size:34px!important;
+    border:0!important;
+    border-radius:11px!important;
+    background:#edf1f7!important;
+    color:#26334d!important;
+    font-size:22px!important;
+  }
+  .mobileRadioPopupControls{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+  .mobileRadioPopupControls button{
+    min-block-size:40px!important;
+    border:0!important;
+    border-radius:12px!important;
+    padding:8px!important;
+    font-size:12px!important;
+    font-weight:800!important;
+    background:#edf1ff!important;
+    color:#4e46bd!important;
+  }
+  .mobileRadioPopupControls button:disabled{opacity:.5!important}
+  .mobileRadioVolumeLabel{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px;font-size:12px;font-weight:800;color:#536079}
+  #mobileRadioVolume{inline-size:100%!important;min-inline-size:0!important;accent-color:#735cff!important;touch-action:pan-x!important}
+  body.entryLocked .mobileRadioPopup{display:none!important}
+}
+@media (max-width:390px){
+  .topbar .brand b{max-inline-size:96px!important;overflow:hidden!important;text-overflow:ellipsis!important}
+  .mobileChatNav button b{display:none!important}
+  .mobileChatNav button{min-width:39px!important;inline-size:39px!important;padding:3px!important}
+}

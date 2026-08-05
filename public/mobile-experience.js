@@ -1,4 +1,4 @@
-/* Rivo v197 — stable app-like mobile shell + reliable guest/Google entry */
+/* Rivo v198 — mobile radio control + automatic audio preference */
 (() => {
   'use strict';
 
@@ -10,6 +10,8 @@
   let entryBusy = false;
   let logoutBusy = false;
   let pageLockInstalled = false;
+  let lastChatLocked = false;
+  let mobileRadioPopupOpen = false;
 
   function entryVisible() {
     const screen = $('#entryScreen');
@@ -36,6 +38,14 @@
     document.body.classList.toggle('rivoMobileUI', isMobile());
     document.documentElement.classList.toggle('rivoMobileChatLocked', locked);
     if (locked && (window.scrollX || window.scrollY)) window.scrollTo(0, 0);
+    if (locked && !lastChatLocked) {
+      window.setTimeout(() => {
+        try { window.RivoRadio?.resume?.(); } catch {}
+        syncMobileRadioDock();
+      }, 120);
+    }
+    lastChatLocked = locked;
+    if (!locked) closeMobileRadioPopup();
   }
 
   function installPageLock() {
@@ -95,6 +105,7 @@
   function openAvatarStep(type) {
     if (!isMobile() || entryBusy) return;
     if (!validateEntry()) return;
+    try { window.RivoRadio?.primeFromGesture?.(); } catch {}
     pendingEntryType = type;
     document.body.classList.add('mobileAvatarEntryPending');
     const modal = $('#entryAvatarPickerModal');
@@ -145,6 +156,10 @@
         const opened = await Promise.resolve(actions.google());
         if (opened === false) throw new Error('تعذر فتح تسجيل Google. أعد المحاولة.');
       }
+      window.setTimeout(() => {
+        try { window.RivoRadio?.resume?.(); } catch {}
+        syncMobileRadioDock();
+      }, 140);
     } catch (error) {
       console.error('Rivo mobile entry failed', error);
       showEntryError(error?.message || 'تعذر الدخول الآن. أعد المحاولة.');
@@ -169,6 +184,7 @@
     event.stopPropagation?.();
     event.stopImmediatePropagation?.();
 
+    try { window.RivoRadio?.primeFromGesture?.(); } catch {}
     const avatarId = String(option.dataset.pickerAvatar || '').trim();
     if (avatarId && typeof state === 'object' && state) {
       state.entryAvatar = avatarId;
@@ -223,6 +239,133 @@
     document.body.classList.add('mobileSideOpen');
   }
 
+  function mobileRadioState(detail = null) {
+    if (detail && typeof detail === 'object') return detail;
+    try {
+      const state = window.RivoRadio?.getState?.();
+      if (state) return state;
+    } catch {}
+    const widget = $('#radioWidget');
+    const volume = Number($('#musicVolume')?.value || 35);
+    return {
+      status: widget?.classList.contains('radioBroadcasting') ? 'playing' : 'stopped',
+      available: !widget?.classList.contains('radioUnavailable'),
+      playing: $('#radioBtn')?.textContent?.trim() === 'Ⅱ',
+      muted: $('#radioMuteBtn')?.textContent?.includes('🔇') || volume <= 0,
+      audible: widget?.classList.contains('radioSoundActive'),
+      volume,
+      title: String($('#radioTrack')?.textContent || 'راديو ريفو').trim(),
+      blocked: false
+    };
+  }
+
+  function closeMobileRadioPopup() {
+    mobileRadioPopupOpen = false;
+    $('#mobileRadioPopup')?.classList.add('hidden');
+    $('#mobileRadioOpen')?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMobileRadioPopup(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    try { window.RivoRadio?.primeFromGesture?.(); } catch {}
+    mobileRadioPopupOpen = !mobileRadioPopupOpen;
+    $('#mobileRadioPopup')?.classList.toggle('hidden', !mobileRadioPopupOpen);
+    $('#mobileRadioOpen')?.setAttribute('aria-expanded', mobileRadioPopupOpen ? 'true' : 'false');
+    syncMobileRadioDock();
+  }
+
+  function syncMobileRadioDock(detail = null) {
+    const state = mobileRadioState(detail);
+    const open = $('#mobileRadioOpen');
+    const icon = $('#mobileRadioIcon');
+    const title = $('#mobileRadioTitle');
+    const status = $('#mobileRadioStatus');
+    const mute = $('#mobileRadioMute');
+    const play = $('#mobileRadioPlay');
+    const range = $('#mobileRadioVolume');
+    const waves = $('#mobileRadioWaves');
+    if (!open) return;
+
+    const available = Boolean(state.available && state.status !== 'stopped');
+    const muted = Boolean(state.muted || Number(state.volume || 0) <= 0);
+    const audible = Boolean(state.audible && !muted);
+    const playing = Boolean(state.playing);
+
+    open.classList.toggle('isLive', available);
+    open.classList.toggle('isAudible', audible);
+    open.classList.toggle('isMuted', muted);
+    open.title = available ? (muted ? 'الراديو مكتوم' : 'التحكم بصوت الراديو') : 'لا يوجد بث الآن';
+    if (icon) icon.textContent = muted ? '🔇' : '🔊';
+    waves?.classList.toggle('active', audible);
+    if (title) title.textContent = state.title || 'راديو ريفو';
+    if (status) {
+      status.textContent = !available ? 'لا يوجد بث الآن' :
+        muted ? 'الصوت مكتوم عندك' :
+        playing ? 'الصوت يعمل الآن' :
+        state.blocked ? 'المتصفح ينتظر أول لمسة لتشغيل الصوت' : 'جاري تشغيل الصوت تلقائياً';
+    }
+    if (mute) {
+      mute.textContent = muted ? '🔇 تشغيل الصوت' : '🔊 كتم الصوت';
+      mute.disabled = !available;
+    }
+    if (play) {
+      play.textContent = playing ? 'Ⅱ إيقاف عندي' : '▶ تشغيل عندي';
+      play.disabled = !available;
+    }
+    if (range) {
+      if (document.activeElement !== range) range.value = String(Math.max(0, Math.min(100, Number(state.volume ?? 35))));
+      range.disabled = !available;
+    }
+  }
+
+  function ensureMobileRadioControl() {
+    const nav = $('#mobileChatNav');
+    if (!nav) return;
+    if (!$('#mobileRadioOpen')) {
+      const button = document.createElement('button');
+      button.id = 'mobileRadioOpen';
+      button.type = 'button';
+      button.setAttribute('aria-expanded', 'false');
+      button.innerHTML = '<span id="mobileRadioIcon">🔊</span><i id="mobileRadioWaves" class="mobileRadioWaves" aria-hidden="true"><em></em><em></em><em></em></i><b>الصوت</b>';
+      nav.prepend(button);
+      button.addEventListener('click', toggleMobileRadioPopup);
+    }
+    if (!$('#mobileRadioPopup')) {
+      const popup = document.createElement('section');
+      popup.id = 'mobileRadioPopup';
+      popup.className = 'mobileRadioPopup hidden';
+      popup.setAttribute('aria-label', 'التحكم بصوت راديو ريفو');
+      popup.innerHTML = `
+        <div class="mobileRadioPopupHead">
+          <div><b id="mobileRadioTitle">راديو ريفو</b><small id="mobileRadioStatus">جاري تجهيز الصوت</small></div>
+          <button id="mobileRadioPopupClose" type="button" aria-label="إغلاق">×</button>
+        </div>
+        <div class="mobileRadioPopupControls">
+          <button id="mobileRadioMute" type="button">🔊 كتم الصوت</button>
+          <button id="mobileRadioPlay" type="button">▶ تشغيل عندي</button>
+        </div>
+        <label class="mobileRadioVolumeLabel"><span>مستوى الصوت</span><input id="mobileRadioVolume" type="range" min="0" max="100" value="35"></label>`;
+      document.body.appendChild(popup);
+      $('#mobileRadioPopupClose')?.addEventListener('click', closeMobileRadioPopup);
+      $('#mobileRadioMute')?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        try { await window.RivoRadio?.toggleMute?.(); } catch {}
+        syncMobileRadioDock();
+      });
+      $('#mobileRadioPlay')?.addEventListener('click', async (event) => {
+        event.preventDefault();
+        try { await window.RivoRadio?.toggle?.(); } catch {}
+        syncMobileRadioDock();
+      });
+      $('#mobileRadioVolume')?.addEventListener('input', (event) => {
+        try { window.RivoRadio?.setVolume?.(event.target.value); } catch {}
+        syncMobileRadioDock();
+      });
+    }
+    syncMobileRadioDock();
+  }
+
   function ensureMobileChrome() {
     const topbar = $('.topbar');
     const side = $('.communitySide');
@@ -239,6 +382,7 @@
       $('#mobileRoomsOpen')?.addEventListener('click', () => openDrawer('rooms'));
       $('#mobileUsersOpen')?.addEventListener('click', () => openDrawer('users'));
     }
+    ensureMobileRadioControl();
 
     if (!$('#mobileSideClose')) {
       const close = document.createElement('button');
@@ -345,6 +489,13 @@
     bindDrawerAndLogout();
     observeUi();
     apply();
+
+    window.addEventListener('rivo-radio-ui', (event) => syncMobileRadioDock(event?.detail || null));
+    document.addEventListener('click', (event) => {
+      if (!mobileRadioPopupOpen) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target?.closest('#mobileRadioPopup,#mobileRadioOpen')) closeMobileRadioPopup();
+    }, true);
 
     window.addEventListener('resize', apply, { passive: true });
     window.addEventListener('orientationchange', () => setTimeout(apply, 120), { passive: true });

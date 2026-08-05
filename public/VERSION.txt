@@ -1,1 +1,1 @@
-Rivo Chat v197 — Stable app-like mobile layout; reliable guest and Google entry
+Rivo Chat v198 — Mobile radio icon; automatic sound preference; preserved user mute and volume
