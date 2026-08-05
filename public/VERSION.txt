@@ -1,1 +1,1 @@
-Rivo Chat v198 — Mobile radio icon; automatic sound preference; preserved user mute and volume
+Rivo Chat v199 — Mobile Google sign-in entry modal fix only; all chat settings preserved
