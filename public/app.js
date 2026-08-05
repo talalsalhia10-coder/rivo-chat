@@ -15,12 +15,18 @@ const av=n=>{
  const raw=String(n||'').replace(/^\.\//,'').trim();
  if(isDirectAvatarSource(raw))return raw;
  let managed=null;
- try{managed=(Array.isArray(state.entryAvatarOptions)?state.entryAvatarOptions:[]).find(item=>item&&(String(item.id)===raw||String(item.src)===raw))||null}catch(_){}
+ try{
+  const managedOptions=[
+   ...(Array.isArray(state.entryAvatarOptions)?state.entryAvatarOptions:[]),
+   ...(Array.isArray(state.staffAvatarOptions)?state.staffAvatarOptions:[])
+  ];
+  managed=managedOptions.find(item=>item&&(String(item.id)===raw||String(item.src)===raw))||null;
+ }catch(_){}
  if(managed?.src)return String(managed.src);
  if(RIVO_LIVE_AVATAR_MAP[raw])return RIVO_LIVE_AVATAR_MAP[raw];
  if(RIVO_STATIC_AVATAR_IDS.has(raw))return `assets/avatars/${raw}.svg`;
  // لا تنشئ مسار SVG وهمياً للصورة المرفوعة إذا لم تصل إعداداتها بعد.
- if(/^entry_avatar_admin_/i.test(raw))return RIVO_LIVE_AVATAR_MAP.owner;
+ if(/^(?:entry_avatar_admin_|staff_avatar_owner_)/i.test(raw))return RIVO_LIVE_AVATAR_MAP.owner;
  if(/^entry_avatar_/i.test(raw))return RIVO_LIVE_AVATAR_MAP.guest;
  return RIVO_LIVE_AVATAR_MAP.guest;
 };
@@ -186,16 +192,34 @@ const defaultEntryAvatars=[
  {id:'entry_avatar_5',src:'assets/entry-avatars/rivo-avatar-woman-denim.jpg',alt:'صورة شخصية لفتاة ترتدي سترة جينز',title:'صورة شخصية لفتاة ترتدي سترة جينز'},
  {id:'entry_avatar_6',src:'assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg',alt:'صورة شخصية لفتاة ترتدي سترة بنفسجية',title:'صورة شخصية لفتاة ترتدي سترة بنفسجية'}
 ];
-function normalizeEntryAvatarOptions(list){
- const fallback=structuredClone(defaultEntryAvatars);
- if(!Array.isArray(list)||!list.length)return fallback;
- const normalized=list.filter(Boolean).map((item,index)=>({
+function isStaffOnlyAvatarOption(item){
+ const id=String(item?.id||'');
+ const normalizeLabel=value=>String(value||'').trim().replace(/\s+/g,' ').replace(/[إأآ]/g,'ا').toLowerCase();
+ const alt=normalizeLabel(item?.alt);
+ const title=normalizeLabel(item?.title);
+ const legacyOwnerLabel=value=>value==='صورة الادارة'||value==='صورة المالك'||value==='admin image'||value==='owner image';
+ return Boolean(item?.ownerAvatar)||
+  /^entry_avatar_admin_/i.test(id)||
+  /^staff_avatar_owner_/i.test(id)||
+  legacyOwnerLabel(alt)||legacyOwnerLabel(title);
+}
+function normalizeManagedAvatarOptions(list){
+ if(!Array.isArray(list)||!list.length)return[];
+ return list.filter(Boolean).map((item,index)=>({
   id:String(item.id||`entry_avatar_${index+1}`).toLowerCase().replace(/[^a-z0-9_-]/g,'_').slice(0,40)||`entry_avatar_${index+1}`,
   src:item.src||item.path||'',
   alt:item.alt||item.title||`صورة شخصية ${index+1}`,
-  title:item.title||item.alt||`صورة شخصية ${index+1}`
+  title:item.title||item.alt||`صورة شخصية ${index+1}`,
+  ...(isStaffOnlyAvatarOption(item)?{ownerAvatar:true}:{})
  })).filter(item=>isDirectAvatarSource(item.src));
+}
+function normalizeEntryAvatarOptions(list){
+ const fallback=structuredClone(defaultEntryAvatars);
+ const normalized=normalizeManagedAvatarOptions(list).filter(item=>!isStaffOnlyAvatarOption(item));
  return normalized.length?normalized:fallback;
+}
+function normalizeStaffAvatarOptions(list){
+ return normalizeManagedAvatarOptions(list).filter(isStaffOnlyAvatarOption);
 }
 function findEntryAvatarOption(value,list=state.entryAvatarOptions){
  const raw=String(value||'');
@@ -209,6 +233,7 @@ const avatarEditor={image:null,scale:1,minScale:1,offsetX:0,offsetY:0,dragging:f
 let avatarPickerMode='entry';
 state.entryAvatar=defaultEntryAvatars[0].id;
 state.entryAvatarOptions=structuredClone(defaultEntryAvatars);
+state.staffAvatarOptions=[];
 function normalizeDemoAccountTypes(users){
  return(Array.isArray(users)?users:[]).map(user=>{
   const u={...user};
@@ -522,7 +547,11 @@ function applyExternalAdminConfig(showNotice=false,suppliedConfig=null){
      guestButton.textContent=state.adminFeatures.guestEntry===false?'دخول الضيف مغلق من الإدارة':'الدخول كضيف';
    }
  }
- state.entryAvatarOptions=normalizeEntryAvatarOptions(cfg.entryAvatars||state.entryAvatarOptions);
+ const configuredAvatarOptions=Array.isArray(cfg.entryAvatars)
+  ?cfg.entryAvatars
+  :[...(state.entryAvatarOptions||[]),...(state.staffAvatarOptions||[])];
+ state.staffAvatarOptions=normalizeStaffAvatarOptions(configuredAvatarOptions);
+ state.entryAvatarOptions=normalizeEntryAvatarOptions(configuredAvatarOptions);
  state.entryAvatar=normalizeEntryAvatarSelection(state.entryAvatar,state.entryAvatarOptions);
  renderEntryAvatarChoices();
  updateEntryAvatarUI();
