@@ -5,7 +5,7 @@
 
   const LIVE_IDENTITY_KEY = "rivo_live_identity_v158";
   const LEGACY_IDENTITY_KEY = "rivo_live_identity_v156";
-  const PERSIST_IDENTITY_KEY = "rivo_live_identity_persistent_v1";
+  const PERSIST_IDENTITY_KEY = "rivo_live_identity_persistent_v1"; // legacy: removed after v209
   const CONNECTION_TAB_KEY = "rivo_live_connection_tab_v1";
   const CONNECTION_SEQ_KEY = "rivo_live_connection_seq_v1";
   const ACTIVE_ROOM_KEY = "rivo_live_active_room_v1";
@@ -320,16 +320,40 @@
     const expiresAt = Number(identity.expiresAt || 0);
     return expiresAt <= 0 || expiresAt > Date.now() + 30_000;
   }
+  function navigationAllowsIdentityResume() {
+    // إعادة تحميل الصفحة داخل التبويب نفسه تستأنف الجلسة بصمت.
+    // فتح الموقع كزيارة جديدة، من رابط أو تبويب جديد أو بعد إعادة فتح المتصفح،
+    // يعرض صفحة الاسم والصورة حتى يستطيع المستخدم تعديلهما قبل الدخول.
+    try {
+      const navigation = performance.getEntriesByType?.("navigation")?.[0];
+      return navigation?.type === "reload";
+    } catch {
+      return false;
+    }
+  }
+  function discardLegacyPersistentIdentity() {
+    try { localStorage.removeItem(PERSIST_IDENTITY_KEY); } catch {}
+  }
   function saveIdentity(identity) {
     live.identity = identity;
     const text = JSON.stringify(identity);
     try { sessionStorage.setItem(LIVE_IDENTITY_KEY, text); } catch {}
-    try { localStorage.setItem(PERSIST_IDENTITY_KEY, text); } catch {}
+    // لا نحفظ هوية دخول الدردشة في localStorage؛ الاسم والصورة فقط يبقيان محفوظين.
+    // بهذا لا يدخل المستخدم تلقائياً في زيارة جديدة.
+    discardLegacyPersistentIdentity();
   }
   function loadIdentity() {
+    discardLegacyPersistentIdentity();
+    if (!navigationAllowsIdentityResume()) {
+      try {
+        sessionStorage.removeItem(LIVE_IDENTITY_KEY);
+        sessionStorage.removeItem(LEGACY_IDENTITY_KEY);
+        sessionStorage.removeItem(BADGE_TOKEN_KEY);
+      } catch {}
+      return null;
+    }
     const candidates = [];
     try { candidates.push(safeParse(sessionStorage.getItem(LIVE_IDENTITY_KEY) || "null", null)); } catch {}
-    try { candidates.push(safeParse(localStorage.getItem(PERSIST_IDENTITY_KEY) || "null", null)); } catch {}
     try { candidates.push(safeParse(sessionStorage.getItem(LEGACY_IDENTITY_KEY) || "null", null)); } catch {}
     const identity = candidates.find(identityIsUsable) || null;
     if (identity) saveIdentity(identity);
@@ -415,7 +439,7 @@
     if (box) box.classList.toggle("hidden", !session);
     if (email) email.textContent = session?.email || "حساب Google";
     if (title) title.textContent = session ? "الدخول بالحساب المسجل" : "تسجيل الدخول بحساب Google";
-    if (hint) hint.textContent = session ? "لن تحتاج إلى اختيار الحساب مرة أخرى" : "حساب ثابت ومزايا إضافية";
+    if (hint) hint.textContent = session ? "الحساب محفوظ — غيّر الاسم أو الصورة ثم ادخل" : "حساب ثابت ومزايا إضافية";
   }
   function changeGoogleAccount() {
     window.RivoGoogleAuth?.clearSession?.();
