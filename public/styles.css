@@ -2139,3 +2139,136 @@ body.owner .composerToolbar {
     touch-action:manipulation!important;
   }
 }
+
+
+/* =====================================================================
+   Rivo v194 — mobile drawer overlay and cross-phone entry reliability
+   ===================================================================== */
+@media (max-width:820px){
+  /* طبقة التعتيم تغطي المساحة خارج الدرج فقط، ولا تغطي أزرار الغرف نفسها. */
+  .mobileSideBackdrop{
+    top:0!important;
+    bottom:0!important;
+    left:0!important;
+    right:min(88vw,360px)!important;
+    width:auto!important;
+    height:var(--rivo-app-height)!important;
+    z-index:890!important;
+    background:rgba(18,29,48,.38)!important;
+  }
+  body.mobileSideOpen .communitySide{
+    z-index:920!important;
+    pointer-events:auto!important;
+    visibility:visible!important;
+    opacity:1!important;
+  }
+  body:not(.mobileSideOpen) .mobileSideBackdrop{
+    opacity:0!important;
+    pointer-events:none!important;
+  }
+  body.mobileSideOpen .mobileSideBackdrop{
+    opacity:1!important;
+    pointer-events:auto!important;
+  }
+  body.entryLocked .mobileSideBackdrop,
+  body.entryLocked.mobileSideOpen .mobileSideBackdrop{
+    opacity:0!important;
+    pointer-events:none!important;
+    visibility:hidden!important;
+  }
+
+  /* اختيار الصورة يبقى فوق شاشة البداية في جميع متصفحات الهاتف. */
+  body.mobileAvatarEntryPending #entryScreen{
+    pointer-events:none!important;
+  }
+  body.mobileAvatarEntryPending #entryAvatarPickerModal{
+    display:grid!important;
+    visibility:visible!important;
+    opacity:1!important;
+    pointer-events:auto!important;
+    z-index:1600!important;
+  }
+  body.mobileAvatarEntryPending #entryAvatarPickerModal .entryAvatarPickerCard,
+  body.mobileAvatarEntryPending #entryAvatarPickerModal [data-picker-avatar]{
+    pointer-events:auto!important;
+  }
+  #entryGuestBtn,#entryGoogleBtn,#entryAvatarPickerBtn,
+  #entryRoomList [data-entry-room],#entryAvatarPickerGrid [data-picker-avatar]{
+    pointer-events:auto!important;
+    touch-action:manipulation!important;
+    -webkit-tap-highlight-color:transparent;
+  }
+  #entryScreen{
+    touch-action:pan-y!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+}
+
+/* =====================================================================
+   Rivo v194 final — undimmed interactive drawer + avatar safety
+   ===================================================================== */
+@media (max-width:820px){
+  body.mobileSideOpen .communitySide{
+    opacity:1!important;
+    filter:none!important;
+    -webkit-filter:none!important;
+    background:#fff!important;
+    visibility:visible!important;
+    pointer-events:auto!important;
+  }
+  body.mobileSideOpen .communitySide::before,
+  body.mobileSideOpen .communitySide::after{pointer-events:none!important}
+  body.mobileSideOpen .communitySide .sideTabs,
+  body.mobileSideOpen .communitySide .sidePanel,
+  body.mobileSideOpen .communitySide .scrollList,
+  body.mobileSideOpen .communitySide .roomItem,
+  body.mobileSideOpen .communitySide .userItem,
+  body.mobileSideOpen .communitySide button,
+  body.mobileSideOpen .communitySide input{
+    visibility:visible!important;
+  }
+  body.mobileSideOpen #roomsList .roomItem,
+  body.mobileSideOpen #usersList .userItem{
+    position:relative;
+    z-index:2;
+    pointer-events:auto!important;
+  }
+  .mobileSideBackdrop{
+    border-radius:0!important;
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation!important;
+  }
+
+  /* شاشة اختيار الصورة والدخول فوق أي طبقة، مع لمس مضمون على أندرويد وآيفون. */
+  body.mobileAvatarEntryPending #entryAvatarPickerModal{
+    position:fixed!important;
+    inset:0!important;
+    width:100vw!important;
+    height:var(--rivo-app-height)!important;
+    overflow-y:auto!important;
+    -webkit-overflow-scrolling:touch!important;
+  }
+  body.mobileAvatarEntryPending #entryAvatarPickerGrid{
+    pointer-events:auto!important;
+    touch-action:pan-y!important;
+  }
+  body.mobileAvatarEntryPending [data-picker-avatar]{
+    position:relative!important;
+    z-index:3!important;
+    min-height:112px!important;
+    cursor:pointer!important;
+    user-select:none!important;
+    -webkit-user-select:none!important;
+  }
+  #entryGuestBtn,#entryGoogleBtn{
+    position:relative;
+    z-index:3;
+    min-height:54px!important;
+  }
+
+  .msg>img,.userMain img,.sideAccount img,.privateChatPerson img,.entryAvatarPickerOption img{
+    object-fit:cover!important;
+    background:#edf2f8!important;
+  }
+}

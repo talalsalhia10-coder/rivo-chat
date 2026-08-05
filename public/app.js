@@ -1,5 +1,6 @@
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
-const isDirectAvatarSource=value=>typeof value==='string'&&/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/.test(value);
+const isDirectAvatarSource=value=>typeof value==='string'&&/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/i.test(value);
+const RIVO_STATIC_AVATAR_IDS=new Set(['ahmed','ali','guest','lina','mira','noor','owner','samar']);
 const RIVO_LIVE_AVATAR_MAP={
  entry1:'assets/entry-avatars/rivo-avatar-young-man-purple.jpg',
  entry2:'assets/entry-avatars/rivo-avatar-young-woman-purple.jpg',
@@ -11,13 +12,34 @@ const RIVO_LIVE_AVATAR_MAP={
  owner:'assets/avatars/owner.svg',guest:'assets/avatars/guest.svg'
 };
 const av=n=>{
- const raw=String(n||'');
+ const raw=String(n||'').replace(/^\.\//,'').trim();
  if(isDirectAvatarSource(raw))return raw;
  let managed=null;
  try{managed=(Array.isArray(state.entryAvatarOptions)?state.entryAvatarOptions:[]).find(item=>item&&(String(item.id)===raw||String(item.src)===raw))||null}catch(_){}
- if(managed?.src)return managed.src;
- return RIVO_LIVE_AVATAR_MAP[raw]||`assets/avatars/${raw||'guest'}.svg`;
+ if(managed?.src)return String(managed.src);
+ if(RIVO_LIVE_AVATAR_MAP[raw])return RIVO_LIVE_AVATAR_MAP[raw];
+ if(RIVO_STATIC_AVATAR_IDS.has(raw))return `assets/avatars/${raw}.svg`;
+ // لا تنشئ مسار SVG وهمياً للصورة المرفوعة إذا لم تصل إعداداتها بعد.
+ if(/^entry_avatar_admin_/i.test(raw))return RIVO_LIVE_AVATAR_MAP.owner;
+ if(/^entry_avatar_/i.test(raw))return RIVO_LIVE_AVATAR_MAP.guest;
+ return RIVO_LIVE_AVATAR_MAP.guest;
 };
+function installAvatarImageFallback(){
+ if(window.__rivoAvatarFallbackInstalled)return;
+ window.__rivoAvatarFallbackInstalled=true;
+ document.addEventListener('error',event=>{
+  const img=event.target;
+  if(!(img instanceof HTMLImageElement)||img.dataset.rivoAvatarFallback==='1')return;
+  const src=String(img.getAttribute('src')||'');
+  if(!/(?:avatars|entry-avatars|characters|data:image|blob:)/i.test(src))return;
+  img.dataset.rivoAvatarFallback='1';
+  const nearbyOwner=Boolean(img.parentElement?.querySelector?.('.ownerRoyalCrown'))||
+    Boolean(img.closest('.msg')?.querySelector?.('.ownerRoyalCrown'));
+  img.src=nearbyOwner?RIVO_LIVE_AVATAR_MAP.owner:RIVO_LIVE_AVATAR_MAP.guest;
+ },true);
+}
+installAvatarImageFallback();
+
 const state={
  room:'general', user:null, target:null, color:'#111827', guestAvatar:'guest', localStream:null,
  inbox:{messages:0,alerts:0},

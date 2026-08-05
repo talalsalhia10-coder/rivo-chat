@@ -1168,7 +1168,11 @@
         break;
       }
       case "init": {
-        await ensureAvatarSettings([data.self?.avatar, ...(Array.isArray(data.users) ? data.users.map((u) => u?.avatar) : [])]);
+        await ensureAvatarSettings([
+          data.self?.avatar,
+          ...(Array.isArray(data.users) ? data.users.map((u) => u?.avatar) : []),
+          ...(Array.isArray(data.messages) ? data.messages.map((message) => message?.avatar) : [])
+        ]);
         live.self = { ...data.self, isGuest: live.identity?.type === "guest", verified: live.identity?.type === "google" };
         live.roomId = data.room?.id || live.roomId;
         state.room = live.roomId;
@@ -1197,6 +1201,7 @@
         syncUsers(data.users || []);
         break;
       case "message":
+        await ensureAvatarSettings(data.message?.avatar);
         appendLiveMessage(data.message || {});
         break;
       case "profile-updated":

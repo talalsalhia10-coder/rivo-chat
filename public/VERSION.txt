@@ -1,1 +1,1 @@
-Rivo Chat v193 — Mobile logout reliably returns to entry screen, room switching works with one tap, and drawers never remain stuck
+Rivo Chat v194 — Mobile rooms/users drawer works without a blocking dim layer; entry is reliable across phones; uploaded avatars resolve safely

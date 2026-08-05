@@ -1,4 +1,4 @@
-/* Rivo v193 — reliable mobile logout and room switching */
+/* Rivo v194 — mobile drawer/backdrop + reliable entry compatibility */
 (() => {
   'use strict';
 
@@ -8,6 +8,8 @@
   let entryBypass = false;
   let pageLockInstalled = false;
   let lastLockedScrollReset = 0;
+  let avatarEntryFinishTimer = 0;
+  let pendingAvatarId = '';
 
   const $ = (selector, root = document) => root.querySelector(selector);
 
@@ -108,6 +110,7 @@
     if (!isMobile() || entryBypass) return false;
     if (!validateEntryBeforeAvatar()) return true;
     pendingEntryType = type;
+    pendingAvatarId = '';
     document.body.classList.add('mobileAvatarEntryPending');
     if (typeof window.openEntryAvatarPicker === 'function') {
       window.openEntryAvatarPicker('entry');
@@ -120,8 +123,19 @@
     if (!pendingEntryType) return;
     const type = pendingEntryType;
     pendingEntryType = null;
+    try {
+      if (pendingAvatarId && typeof state === 'object' && state) {
+        state.entryAvatar = pendingAvatarId;
+        if (typeof window.updateEntryAvatarUI === 'function') window.updateEntryAvatarUI();
+      }
+    } catch (_) {}
+    pendingAvatarId = '';
+    window.clearTimeout(avatarEntryFinishTimer);
+    avatarEntryFinishTimer = 0;
     document.body.classList.remove('mobileAvatarEntryPending');
-    $('#entryAvatarPickerModal')?.classList.remove('mobileAvatarEntryFlow');
+    const modal = $('#entryAvatarPickerModal');
+    modal?.classList.remove('mobileAvatarEntryFlow');
+    modal?.classList.add('hidden');
 
     window.setTimeout(() => {
       entryBypass = true;
@@ -130,11 +144,31 @@
       } finally {
         entryBypass = false;
       }
-    }, 70);
+      // بعض متصفحات أندرويد القديمة تتأخر في إزالة شاشة الدخول؛ صحح الحالة بعد التنفيذ.
+      window.setTimeout(() => {
+        const screen = $('#entryScreen');
+        if (screen?.classList.contains('hidden')) {
+          document.body.classList.remove('entryLocked', 'mobileAvatarEntryPending', 'mobileSideOpen');
+          closeMobileDrawer();
+          setViewportVars();
+        }
+      }, 90);
+    }, 90);
+  }
+
+  function scheduleEntryAfterAvatar() {
+    if (!pendingEntryType || avatarEntryFinishTimer) return;
+    avatarEntryFinishTimer = window.setTimeout(() => {
+      avatarEntryFinishTimer = 0;
+      finishEntryAfterAvatar();
+    }, 120);
   }
 
   function cancelPendingEntry() {
+    window.clearTimeout(avatarEntryFinishTimer);
+    avatarEntryFinishTimer = 0;
     pendingEntryType = null;
+    pendingAvatarId = '';
     document.body.classList.remove('mobileAvatarEntryPending');
     $('#entryAvatarPickerModal')?.classList.remove('mobileAvatarEntryFlow');
   }
@@ -156,11 +190,18 @@
       beginEntryAvatarStep('guest');
     }, true);
 
-    document.addEventListener('click', (event) => {
+    // click هو المسار الأساسي، وpointerup احتياط للهواتف التي لا تطلق click بثبات بعد التمرير الخفيف.
+    const handleAvatarChoice = (event) => {
       if (!isMobile() || !pendingEntryType) return;
-      const avatar = event.target.closest('[data-picker-avatar]');
-      if (avatar) finishEntryAfterAvatar();
-    });
+      const target = event.target instanceof Element ? event.target : null;
+      const avatar = target?.closest('[data-picker-avatar]');
+      if (!avatar) return;
+      pendingAvatarId = String(avatar.dataset.pickerAvatar || '');
+      scheduleEntryAfterAvatar();
+    };
+    document.addEventListener('pointerup', handleAvatarChoice, true);
+    document.addEventListener('touchend', handleAvatarChoice, { capture: true, passive: true });
+    document.addEventListener('click', handleAvatarChoice, false);
 
     document.addEventListener('click', (event) => {
       if (event.target.closest('[data-close="entryAvatarPickerModal"]')) cancelPendingEntry();
@@ -172,9 +213,33 @@
     if (button && !button.classList.contains('active')) button.click();
   }
 
+  function positionMobileBackdrop() {
+    if (!isMobile()) return;
+    const side = $('.communitySide');
+    const backdrop = $('#mobileSideBackdrop');
+    if (!side || !backdrop || !document.body.classList.contains('mobileSideOpen')) return;
+    requestAnimationFrame(() => {
+      const rect = side.getBoundingClientRect();
+      const outsideWidth = Math.max(0, Math.min(window.innerWidth, Math.round(rect.left)));
+      backdrop.style.setProperty('left', '0px', 'important');
+      backdrop.style.setProperty('right', 'auto', 'important');
+      backdrop.style.setProperty('width', `${outsideWidth}px`, 'important');
+      backdrop.style.setProperty('height', 'var(--rivo-app-height)', 'important');
+    });
+  }
+
   function closeMobileDrawer() {
     document.body.classList.remove('mobileSideOpen');
-    $('.communitySide')?.setAttribute('aria-hidden', 'true');
+    const side = $('.communitySide');
+    side?.setAttribute('aria-hidden', 'true');
+    const backdrop = $('#mobileSideBackdrop');
+    if (backdrop) {
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.tabIndex = -1;
+      backdrop.style.removeProperty('width');
+      backdrop.style.removeProperty('left');
+      backdrop.style.removeProperty('right');
+    }
   }
 
 
@@ -197,10 +262,19 @@
   window.RivoMobileCloseDrawer = closeMobileDrawer;
 
   function openMobileDrawer(tabName) {
-    if (!isMobile()) return;
+    if (!isMobile() || document.body.classList.contains('entryLocked')) return;
+    const side = $('.communitySide');
+    if (!side) return;
     activateSideTab(tabName);
     document.body.classList.add('mobileSideOpen');
-    $('.communitySide')?.setAttribute('aria-hidden', 'false');
+    side.setAttribute('aria-hidden', 'false');
+    const backdrop = $('#mobileSideBackdrop');
+    if (backdrop) {
+      backdrop.setAttribute('aria-hidden', 'false');
+      backdrop.tabIndex = 0;
+    }
+    positionMobileBackdrop();
+    window.setTimeout(positionMobileBackdrop, 80);
   }
 
   function ensureMobileChrome() {
@@ -237,6 +311,8 @@
       backdrop.className = 'mobileSideBackdrop';
       backdrop.type = 'button';
       backdrop.setAttribute('aria-label', 'إغلاق القائمة');
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.tabIndex = -1;
       document.body.appendChild(backdrop);
       backdrop.addEventListener('click', closeMobileDrawer);
     }
@@ -385,8 +461,22 @@
     }
   }
 
+  function recoverMobileInteractionState() {
+    if (!isMobile()) return;
+    const entryVisible = !$('#entryScreen')?.classList.contains('hidden');
+    if (entryVisible || document.body.classList.contains('entryLocked')) {
+      closeMobileDrawer();
+    }
+    // لا تسمح ببقاء طبقة التعتيم وحدها إذا اختفى الدرج لأي سبب.
+    const side = $('.communitySide');
+    if (document.body.classList.contains('mobileSideOpen') && (!side || side.getAttribute('aria-hidden') === 'true')) {
+      closeMobileDrawer();
+    }
+  }
+
   function applyMode() {
     document.body.classList.toggle('rivoMobileUI', isMobile());
+    recoverMobileInteractionState();
     syncPageLock();
     if (!isMobile()) closeMobileDrawer();
     compactRoomButtons();
@@ -395,9 +485,11 @@
     syncComposerHeight();
     syncMobileLabels();
     syncMobileStage();
+    if (document.body.classList.contains('mobileSideOpen')) positionMobileBackdrop();
   }
 
   function init() {
+    closeMobileDrawer();
     ensureMobileChrome();
     installHardPageLock();
     bindMobileEntryFlow();
@@ -406,6 +498,8 @@
     installObservers();
     applyMode();
 
+    window.addEventListener('pageshow', () => { closeMobileDrawer(); applyMode(); }, { passive: true });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { recoverMobileInteractionState(); applyMode(); } });
     window.addEventListener('resize', applyMode, { passive: true });
     window.addEventListener('orientationchange', () => window.setTimeout(applyMode, 120), { passive: true });
     if (window.visualViewport) {
