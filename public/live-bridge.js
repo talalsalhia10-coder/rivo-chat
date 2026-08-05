@@ -2082,6 +2082,88 @@
     selectEntryRoomLive(roomId, true);
   });
 
+  let lastOwnerPreviewEntryNonce = "";
+  let ownerPreviewEntrySerial = 0;
+  function acknowledgeOwnerPreviewEntry(nonce, sourceWindow = window.parent) {
+    if (!nonce || !sourceWindow || sourceWindow === window) return;
+    try {
+      sourceWindow.postMessage({
+        type: "rivo-owner-preview-entry-accepted",
+        source: "chat",
+        nonce,
+        roomId: live.roomId,
+        time: Date.now()
+      }, location.origin);
+    } catch {}
+  }
+
+  async function applyOwnerPreviewEntry(message = {}, sourceWindow = window.parent) {
+    const nonce = String(message.nonce || "");
+    const supplied = message.identity && typeof message.identity === "object" ? message.identity : null;
+    const role = String(supplied?.role || supplied?.type || "");
+    if (!supplied || !["owner", "moderator"].includes(role) || !identityIsUsable(supplied)) return false;
+
+    if (nonce && nonce === lastOwnerPreviewEntryNonce) {
+      acknowledgeOwnerPreviewEntry(nonce, sourceWindow);
+      return true;
+    }
+    lastOwnerPreviewEntryNonce = nonce || `owner-entry-${Date.now()}`;
+    const entrySerial = ++ownerPreviewEntrySerial;
+    acknowledgeOwnerPreviewEntry(nonce, sourceWindow);
+
+    const identity = {
+      ...supplied,
+      type: role,
+      role,
+      visible: supplied.visible !== false
+    };
+    const requestedRoom = String(message.roomId || live.roomId || state.room || "lobby");
+    const normalizedRoom = requestedRoom === "general" ? "lobby" : requestedRoom;
+
+    live.pageLeaving = false;
+    closeSocket("admin-preview-entry");
+    saveIdentity(identity);
+    live.pendingOutgoing = [];
+    live.self = null;
+    live.ignoreHistoryOnce = true;
+
+    await fetchRooms(false);
+    if (entrySerial !== ownerPreviewEntrySerial) return false;
+    const targetRoom = state.rooms.some((room) => room.id === normalizedRoom)
+      ? normalizedRoom
+      : (state.rooms[0]?.id || "lobby");
+
+    clearRoomSnapshot(state.room);
+    clearRoomSnapshot(targetRoom);
+    live.roomId = targetRoom;
+    state.room = targetRoom;
+    state.users = [];
+    state.user = null;
+    state.messages = [];
+    state.stage = [];
+    state.activeNameGifts = {};
+    saveActiveRoom(targetRoom);
+    setRoomCutoff(targetRoom, Date.now());
+    startFreshRoomConversation(targetRoom);
+    hideEntryScreen();
+    setConnection("connecting", identity.visible === false ? "دخول الإدارة مخفياً…" : "دخول الإدارة…");
+    try { renderAll(); syncLiveChrome(); } catch {}
+
+    // مهلة قصيرة تسمح لأمر الظهور/الإخفاء الصادر من لوحة الإدارة أن يصل للخادم أولاً.
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    if (entrySerial !== ownerPreviewEntrySerial) return false;
+    await connect(targetRoom, { force: true, reason: "admin-preview-entry" });
+    return true;
+  }
+
+  window.addEventListener("message", (event) => {
+    if (event.origin !== location.origin) return;
+    if (event.source !== window.parent && event.source !== window.opener) return;
+    const message = event.data;
+    if (!message || message.type !== "rivo-owner-preview-entry") return;
+    void applyOwnerPreviewEntry(message, event.source);
+  });
+
   function bindLiveUI() {
     // واجهة دخول ثابتة للموبايل: تمنع اعتماد الهاتف على ترتيب تحميل المتغيرات العامة.
     window.RivoEntryActions = {

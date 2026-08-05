@@ -494,7 +494,7 @@ function enterOwnerChatNow(name=ownerAdminSettingsState.name,visible=ownerAdminS
  const identity=buildOwnerChatIdentity(name,visible);
  if(!identity){showRemoteAdminLogin('أعد إدخال رمز الإدارة أولاً.');setOwnerAdminStatus('يلزم تسجيل دخول الإدارة قبل فتح الدردشة.','error');return false}
  if(!saveOwnerChatIdentity(identity)){setOwnerAdminStatus('تعذر حفظ جلسة دخول الإدارة في المتصفح.','error');return false}
- reloadChatPreviewAsOwner();
+ deliverOwnerEntryToPreview(identity,selectedRoomId);
  if(openWindow){
   const tab=window.open(`index.html?room=${encodeURIComponent(selectedRoomId)}&ownerEntry=${Date.now()}`,'_blank','noopener');
   if(!tab)setOwnerAdminStatus('تم دخول الإدارة داخل المعاينة. المتصفح منع فتح نافذة مستقلة.','success');
@@ -561,7 +561,7 @@ function switchOwnerAdminRoom(roomId,{openWindow=false}={}){
  renderOwnerAdminRoomPicker();
  renderRoomsAdmin();
  connectAdminSocket(true);
- reloadChatPreviewAsOwner();
+ deliverOwnerEntryToPreview(identity,room.id);
  if(openWindow){
   const tab=window.open(`index.html?room=${encodeURIComponent(room.id)}&ownerEntry=${Date.now()}`,'_blank','noopener');
   if(!tab)setOwnerAdminStatus(`تم دخول غرفة ${room.name} داخل المعاينة، لكن المتصفح منع فتح نافذة مستقلة.`,'success');
@@ -811,6 +811,43 @@ let micRequests=readJSON(MIC_KEY,[]);
 let logs=readJSON(LOG_KEY,[]);
 let selectedRoomId=(()=>{const requested=new URLSearchParams(location.search).get('room')||'';const normalized=requested==='lobby'?'general':requested;return config.rooms.some(room=>room.id===normalized)?normalized:(config.rooms[0]?.id||'general')})();
 
+let ownerPreviewEntryNonce='';
+let ownerPreviewEntryFallbackTimer=null;
+let ownerPreviewEntryRetryTimers=[];
+function clearOwnerPreviewEntryDelivery(nonce=''){
+ if(nonce&&ownerPreviewEntryNonce&&nonce!==ownerPreviewEntryNonce)return false;
+ clearTimeout(ownerPreviewEntryFallbackTimer);ownerPreviewEntryFallbackTimer=null;
+ ownerPreviewEntryRetryTimers.forEach(clearTimeout);ownerPreviewEntryRetryTimers=[];
+ ownerPreviewEntryNonce='';
+ return true;
+}
+function deliverOwnerEntryToPreview(identity,roomId=selectedRoomId){
+ const frame=$('#chatPreview');
+ if(!frame?.contentWindow||!identity)return false;
+ clearOwnerPreviewEntryDelivery();
+ const nonce=`owner-entry-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+ ownerPreviewEntryNonce=nonce;
+ const payload={
+  type:'rivo-owner-preview-entry',
+  source:'admin',
+  nonce,
+  identity:structuredClone(identity),
+  roomId:normalizeLiveRoomId(roomId),
+  time:Date.now()
+ };
+ const post=()=>{
+  if(ownerPreviewEntryNonce!==nonce)return;
+  try{frame.contentWindow.postMessage(payload,location.origin)}catch(_){ }
+ };
+ post();
+ ownerPreviewEntryRetryTimers=[220,650,1200].map(delay=>setTimeout(post,delay));
+ ownerPreviewEntryFallbackTimer=setTimeout(()=>{
+  if(ownerPreviewEntryNonce!==nonce)return;
+  clearOwnerPreviewEntryDelivery(nonce);
+  reloadChatPreviewAsOwner();
+ },2200);
+ return true;
+}
 
 function sendLiveMessage(type,payload){
  const message={type,payload,source:'admin',time:Date.now()};
@@ -2219,8 +2256,15 @@ function bind(){
    if(e.key===MIC_KEY){micRequests=readJSON(MIC_KEY,[]);renderMicRequests();renderOverview();sendMicsLive()}
  });
  window.addEventListener('message',e=>{
+   if(e.origin!==location.origin)return;
    const msg=e.data;
    if(!msg||typeof msg!=='object')return;
+   if(msg.type==='rivo-owner-preview-entry-accepted'){
+     if(clearOwnerPreviewEntryDelivery(String(msg.nonce||''))){
+       setPreviewConnected(true);
+       setOwnerAdminStatus('تم ربط معاينة الدردشة مباشرة؛ المستخدمون والغرف يتحدثون الآن من دون تحديث الصفحة.','success');
+     }
+   }
    if(msg.type==='rivo-chat-ready'){setPreviewConnected(true);sendConfigLive();sendCamerasLive();sendMicsLive()}
    if(msg.type==='rivo-moderator-token-used'){const token=config.moderatorTokens.find(t=>t.id===msg.payload?.tokenId);if(token){token.lastUsedAt=msg.payload.time||Date.now();const user=moderatorUserForToken(token);if(user)user.status='online';localStorage.setItem(CONFIG_KEY,JSON.stringify(config));renderModeratorTokens();renderUsersAdmin();renderCommunityPanel()}}
    if(msg.type==='rivo-staff-visibility'){const user=userById(msg.payload?.userId);if(user&&['owner','moderator'].includes(user.role)){user.isHidden=Boolean(msg.payload.hidden);if(user.moderatorTokenId){const token=config.moderatorTokens.find(t=>t.id===user.moderatorTokenId);if(token)token.isHidden=user.isHidden}localStorage.setItem(CONFIG_KEY,JSON.stringify(config));renderModeratorTokens();renderUsersAdmin();renderCommunityPanel()}}
@@ -2235,6 +2279,7 @@ function bind(){
      renderCameraRequests();renderOverview();sendCamerasLive();
    }
    if(msg.type==='rivo-chat-state'){
+     clearOwnerPreviewEntryDelivery();
      setPreviewConnected(true);
      const stateText=$('#previewSyncState');
      if(stateText)stateText.textContent=`الغرفة: ${roomById(msg.payload?.room)?.name||'—'} · الزوار الظاهرون: ${msg.payload?.users??0}`;
