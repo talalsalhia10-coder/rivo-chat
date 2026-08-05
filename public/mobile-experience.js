@@ -510,3 +510,263 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
   else init();
 })();
+
+/* =========================================================
+   Rivo v208 — mobile latest-message follow + room presence bar
+   UI-only patch. Does not touch WebSocket, login, radio or admin logic.
+   ========================================================= */
+(() => {
+  'use strict';
+
+  const BREAKPOINT = 820;
+  const isMobile = () => window.matchMedia(`(max-width:${BREAKPOINT}px)`).matches;
+  const byId = (id) => document.getElementById(id);
+  let presenceRenderQueued = false;
+  let messageFollowEnabled = true;
+  let messageObserver = null;
+  let usersObserver = null;
+  let lastObservedMessages = null;
+
+  function accessRole(user = {}) {
+    if (user.role === 'owner') return 'owner';
+    if (user.role === 'moderator') return 'moderator';
+    if (user.role === 'guest' || user.authType === 'guest') return 'guest';
+    if (['primo', 'vip', 'plus'].includes(user.plan)) return user.plan;
+    return user.vip ? 'vip' : 'user';
+  }
+
+  function roleRank(user = {}) {
+    return ({ owner: 0, moderator: 1, primo: 2, vip: 3, plus: 4, user: 5, guest: 6 })[accessRole(user)] ?? 5;
+  }
+
+  function roleMark(user = {}) {
+    return ({ owner: '👑', moderator: '⭐', primo: '🔷', vip: '💎', plus: '➕', guest: '•' })[accessRole(user)] || '';
+  }
+
+  function currentRoomUsers() {
+    let users = [];
+    try {
+      if (typeof usersInRoom === 'function') users = usersInRoom() || [];
+      else if (typeof state !== 'undefined' && state && Array.isArray(state.users)) {
+        const roomId = state.room;
+        users = state.users.filter((user) => user && user.room === roomId && !user.isHistoryOnly && !user.isHidden);
+        const self = state.user;
+        if (self && self.room === roomId && !users.some((user) => user.id === self.id)) users.unshift(self);
+      }
+    } catch {}
+
+    const unique = [];
+    const seen = new Set();
+    users.forEach((user, index) => {
+      if (!user) return;
+      const key = String(user.id || `${user.name || 'user'}-${index}`);
+      if (seen.has(key)) return;
+      seen.add(key);
+      unique.push({ user, index });
+    });
+
+    return unique.sort((a, b) => {
+      const rank = roleRank(a.user) - roleRank(b.user);
+      if (rank) return rank;
+      const priority = (Number(b.user.priority) || 0) - (Number(a.user.priority) || 0);
+      return priority || a.index - b.index;
+    }).map((item) => item.user);
+  }
+
+  function avatarSource(user = {}) {
+    try {
+      if (typeof av === 'function') return av(user.avatar || 'guest');
+    } catch {}
+    return String(user.avatar || 'assets/avatars/guest.svg');
+  }
+
+  function ensurePresenceBar() {
+    const header = document.querySelector('.roomTop');
+    if (!header) return null;
+    let bar = byId('mobileRoomPresence');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'mobileRoomPresence';
+      bar.className = 'mobileRoomPresence';
+      bar.setAttribute('aria-label', 'اسم الغرفة والمستخدمون المتصلون');
+      header.appendChild(bar);
+    }
+    return bar;
+  }
+
+  function renderPresenceBar() {
+    presenceRenderQueued = false;
+    const bar = ensurePresenceBar();
+    if (!bar) return;
+    if (!isMobile()) {
+      bar.replaceChildren();
+      return;
+    }
+
+    const roomName = String(byId('roomTitle')?.textContent || 'الغرفة').trim();
+    const users = currentRoomUsers();
+    const fragment = document.createDocumentFragment();
+
+    const roomButton = document.createElement('button');
+    roomButton.type = 'button';
+    roomButton.className = 'mobilePresenceRoom';
+    roomButton.title = 'فتح قائمة الغرف';
+    roomButton.innerHTML = `<span aria-hidden="true">🏠</span><b></b><small>${users.length}</small>`;
+    roomButton.querySelector('b').textContent = roomName;
+    roomButton.addEventListener('click', () => byId('mobileRoomsOpen')?.click());
+    fragment.appendChild(roomButton);
+
+    users.forEach((user) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = `mobilePresenceUser mobilePresenceRole-${accessRole(user)}`;
+      button.dataset.mobilePresenceUser = String(user.id || '');
+      button.title = String(user.name || (accessRole(user) === 'owner' ? 'الإدارة' : 'مستخدم'));
+
+      const image = document.createElement('img');
+      image.src = avatarSource(user);
+      image.alt = '';
+      image.loading = 'eager';
+
+      const copy = document.createElement('span');
+      const name = document.createElement('b');
+      name.textContent = String(user.name || (accessRole(user) === 'owner' ? 'الإدارة' : 'مستخدم'));
+      const mark = document.createElement('small');
+      mark.textContent = roleMark(user);
+      copy.append(name, mark);
+      button.append(image, copy);
+
+      button.addEventListener('click', () => {
+        const id = String(user.id || '');
+        try {
+          if (id && typeof showProfile === 'function') {
+            showProfile(id);
+            return;
+          }
+        } catch {}
+        byId('mobileUsersOpen')?.click();
+      });
+      fragment.appendChild(button);
+    });
+
+    if (!users.length) {
+      const empty = document.createElement('span');
+      empty.className = 'mobilePresenceEmpty';
+      empty.textContent = 'بانتظار ظهور المستخدمين…';
+      fragment.appendChild(empty);
+    }
+
+    bar.replaceChildren(fragment);
+  }
+
+  function queuePresenceRender() {
+    if (presenceRenderQueued) return;
+    presenceRenderQueued = true;
+    requestAnimationFrame(renderPresenceBar);
+  }
+
+  function measureComposer() {
+    const composer = document.querySelector('.composerDock');
+    if (!composer || !isMobile()) return;
+    const height = Math.max(82, Math.ceil(composer.getBoundingClientRect().height || composer.offsetHeight || 92));
+    document.documentElement.style.setProperty('--rivo-composer-height', `${height}px`);
+  }
+
+  function nearMessagesBottom(messages) {
+    if (!messages) return true;
+    return messages.scrollHeight - messages.scrollTop - messages.clientHeight < 150;
+  }
+
+  function scrollMessagesToBottom(force = false) {
+    const messages = byId('messages');
+    if (!messages || !isMobile()) return;
+    if (!force && !messageFollowEnabled) return;
+    const perform = () => {
+      messages.scrollTop = messages.scrollHeight;
+      const last = messages.lastElementChild;
+      try { last?.scrollIntoView({ block: 'end', inline: 'nearest' }); } catch {}
+      messages.scrollTop = messages.scrollHeight;
+    };
+    requestAnimationFrame(() => {
+      perform();
+      requestAnimationFrame(perform);
+      setTimeout(perform, 90);
+      setTimeout(perform, 260);
+    });
+  }
+
+  function bindMessages() {
+    const messages = byId('messages');
+    if (!messages || messages === lastObservedMessages) return;
+    lastObservedMessages = messages;
+    messageObserver?.disconnect();
+    messageFollowEnabled = true;
+
+    messages.addEventListener('scroll', () => {
+      messageFollowEnabled = nearMessagesBottom(messages);
+    }, { passive: true });
+
+    messageObserver = new MutationObserver(() => {
+      if (messageFollowEnabled || nearMessagesBottom(messages)) scrollMessagesToBottom(false);
+    });
+    messageObserver.observe(messages, { childList: true, subtree: true });
+    scrollMessagesToBottom(true);
+  }
+
+  function bindUserRefresh() {
+    const usersList = byId('usersList');
+    if (!usersList || usersObserver) return;
+    usersObserver = new MutationObserver(queuePresenceRender);
+    usersObserver.observe(usersList, { childList: true, subtree: true, characterData: true });
+  }
+
+  function applyMobileChatFixes(forceBottom = false) {
+    ensurePresenceBar();
+    bindMessages();
+    bindUserRefresh();
+    measureComposer();
+    queuePresenceRender();
+    if (forceBottom) scrollMessagesToBottom(true);
+  }
+
+  function init() {
+    applyMobileChatFixes(true);
+
+    window.addEventListener('rivo-room-switched', () => {
+      messageFollowEnabled = true;
+      setTimeout(() => applyMobileChatFixes(true), 40);
+    });
+    window.addEventListener('pageshow', () => setTimeout(() => applyMobileChatFixes(true), 30), { passive: true });
+    window.addEventListener('resize', () => setTimeout(() => {
+      measureComposer();
+      if (messageFollowEnabled) scrollMessagesToBottom(false);
+      queuePresenceRender();
+    }, 40), { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(() => applyMobileChatFixes(true), 180), { passive: true });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) setTimeout(() => applyMobileChatFixes(true), 60);
+    });
+    byId('messageInput')?.addEventListener('focus', () => {
+      messageFollowEnabled = true;
+      setTimeout(() => scrollMessagesToBottom(true), 120);
+    });
+    byId('sendBtn')?.addEventListener('click', () => {
+      messageFollowEnabled = true;
+      setTimeout(() => scrollMessagesToBottom(true), 30);
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', () => setTimeout(() => {
+        measureComposer();
+        if (messageFollowEnabled) scrollMessagesToBottom(false);
+      }, 45), { passive: true });
+    }
+
+    const bodyObserver = new MutationObserver(() => applyMobileChatFixes(false));
+    bodyObserver.observe(document.body, { childList: true, subtree: false, attributes: true, attributeFilter: ['class'] });
+    setTimeout(() => applyMobileChatFixes(true), 350);
+    setTimeout(() => applyMobileChatFixes(true), 900);
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, { once: true });
+  else init();
+})();

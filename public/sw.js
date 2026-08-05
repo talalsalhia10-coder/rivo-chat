@@ -1,14 +1,14 @@
-const RELEASE = "205-admin-avatar-private";
+const RELEASE = "208-mobile-messages-presence";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=200",
-  "./app.js?v=205",
+  "./styles.css?v=208",
+  "./app.js?v=202",
   "./live-bridge.js?v=204",
-  "./mobile-experience.js?v=200",
+  "./mobile-experience.js?v=208",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
   "./relay-audio.js?v=178",
