@@ -6,6 +6,8 @@
   const LIVE_IDENTITY_KEY = "rivo_live_identity_v158";
   const LEGACY_IDENTITY_KEY = "rivo_live_identity_v156";
   const PERSIST_IDENTITY_KEY = "rivo_live_identity_persistent_v1";
+  const CONNECTION_TAB_KEY = "rivo_live_connection_tab_v1";
+  const CONNECTION_SEQ_KEY = "rivo_live_connection_seq_v1";
   const ACTIVE_ROOM_KEY = "rivo_live_active_room_v1";
   const MESSAGE_SNAPSHOT_KEY = "rivo_live_message_snapshots_v1";
   const ROOM_CUTOFFS_KEY = "rivo_live_room_cutoffs_v1";
@@ -18,6 +20,18 @@
   const CROWN_ONLY_NAME = "__rivo_crown_only__";
   const ADMIN_MESSAGE_STORE_PREFIX = "rivo_admin_direct_messages_v2";
   const ADMIN_MESSAGE_TTL = 7 * 24 * 60 * 60 * 1000;
+
+  // اتصال احترافي: فحص نبض، استئناف صامت، وفتح اتصال بديل قبل إغلاق القديم.
+  const HEARTBEAT_INTERVAL_MS = 20_000;
+  const HEARTBEAT_TIMEOUT_MS = 90_000;
+  const HEARTBEAT_VISIBLE_GRACE_MS = 15_000;
+  const CONNECTION_PROBE_TIMEOUT_MS = 10_000;
+  const CONNECT_TIMEOUT_MS = 25_000;
+  const RECONNECT_MAX_DELAY_MS = 12_000;
+  // عند العودة بعد خمول طويل لا نعتمد على WebSocket يبدو مفتوحاً وهو ميت فعلياً.
+  const OUTGOING_FRESHNESS_MS = 55_000;
+  const OUTGOING_QUEUE_TTL_MS = 90_000;
+  const OUTGOING_QUEUE_LIMIT = 20;
 
   const ROOM_ICONS = {
     lobby: "🌐", general: "🌐", iraq: "🇮🇶", syria: "🇸🇾", jordan: "🇯🇴",
@@ -72,6 +86,7 @@
 
   const live = {
     socket: null,
+    connectingSocket: null,
     identity: null,
     self: null,
     roomId: "lobby",
@@ -90,12 +105,20 @@
     heartbeatTimer: null,
     connectTimeout: null,
     lastPongAt: 0,
+    lastTrafficAt: 0,
+    lastPingAt: 0,
+    visibleSinceAt: document.visibilityState === "visible" ? Date.now() : 0,
     connectSerial: 0,
+    connectionSeq: 0,
+    connectionTabId: "",
+    heartbeatProbeTimer: null,
     ignoreHistoryOnce: false,
     googlePrepared: false,
     pendingProfilePatch: null,
     avatarSettingsSync: null,
-    pageLeaving: false
+    pageLeaving: false,
+    pendingOutgoing: [],
+    lastQueueNoticeAt: 0
   };
 
   function byId(id) { return document.getElementById(id); }
@@ -132,8 +155,11 @@
     if (!raw) return true;
     if (/^(data:image\/|blob:|https?:\/\/|\/|assets\/|characters\/)/i.test(raw)) return true;
     if (["owner","guest","lina","girl2","girl3","girl4","man1","avatar6","avatar7","entry1","entry2","entry3","entry4","entry5","entry6"].includes(raw)) return true;
-    return (Array.isArray(state.entryAvatarOptions) ? state.entryAvatarOptions : [])
-      .some((item) => item && (String(item.id) === raw || String(item.src) === raw));
+    const managedOptions = [
+      ...(Array.isArray(state.entryAvatarOptions) ? state.entryAvatarOptions : []),
+      ...(Array.isArray(state.staffAvatarOptions) ? state.staffAvatarOptions : [])
+    ];
+    return managedOptions.some((item) => item && (String(item.id) === raw || String(item.src) === raw));
   }
 
   async function ensureAvatarSettings(values = []) {
@@ -157,17 +183,116 @@
   function safeParse(text, fallback = null) {
     try { return JSON.parse(text); } catch { return fallback; }
   }
+  function getConnectionTabId() {
+    if (live.connectionTabId) return live.connectionTabId;
+    try {
+      const stored = sessionStorage.getItem(CONNECTION_TAB_KEY);
+      if (stored && /^[a-z0-9-]{8,100}$/i.test(stored)) {
+        live.connectionTabId = stored;
+        return stored;
+      }
+    } catch {}
+    const generated = typeof globalThis.crypto?.randomUUID === "function"
+      ? globalThis.crypto.randomUUID()
+      : `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    live.connectionTabId = generated;
+    try { sessionStorage.setItem(CONNECTION_TAB_KEY, generated); } catch {}
+    return generated;
+  }
+  function nextConnectionSeq() {
+    let stored = 0;
+    try { stored = Number(sessionStorage.getItem(CONNECTION_SEQ_KEY) || 0); } catch {}
+    const next = Math.max(Date.now(), Number.isFinite(stored) ? stored + 1 : 1, live.connectionSeq + 1);
+    live.connectionSeq = next;
+    try { sessionStorage.setItem(CONNECTION_SEQ_KEY, String(next)); } catch {}
+    return next;
+  }
   function socketReady() { return live.socket?.readyState === WebSocket.OPEN; }
   function hiddenMonitorMode() {
     return Boolean((live.identity?.type === "owner" || live.identity?.type === "moderator") && live.identity?.visible === false);
   }
-  function send(payload) {
-    if (!socketReady()) {
-      toast("الدردشة غير متصلة الآن");
-      return false;
+  function lastConnectionActivityAt() {
+    return Math.max(Number(live.lastPongAt || 0), Number(live.lastTrafficAt || 0));
+  }
+  function connectionFreshForOutgoing() {
+    if (!socketReady()) return false;
+    const lastActivity = lastConnectionActivityAt();
+    return lastActivity > 0 && Date.now() - lastActivity <= OUTGOING_FRESHNESS_MS;
+  }
+  function payloadCanWaitForReconnect(payload) {
+    return ["chat", "private-chat", "admin-private-reply"].includes(String(payload?.type || ""));
+  }
+  function queueOutgoing(payload) {
+    const now = Date.now();
+    live.pendingOutgoing = (Array.isArray(live.pendingOutgoing) ? live.pendingOutgoing : [])
+      .filter((item) => Number(item?.expiresAt || 0) > now && item?.roomId === live.roomId);
+    live.pendingOutgoing.push({
+      payload: { ...payload },
+      roomId: live.roomId,
+      queuedAt: now,
+      expiresAt: now + OUTGOING_QUEUE_TTL_MS
+    });
+    if (live.pendingOutgoing.length > OUTGOING_QUEUE_LIMIT) {
+      live.pendingOutgoing.splice(0, live.pendingOutgoing.length - OUTGOING_QUEUE_LIMIT);
     }
-    live.socket.send(JSON.stringify(payload));
-    return true;
+    if (now - Number(live.lastQueueNoticeAt || 0) > 2500) {
+      live.lastQueueNoticeAt = now;
+      toast("نعيد الاتصال الآن، وستُرسل رسالتك تلقائياً");
+    }
+  }
+  function recoverConnectionNow(reason = "activity-recovery") {
+    if (!live.identity || !identityIsUsable(live.identity) || live.pageLeaving) return;
+    if (navigator.onLine === false) {
+      setConnection("disconnected", "بانتظار الإنترنت");
+      return;
+    }
+    setConnection("connecting", "إعادة الاتصال…");
+    clearTimeout(live.reconnectTimer);
+    live.reconnectTimer = null;
+    connect(live.roomId, { force: true, reason });
+  }
+  function flushPendingOutgoing() {
+    if (!socketReady()) return false;
+    const socket = live.socket;
+    const now = Date.now();
+    const queued = Array.isArray(live.pendingOutgoing) ? live.pendingOutgoing : [];
+    const remaining = [];
+    let sentCount = 0;
+
+    for (const item of queued) {
+      if (!item || Number(item.expiresAt || 0) <= now || item.roomId !== live.roomId) continue;
+      try {
+        socket.send(JSON.stringify(item.payload));
+        sentCount += 1;
+      } catch {
+        remaining.push(item);
+      }
+    }
+
+    live.pendingOutgoing = remaining;
+    if (remaining.length) recoverConnectionNow("queued-send-failed");
+    return sentCount > 0;
+  }
+  function send(payload) {
+    const canQueue = payloadCanWaitForReconnect(payload);
+
+    // رسائل المستخدم لا تُرسل على اتصال خامد قد يبدو OPEN محلياً لكنه انقطع من الشبكة.
+    if (socketReady() && (!canQueue || connectionFreshForOutgoing())) {
+      try {
+        live.socket.send(JSON.stringify(payload));
+        return true;
+      } catch {}
+    }
+
+    if (canQueue) {
+      queueOutgoing(payload);
+      recoverConnectionNow("outgoing-message");
+      return true;
+    }
+
+    recoverConnectionNow("outgoing-action");
+    toast("جاري إعادة الاتصال، حاول مرة أخرى بعد لحظة");
+    return false;
   }
   function setConnection(status, text) {
     live.connected = status === "connected";
@@ -425,7 +550,7 @@
     }
   }
 
-  function buildSocketUrl() {
+  function buildSocketUrl(connectionSeq = live.connectionSeq || 1) {
     const identity = live.identity;
     const protocol = location.protocol === "https:" ? "wss:" : "ws:";
     const badgeToken = sessionStorage.getItem(BADGE_TOKEN_KEY) || "";
@@ -439,49 +564,145 @@
       staffSessionToken: identity.staffSessionToken || "",
       staffClientId: identity.staffClientId || "",
       authToken: identity.authToken || "",
-      badgeToken
+      badgeToken,
+      connectionId: getConnectionTabId(),
+      connectionSeq: String(connectionSeq)
     });
     return `${protocol}//${location.host}/api/rooms/${encodeURIComponent(live.roomId)}/ws?${params}`;
   }
 
   function stopHeartbeat() {
     clearInterval(live.heartbeatTimer);
+    clearTimeout(live.heartbeatProbeTimer);
     live.heartbeatTimer = null;
+    live.heartbeatProbeTimer = null;
   }
+
+  function sendPing(socket, reason = "heartbeat") {
+    if (!socket || socket.readyState !== WebSocket.OPEN) return 0;
+    const at = Date.now();
+    live.lastPingAt = at;
+    try {
+      socket.send(JSON.stringify({
+        type: "ping",
+        at,
+        reason,
+        connectionId: getConnectionTabId(),
+        connectionSeq: live.connectionSeq
+      }));
+      return at;
+    } catch {
+      return 0;
+    }
+  }
+
+  function probeConnection(reason = "probe") {
+    if (!live.identity || !identityIsUsable(live.identity)) return;
+    const socket = live.socket;
+    if (!socket || socket.readyState !== WebSocket.OPEN) {
+      scheduleReconnect(true);
+      return;
+    }
+
+    const sentAt = sendPing(socket, reason);
+    if (!sentAt) {
+      connect(live.roomId, { force: true, reason: `${reason}-send-failed` });
+      return;
+    }
+
+    clearTimeout(live.heartbeatProbeTimer);
+    live.heartbeatProbeTimer = setTimeout(() => {
+      if (
+        live.socket === socket &&
+        socket.readyState === WebSocket.OPEN &&
+        document.visibilityState === "visible" &&
+        Number(live.lastPongAt || 0) < sentAt
+      ) {
+        setConnection("connecting", "تثبيت الاتصال…");
+        connect(live.roomId, { force: true, reason: `${reason}-timeout` });
+      }
+    }, CONNECTION_PROBE_TIMEOUT_MS);
+  }
+
   function startHeartbeat(socket) {
     stopHeartbeat();
-    live.lastPongAt = Date.now();
+    const now = Date.now();
+    live.lastPongAt = now;
+    live.lastTrafficAt = now;
     live.heartbeatTimer = setInterval(() => {
       if (live.socket !== socket || socket.readyState !== WebSocket.OPEN) return;
-      if (Date.now() - live.lastPongAt > 55_000) {
-        try { socket.close(4000, "Connection heartbeat timeout"); } catch {}
+
+      const tickAt = Date.now();
+      const pageVisible = document.visibilityState === "visible";
+      const visibleLongEnough = pageVisible &&
+        live.visibleSinceAt > 0 &&
+        tickAt - live.visibleSinceAt >= HEARTBEAT_VISIBLE_GRACE_MS;
+
+      // لا نغلق الاتصال القديم قبل تجهيز البديل. هذا يمنع فجوة "غير متصل".
+      if (visibleLongEnough && tickAt - Number(live.lastPongAt || 0) > HEARTBEAT_TIMEOUT_MS) {
+        setConnection("connecting", "تثبيت الاتصال…");
+        connect(live.roomId, { force: true, reason: "heartbeat-timeout" });
         return;
       }
-      try { socket.send(JSON.stringify({ type: "ping", at: Date.now() })); } catch {}
-    }, 20_000);
+
+      sendPing(socket, "heartbeat");
+    }, HEARTBEAT_INTERVAL_MS);
   }
+
+  function closeOneSocket(socket, code = 1000, reason = "switch") {
+    if (!socket) return;
+    try {
+      if (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING) {
+        socket.close(code, reason);
+      }
+    } catch {}
+  }
+
   function closeSocket(reason = "switch") {
     clearTimeout(live.reconnectTimer);
     clearTimeout(live.connectTimeout);
     stopHeartbeat();
-    const socket = live.socket;
+    const active = live.socket;
+    const candidate = live.connectingSocket;
     live.socket = null;
+    live.connectingSocket = null;
     live.connected = false;
-    if (socket) {
-      try { socket.close(1000, reason); } catch {}
-    }
+    live.connectSerial += 1;
+    closeOneSocket(candidate, 1000, reason);
+    if (active !== candidate) closeOneSocket(active, 1000, reason);
   }
 
-  async function connect(roomId = live.roomId) {
+  async function connect(roomId = live.roomId, options = {}) {
     if (!live.identity || !identityIsUsable(live.identity)) return;
+
+    const normalizedRoomId = roomId === "general" ? "lobby" : roomId;
+    const force = Boolean(options?.force);
+    const roomChanged = normalizedRoomId !== live.roomId;
+    const activeSocket = live.socket;
+    const candidateSocket = live.connectingSocket;
+
+    if (!roomChanged && candidateSocket?.readyState === WebSocket.CONNECTING) return;
+    if (
+      !roomChanged &&
+      !force &&
+      activeSocket &&
+      (activeSocket.readyState === WebSocket.OPEN || activeSocket.readyState === WebSocket.CONNECTING)
+    ) return;
+
     live.pageLeaving = false;
-    const serial = ++live.connectSerial;
-    closeSocket("reconnect");
-    live.roomId = roomId === "general" ? "lobby" : roomId;
+
+    if (roomChanged) {
+      closeSocket("room-switch");
+      state.stage = [];
+    }
+    live.roomId = normalizedRoomId;
     state.room = live.roomId;
     saveActiveRoom(live.roomId);
-    state.stage = [];
-    if (!state.messages.some((message) => message.room === live.roomId)) {
+
+    const shouldPrepareConversation = roomChanged ||
+      live.ignoreHistoryOnce ||
+      !state.messages.some((message) => message.room === live.roomId);
+    if (shouldPrepareConversation) {
       if (live.ignoreHistoryOnce) {
         clearRoomSnapshot(live.roomId);
         setRoomCutoff(live.roomId, Date.now());
@@ -489,55 +710,94 @@
       } else if (!restoreRoomSnapshot(live.roomId)) {
         startFreshRoomConversation(live.roomId);
       }
+      renderAll();
     }
-    renderAll();
-    setConnection("connecting", live.reconnectAttempts ? "إعادة الاتصال…" : "جاري الاتصال");
+
+    const serial = ++live.connectSerial;
+    const connectionSeq = nextConnectionSeq();
+    const hadUsableSocket = !roomChanged && activeSocket?.readyState === WebSocket.OPEN;
+    setConnection("connecting", hadUsableSocket ? "تثبيت الاتصال…" : (live.reconnectAttempts ? "إعادة الاتصال…" : "جاري الاتصال"));
 
     let socket;
     try {
-      socket = new WebSocket(buildSocketUrl());
+      socket = new WebSocket(buildSocketUrl(connectionSeq));
     } catch (error) {
-      setConnection("disconnected", "تعذر الاتصال");
-      scheduleReconnect();
+      if (!hadUsableSocket) setConnection("disconnected", "تعذر الاتصال");
+      scheduleReconnect(false, hadUsableSocket);
       return;
     }
-    live.socket = socket;
+
+    live.connectingSocket = socket;
     clearTimeout(live.connectTimeout);
     live.connectTimeout = setTimeout(() => {
-      if (live.socket === socket && socket.readyState !== WebSocket.OPEN) {
-        try { socket.close(4000, "Connection timeout"); } catch {}
+      if (live.connectingSocket === socket && socket.readyState !== WebSocket.OPEN) {
+        closeOneSocket(socket, 4000, "Connection timeout");
       }
-    }, 15_000);
+    }, CONNECT_TIMEOUT_MS);
 
     socket.addEventListener("open", () => {
       clearTimeout(live.connectTimeout);
-      if (live.socket !== socket || serial !== live.connectSerial) return;
+      if (live.connectingSocket !== socket || serial !== live.connectSerial) {
+        closeOneSocket(socket, 4005, "Superseded connection");
+        return;
+      }
+
+      const previous = live.socket;
+      live.connectingSocket = null;
+      live.socket = socket;
       live.reconnectAttempts = 0;
       live.lastPongAt = Date.now();
+      live.lastTrafficAt = live.lastPongAt;
       setConnection("connected", "متصل");
       startHeartbeat(socket);
+      sendPing(socket, "connected");
       try { socket.send(JSON.stringify({ type: "room-radio-state-request" })); } catch {}
       if (live.pendingProfilePatch) {
         try { socket.send(JSON.stringify({ type: "profile", ...live.pendingProfilePatch })); } catch {}
+      }
+
+      // Make-before-break: الجديد يعمل أولاً، ثم نغلق القديم بلا رسالة خروج.
+      if (previous && previous !== socket) {
+        setTimeout(() => closeOneSocket(previous, 4005, "Connection resumed"), 120);
       }
     });
 
     socket.addEventListener("message", (event) => {
       if (live.socket !== socket) return;
+      const receivedAt = Date.now();
+      live.lastTrafficAt = receivedAt;
       const data = safeParse(event.data, null);
       if (!data) return;
-      if (data.type === "pong") live.lastPongAt = Date.now();
+      if (data.type === "pong") {
+        live.lastPongAt = receivedAt;
+        clearTimeout(live.heartbeatProbeTimer);
+        live.heartbeatProbeTimer = null;
+      }
       handleEvent(data);
     });
 
     socket.addEventListener("close", (event) => {
-      if (live.socket !== socket) return;
-      live.socket = null;
+      const wasCandidate = live.connectingSocket === socket;
+      const wasActive = live.socket === socket;
+      if (!wasCandidate && !wasActive) return;
+
+      if (wasCandidate) live.connectingSocket = null;
+      if (wasActive) {
+        live.socket = null;
+        stopHeartbeat();
+        live.connected = false;
+      }
       clearTimeout(live.connectTimeout);
-      stopHeartbeat();
-      live.connected = false;
-      setConnection("disconnected", navigator.onLine === false ? "بانتظار الإنترنت" : "انقطع الاتصال — نعيده الآن");
+
       if (!live.identity || live.pageLeaving) return;
+
+      if (!wasActive && live.socket?.readyState === WebSocket.OPEN) {
+        setConnection("connected", "متصل");
+        if (serial === live.connectSerial) scheduleReconnect(false, true);
+        return;
+      }
+
+      setConnection("disconnected", navigator.onLine === false ? "بانتظار الإنترنت" : "انقطع الاتصال — نعيده الآن");
       if (event.code === 4002) {
         setConnection("disconnected", "تم فتح الحساب في نافذة أخرى");
         toast(event.reason || "تم فتح هذا الحساب في نافذة أخرى");
@@ -548,19 +808,34 @@
         logoutLive(false);
         return;
       }
-      scheduleReconnect();
+      scheduleReconnect(event.code === 4005);
     });
 
     socket.addEventListener("error", () => {
-      if (live.socket === socket) setConnection("disconnected", "تعذر الاتصال — نعيد المحاولة");
+      if (live.socket === socket || live.connectingSocket === socket) {
+        if (!live.socket || live.socket.readyState !== WebSocket.OPEN) {
+          setConnection("disconnected", "تعذر الاتصال — نعيد المحاولة");
+        }
+      }
     });
   }
-  function scheduleReconnect(immediate = false) {
+
+  function scheduleReconnect(immediate = false, force = false) {
     if (!live.identity || !identityIsUsable(live.identity)) return;
+    if (navigator.onLine === false) {
+      setConnection("disconnected", "بانتظار الإنترنت");
+      return;
+    }
+    if (live.connectingSocket?.readyState === WebSocket.CONNECTING) return;
+    if (!force && live.socket?.readyState === WebSocket.OPEN) return;
+
     clearTimeout(live.reconnectTimer);
-    const delay = immediate ? 80 : Math.min(12_000, 700 * (2 ** live.reconnectAttempts++));
+    const attempt = live.reconnectAttempts++;
+    const ceiling = Math.min(RECONNECT_MAX_DELAY_MS, 500 * (2 ** attempt));
+    const delay = immediate ? 80 : Math.round(ceiling * (0.65 + Math.random() * 0.7));
     live.reconnectTimer = setTimeout(() => {
-      if (!live.socket || live.socket.readyState === WebSocket.CLOSED) connect(live.roomId);
+      live.reconnectTimer = null;
+      connect(live.roomId, { force, reason: "scheduled-reconnect" });
     }, delay);
   }
 
@@ -1194,6 +1469,8 @@
         updateMicButtons();
         updateGoogleSessionUI();
         restoreAdminMessages();
+        // أي رسالة كُتبت أثناء نوم الاتصال تُرسل الآن بعد اكتمال الجلسة الجديدة.
+        flushPendingOutgoing();
         requestAnimationFrame(() => { const box = byId("messages"); if (box) box.scrollTop = box.scrollHeight; });
         break;
       }
@@ -1711,6 +1988,14 @@
 
   async function logoutLive(clearGoogle = false) {
     try { window.RivoMobileBeforeLogout?.(); } catch {}
+    live.pageLeaving = true;
+    const logoutSocket = live.socket;
+    if (logoutSocket && logoutSocket.readyState === WebSocket.OPEN) {
+      try {
+        logoutSocket.send(JSON.stringify({ type: "leave", reason: "logout", at: Date.now() }));
+        await new Promise((resolve) => setTimeout(resolve, 80));
+      } catch {}
+    }
     closeSocket("logout");
     clearTimeout(live.reconnectTimer);
     await stopLocalMic();
@@ -1720,6 +2005,7 @@
     clearIdentity();
     if (clearGoogle && oldType === "google") window.RivoGoogleAuth?.clearSession?.();
     live.self = null;
+    live.pendingOutgoing = [];
     state.user = null;
     state.users = [];
     state.messages = [];
@@ -1858,32 +2144,44 @@
       showEntryScreen();
     }
 
-    const sendExplicitLeave = (reason = "pagehide") => {
-      if (live.pageLeaving) return;
+    // لا نرسل "خروج" عند تحديث الصفحة أو نوم المتصفح؛ هذه الحالات قد تكون انقطاعاً مؤقتاً.
+    // الخروج الصريح يُرسل فقط من زر الخروج داخل logoutLive.
+    const markPageLeaving = () => {
       live.pageLeaving = true;
-      const socket = live.socket;
-      if (socket && socket.readyState === WebSocket.OPEN) {
-        try { socket.send(JSON.stringify({ type: "leave", reason, at: Date.now() })); } catch {}
-      }
     };
 
-    window.addEventListener("online", () => scheduleReconnect(true));
+    const recoverAfterIdle = (reason) => {
+      if (!live.identity) return;
+      const stale = !socketReady() || Date.now() - lastConnectionActivityAt() > OUTGOING_FRESHNESS_MS;
+      if (stale) recoverConnectionNow(reason);
+      else probeConnection(reason);
+    };
+
+    window.addEventListener("online", () => recoverAfterIdle("network-online"));
     window.addEventListener("offline", () => setConnection("disconnected", "بانتظار الإنترنت"));
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
+        live.pageLeaving = false;
+        live.visibleSinceAt = Date.now();
         syncRemoteAdminSettings(false);
-        if (live.identity && !socketReady()) scheduleReconnect(true);
+        recoverAfterIdle("page-visible");
+      } else {
+        live.visibleSinceAt = 0;
       }
     });
     window.addEventListener("pageshow", (event) => {
-      if (event.persisted && live.identity && !socketReady()) scheduleReconnect(true);
+      live.pageLeaving = false;
+      if (!live.identity) return;
+      recoverAfterIdle(event.persisted ? "page-restored" : "page-show");
     });
     window.addEventListener("pagehide", () => {
       saveRoomSnapshot(state.room);
       if (live.identity) saveIdentity(live.identity);
-      sendExplicitLeave("pagehide");
+      markPageLeaving();
     });
-    window.addEventListener("beforeunload", () => sendExplicitLeave("beforeunload"));
+    window.addEventListener("beforeunload", markPageLeaving);
+    window.addEventListener("focus", () => recoverAfterIdle("window-focus"));
+    try { navigator.connection?.addEventListener?.("change", () => recoverAfterIdle("network-change")); } catch {}
   }
 
   window.RivoLive = { live, connect, send, logout: logoutLive, updateProfile: updateProfileLive, selectEntryRoom: selectEntryRoomLive };
