@@ -300,6 +300,27 @@ function sendAdminCommand(action,payload={}){
  if(!socket||socket.readyState!==WebSocket.OPEN){toast('انتظر اتصال لوحة الإدارة بالدردشة');connectAdminSocket(true);syncPresenceSockets(true);return false}
  socket.send(JSON.stringify({type:'admin-command',action,...payload}));return true;
 }
+
+function sendRoomAdminCommand(roomId,action,payload={}){
+ const roomKey=normalizeLiveRoomId(roomId||selectedRoomId);
+ let socket=presenceSockets.get(roomKey);
+ if((!socket||socket.readyState!==WebSocket.OPEN)&&adminSocketRoom===roomKey&&adminSocket?.readyState===WebSocket.OPEN)socket=adminSocket;
+ if(!socket||socket.readyState!==WebSocket.OPEN){
+  connectPresenceSocket(roomKey,true);
+  if(adminSocketRoom===roomKey)connectAdminSocket(true);
+  toast('جاري ربط إعدادات المايك بالغرفة، اضغط حفظ مرة أخرى بعد لحظة');
+  return false;
+ }
+ socket.send(JSON.stringify({type:'admin-command',action,...payload}));
+ return true;
+}
+function configuredRoomMicEnabled(roomId){
+ const room=roomById(uiRoomId(roomId));
+ return Boolean(room&&room.enabled!==false&&room.micOn!==false&&Number(room.mics||0)>0);
+}
+function syncRoomMicControl(roomId){
+ return sendRoomAdminCommand(roomId,'set-public-mic',{enabled:configuredRoomMicEnabled(roomId)});
+}
 function mapLiveAdminUser(user,roomId){
  const role=user.role==='owner'?'owner':user.role==='moderator'?'moderator':user.isGuest?'guest':'user';
  const existing=config.users.find(item=>item.id===user.clientId)||{};
@@ -334,6 +355,12 @@ function connectPresenceSocket(roomKey,force=false){
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:`presence-${session.staffClientId||session.staffId||'owner'}-${backendRoom}`,visible:'0'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(backendRoom)}/admin-ws?${params}`);
  presenceSockets.set(backendRoom,socket);
+ socket.onopen=()=>{
+  const room=roomById(uiRoomId(backendRoom));
+  if(room){
+   try{socket.send(JSON.stringify({type:'admin-command',action:'set-public-mic',enabled:configuredRoomMicEnabled(backendRoom)}))}catch(_){ }
+  }
+ };
  socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleAdminMessageSocketReply(data,backendRoom)};
  socket.onclose=()=>{if(presenceSockets.get(backendRoom)!==socket)return;presenceSockets.delete(backendRoom);clearTimeout(presenceReconnectTimers.get(backendRoom));presenceReconnectTimers.set(backendRoom,setTimeout(()=>connectPresenceSocket(backendRoom,true),2200))};
  socket.onerror=()=>{};
@@ -345,6 +372,8 @@ function syncPresenceSockets(force=false){
  presenceSyncStarted=true;
 }
 function applyAdminSocketState(data,sourceRoomId=selectedRoomId,fromPresenceSocket=false){
+ const sourceRoom=roomById(uiRoomId(sourceRoomId));
+ if(sourceRoom&&typeof data?.publicMicEnabled==='boolean')sourceRoom.micOn=data.publicMicEnabled;
  if(data?.staff?.role==='owner')ownerAdminSettingsState.name=data.staff.name||ownerAdminSettingsState.name||'الإدارة';
  if(data?.staffAvatar)ownerAdminSettingsState.avatar=data.staffAvatar;
  if(typeof data?.staffVisible==='boolean')ownerAdminSettingsState.visible=data.staffVisible;
@@ -1201,6 +1230,7 @@ function saveRoom(){
  r.camOn=$('#editRoomCamOn').checked;
  r.cams=Math.max(0,Math.min(4,+$('#editRoomCams').value||0));
  r.music=$('#editRoomMusic').checked;
+ syncRoomMicControl(r.id);
  saveConfig('تم حفظ إعدادات غرفة '+r.name);
  renderRoomsAdmin();
 }

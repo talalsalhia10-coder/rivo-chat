@@ -1178,6 +1178,7 @@
         state.room = live.roomId;
         saveActiveRoom(live.roomId);
         live.roomControls = { ...live.roomControls, ...(data.roomControls || {}) };
+        if (live.roomControls.publicMicEnabled === false) await stopLocalMic();
         syncUsers(data.users || []);
         if (live.ignoreHistoryOnce) {
           state.messages = [];
@@ -1256,6 +1257,15 @@
         break;
       case "room-controls":
         live.roomControls = { ...live.roomControls, ...data };
+        if (live.roomControls.publicMicEnabled === false) {
+          if (live.micHolder === state.user?.id) send({ type: "mic-release" });
+          await stopLocalMic();
+          if (live.micHolder) {
+            state.stage = state.stage.filter((item) => item.user !== live.micHolder);
+            live.micHolder = "";
+            renderStage();
+          }
+        }
         updateMicButtons();
         break;
       case "mic-state":
@@ -1319,8 +1329,10 @@
       toast("المايك يحتاج تسجيل الدخول بحساب Google");
       return;
     }
-    if (live.roomControls.publicMicEnabled === false) {
+    const currentRoom = state.rooms?.find?.((item) => item.id === state.room);
+    if (live.roomControls.publicMicEnabled === false || Boolean(currentRoom && (currentRoom.micOn === false || Number(currentRoom.mics || 0) === 0))) {
       toast("الإدارة أغلقت مايك الغرفة");
+      updateMicButtons();
       return;
     }
     ensureRelay();
@@ -1364,17 +1376,21 @@
   function updateMicButtons() {
     const mine = Boolean(state.user && live.micHolder === state.user.id);
     const busy = Boolean(live.micHolder && !mine);
+    const currentRoom = state.rooms?.find?.((item) => item.id === state.room);
+    const closed = live.roomControls.publicMicEnabled === false || Boolean(currentRoom && (currentRoom.micOn === false || Number(currentRoom.mics || 0) === 0));
     const topButton = byId("micBtn");
     const composerButton = byId("composerMicBtn");
     [topButton, composerButton].filter(Boolean).forEach((button) => {
       button.classList.toggle("liveMicActive", mine);
       button.classList.toggle("liveMicBusy", busy);
+      button.classList.toggle("liveMicClosed", closed);
+      button.disabled = closed;
     });
-    if (topButton) topButton.textContent = mine ? "🔴 إيقاف المايك" : busy ? "🎙️ المايك مشغول" : "🎙️ المايك";
+    if (topButton) topButton.textContent = closed ? "🔒 المايك مغلق" : mine ? "🔴 إيقاف المايك" : busy ? "🎙️ المايك مشغول" : "🎙️ المايك";
     if (composerButton) {
       const label = composerButton.querySelector("[data-mic-label]");
-      if (label) label.textContent = mine ? "إيقاف" : busy ? "مشغول" : "المايك";
-      composerButton.title = mine ? "إيقاف المايك" : busy ? "المايك مشغول" : "المايك";
+      if (label) label.textContent = closed ? "مغلق" : mine ? "إيقاف" : busy ? "مشغول" : "المايك";
+      composerButton.title = closed ? "الإدارة أغلقت مايك الغرفة" : mine ? "إيقاف المايك" : busy ? "المايك مشغول" : "المايك";
       composerButton.setAttribute("aria-label", composerButton.title);
     }
   }

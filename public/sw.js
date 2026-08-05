@@ -1,14 +1,14 @@
-const RELEASE = "199-mobile-google-entry-fix";
+const RELEASE = "200-room-mic-lock";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=199",
-  "./app.js?v=199",
-  "./live-bridge.js?v=199",
-  "./mobile-experience.js?v=199",
+  "./styles.css?v=200",
+  "./app.js?v=200",
+  "./live-bridge.js?v=200",
+  "./mobile-experience.js?v=200",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
   "./relay-audio.js?v=178",

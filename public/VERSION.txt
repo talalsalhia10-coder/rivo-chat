@@ -1,1 +1,1 @@
-Rivo Chat v199 — Mobile Google sign-in entry modal fix only; all chat settings preserved
+Rivo Chat v200 — Room microphone lock enforced by admin and server controls
