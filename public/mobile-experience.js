@@ -1,4 +1,4 @@
-/* Rivo v194 — mobile drawer/backdrop + reliable entry compatibility */
+/* Rivo v195 — reliable mobile logout + drawer recovery */
 (() => {
   'use strict';
 
@@ -10,6 +10,8 @@
   let lastLockedScrollReset = 0;
   let avatarEntryFinishTimer = 0;
   let pendingAvatarId = '';
+  let mobileLogoutBusy = false;
+  let lastMobileLogoutAt = 0;
 
   const $ = (selector, root = document) => root.querySelector(selector);
 
@@ -372,6 +374,47 @@
     });
   }
 
+  async function performMobileLogout(event) {
+    if (event) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      event.stopImmediatePropagation?.();
+    }
+
+    const now = Date.now();
+    if (mobileLogoutBusy || now - lastMobileLogoutAt < 700) return;
+    lastMobileLogoutAt = now;
+    mobileLogoutBusy = true;
+
+    const button = $('#logoutBtn');
+    if (button) button.disabled = true;
+    closeMobileDrawer();
+
+    try {
+      let handler = null;
+      if (typeof window.logoutChat === 'function') handler = window.logoutChat;
+      else if (typeof logoutChat === 'function') handler = logoutChat;
+
+      if (handler) {
+        await Promise.resolve(handler(false));
+      } else if (typeof button?.onclick === 'function') {
+        await Promise.resolve(button.onclick.call(button, event || new Event('click')));
+      }
+    } catch (error) {
+      console.error('Rivo mobile logout failed', error);
+    } finally {
+      resetMobileUiForEntry();
+      window.setTimeout(() => {
+        const screen = $('#entryScreen');
+        screen?.classList.remove('hidden');
+        document.body.classList.add('entryLocked');
+        document.body.classList.remove('mobileSideOpen');
+        if (button) button.disabled = false;
+        mobileLogoutBusy = false;
+      }, 120);
+    }
+  }
+
   function bindDrawerAutoClose() {
     // نعالج تغيير الغرفة في مرحلة capture حتى لا تضيع اللمسة خلف الغطاء على بعض الهواتف.
     document.addEventListener('click', (event) => {
@@ -398,12 +441,19 @@
         return;
       }
 
-      // زر الخروج يجب أن يعيد صفحة الدخول، لا أن يترك درجاً أو غطاءً عالقاً.
+      // خروج موثوق: ننفذ تسجيل الخروج نفسه في مرحلة capture ثم نعيد صفحة الدخول.
       if (event.target.closest('#logoutBtn')) {
-        closeMobileDrawer();
-        window.setTimeout(resetMobileUiForEntry, 30);
+        performMobileLogout(event);
+        return;
       }
     }, true);
+
+    const logoutPointerFallback = (event) => {
+      if (!isMobile() || !event.target?.closest?.('#logoutBtn')) return;
+      performMobileLogout(event);
+    };
+    document.addEventListener('pointerup', logoutPointerFallback, true);
+    document.addEventListener('touchend', logoutPointerFallback, { capture: true, passive: false });
 
     window.addEventListener('rivo-chat-logged-out', resetMobileUiForEntry);
     window.addEventListener('rivo-room-switched', () => {

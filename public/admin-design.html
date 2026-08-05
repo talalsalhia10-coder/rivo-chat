@@ -4,15 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=185">
+<link rel="stylesheet" href="admin-design.css?v=195">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
+<button id="ownerAdminSettingsBackdrop" class="ownerAdminSettingsBackdrop hidden" type="button" aria-label="إغلاق إعدادات الإدارة"></button>
 
 <header class="adminTopbar">
   <div class="adminBrand">
     <span>R</span>
-    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v56</small></div>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v57</small></div>
   </div>
   <div class="adminTopActions">
     <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
@@ -93,6 +94,7 @@
           <p>تحكم بهويتك داخل الدردشة من مكان واحد: ظهور كامل، اختفاء من قائمة المستخدمين، اسم الإدارة، والصورة الشخصية.</p>
         </div>
         <span id="ownerAdminConnectionState" class="ownerAdminConnectionState">بانتظار اتصال الدردشة…</span>
+        <button id="closeOwnerAdminSettingsModal" class="ownerAdminSettingsModalClose" type="button" aria-label="إغلاق إعدادات الإدارة">×</button>
       </div>
 
       <article class="adminCard ownerAdminSettingsCard ownerAdminProCard">
@@ -562,6 +564,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=185"></script>
+<script src="admin-design.js?v=195"></script>
 </body>
 </html>

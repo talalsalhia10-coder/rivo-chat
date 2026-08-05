@@ -1694,6 +1694,7 @@
   }
 
   async function logoutLive(clearGoogle = false) {
+    try { window.RivoMobileBeforeLogout?.(); } catch {}
     closeSocket("logout");
     clearTimeout(live.reconnectTimer);
     await stopLocalMic();
@@ -1715,6 +1716,7 @@
     updatePrivateBadge();
     updateGoogleSessionUI();
     showEntryScreen();
+    try { window.dispatchEvent(new CustomEvent("rivo-chat-logged-out")); } catch {}
     setConnection("disconnected", "بانتظار الدخول");
   }
 
@@ -1737,6 +1739,7 @@
     moderatorLogin = enterModerator;
     guestLogin = enterGuest;
     switchRoom = switchRoomLive;
+    window.switchRoom = switchRoomLive;
     sendMessage = sendMessageLive;
     openPrivateChat = openPrivateLive;
     sendPrivateMessage = sendPrivateLive;
@@ -1748,6 +1751,7 @@
     saveOwnerIdentity = saveOwnerIdentityLive;
     toggleMyVisibility = toggleVisibilityLive;
     logoutChat = logoutLive;
+    window.logoutChat = logoutLive;
 
     if (byId("sendBtn")) byId("sendBtn").onclick = sendMessageLive;
     if (byId("logoutBtn")) byId("logoutBtn").onclick = (event) => { event.stopPropagation(); logoutLive(false); };

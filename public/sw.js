@@ -1,14 +1,14 @@
-const RELEASE = "194-mobile-touch-overlay-entry-fix";
+const RELEASE = "195-mobile-logout-admin-settings-popup";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=194",
-  "./app.js?v=194",
-  "./live-bridge.js?v=194",
-  "./mobile-experience.js?v=194",
+  "./styles.css?v=195",
+  "./app.js?v=195",
+  "./live-bridge.js?v=195",
+  "./mobile-experience.js?v=195",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
   "./relay-audio.js?v=178",

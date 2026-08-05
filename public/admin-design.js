@@ -1112,11 +1112,36 @@ function normalizeAdminData(){
  if(!config.rooms.some(r=>r.id===selectedRoomId))selectedRoomId=config.rooms[0].id;
 }
 
+function openOwnerAdminSettingsModal(){
+ const section=$('#section-adminsettings');
+ const backdrop=$('#ownerAdminSettingsBackdrop');
+ if(!section)return;
+ section.classList.add('active','ownerAdminSettingsModalOpen');
+ backdrop?.classList.remove('hidden');
+ document.body.classList.add('ownerAdminSettingsPopupOpen');
+ $('.adminNav button[data-section="adminsettings"]')?.classList.add('modalActive');
+ renderOwnerAdminSettings();
+ requestAnimationFrame(()=>section.scrollTo({top:0,behavior:'auto'}));
+}
+function closeOwnerAdminSettingsModal(){
+ const section=$('#section-adminsettings');
+ const backdrop=$('#ownerAdminSettingsBackdrop');
+ section?.classList.remove('active','ownerAdminSettingsModalOpen');
+ backdrop?.classList.add('hidden');
+ document.body.classList.remove('ownerAdminSettingsPopupOpen');
+ $('.adminNav button[data-section="adminsettings"]')?.classList.remove('active','modalActive');
+}
+
 function showSection(name){
  if(name==='avatars'){
   openEntryAvatarManager();
   return;
  }
+ if(name==='adminsettings'){
+  openOwnerAdminSettingsModal();
+  return;
+ }
+ closeOwnerAdminSettingsModal();
  $$('.adminNav button').forEach(b=>b.classList.toggle('active',b.dataset.section===name));
  $$('.adminSection').forEach(s=>s.classList.toggle('active',s.id===`section-${name}`));
  if(name==='overview')renderOverview();
@@ -1907,6 +1932,8 @@ function bind(){
 
  $$('.adminNav button').forEach(b=>b.onclick=()=>showSection(b.dataset.section));
  $$('[data-jump]').forEach(b=>b.onclick=()=>showSection(b.dataset.jump));
+ if($('#closeOwnerAdminSettingsModal'))$('#closeOwnerAdminSettingsModal').onclick=closeOwnerAdminSettingsModal;
+ if($('#ownerAdminSettingsBackdrop'))$('#ownerAdminSettingsBackdrop').onclick=closeOwnerAdminSettingsModal;
  if($('#resetAdminDataBtn')) $('#resetAdminDataBtn').onclick=resetAdminData;
  $('#saveAllBtn').onclick=saveAll;
  if($('#compactSettingsBtn')) $('#compactSettingsBtn').onclick=toggleSettingsColumn;
@@ -1966,7 +1993,11 @@ function bind(){
  if($('#entryAvatarManagerModal'))$('#entryAvatarManagerModal').onclick=e=>{if(e.target.id==='entryAvatarManagerModal')closeEntryAvatarManager()};
  if($('#promoteSelectedEntryAvatar'))$('#promoteSelectedEntryAvatar').onclick=()=>{if(selectedEntryAvatarId)promoteEntryAvatar(selectedEntryAvatarId)};
  if($('#deleteSelectedEntryAvatar'))$('#deleteSelectedEntryAvatar').onclick=()=>{if(selectedEntryAvatarId&&confirm('حذف الصورة المختارة؟'))removeEntryAvatar(selectedEntryAvatarId)};
- document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#entryAvatarManagerModal')?.classList.contains('hidden'))closeEntryAvatarManager()});
+ document.addEventListener('keydown',e=>{
+  if(e.key!=='Escape')return;
+  if(!$('#entryAvatarManagerModal')?.classList.contains('hidden'))closeEntryAvatarManager();
+  if(document.body.classList.contains('ownerAdminSettingsPopupOpen'))closeOwnerAdminSettingsModal();
+ });
  $('#closeAllCamerasAdmin').onclick=closeAllCameras;
  if($('#closeAllMicsAdmin')) $('#closeAllMicsAdmin').onclick=closeAllMics;
  $('#radioAdminScope').onchange=()=>{$('#radioAdminRoomField').classList.toggle('hidden',$('#radioAdminScope').value!=='room')};

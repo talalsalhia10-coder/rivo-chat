@@ -1,1 +1,1 @@
-Rivo Chat v194 — Mobile rooms/users drawer works without a blocking dim layer; entry is reliable across phones; uploaded avatars resolve safely
+Rivo Chat v195 — Mobile logout fixed; admin settings open as a compact popup window
