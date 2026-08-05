@@ -6,10 +6,12 @@ const YOUTUBE_ID_RE = /^[A-Za-z0-9_-]{11}$/;
 const DIRECT_AUDIO_EXT_RE = /\.(?:mp3|m4a|aac|ogg|opus|wav)(?:$|[?#])/i;
 const MAX_POSITION_SECONDS = 24 * 60 * 60;
 
-const PRESENCE_LEAVE_DELAY_MS = 30 * 1000;
+// مهلة استئناف احترافية: الانقطاع العابر لا يُسجل خروجاً، والخروج الحقيقي لا يبقى شبحاً طويلاً.
+const PRESENCE_LEAVE_DELAY_MS = 2 * 60 * 1000;
 const PRESENCE_RETENTION_MS = 24 * 60 * 60 * 1000;
 const PRESENCE_HISTORY_LIMIT = 12;
-const PRESENCE_PENDING_TABLE = "presence_pending_leaves_v1";
+const PRESENCE_PENDING_TABLE = "presence_pending_leaves_v3";
+const PRESENCE_STATE_TABLE = "presence_client_state_v1";
 const ADMIN_SETTINGS_TABLE = "rivo_admin_settings_v1";
 const ADMIN_SETTINGS_FULL_KEY = "full_config";
 const ADMIN_SETTINGS_PUBLIC_KEY = "public_config";
@@ -369,6 +371,10 @@ export default {
 };
 
 export class ChatRoom extends GiftChatRoom {
+  // الطبقة الأساسية كانت تبث دخول/خروج فورياً، بينما هذه الطبقة تحفظه بعد مهلة أمان.
+  // تعطيل البث الفوري يمنع تكرار سطر الدخول وترحيب لينا عند انقطاع قصير.
+  broadcastPresenceEvent() {}
+
   constructor(ctx, env) {
     super(ctx, env);
 
@@ -380,7 +386,7 @@ export class ChatRoom extends GiftChatRoom {
       )
     `);
 
-    // سجل مؤقت للخروج: ننتظر 30 ثانية حتى لا يظهر «خرج/دخل» عند التحديث السريع.
+    // سجل مؤقت للخروج: نمنح الانقطاع غير المقصود مهلة طويلة حتى يعود الاتصال بلا «خرج/دخل».
     this.sql.exec(`
       CREATE TABLE IF NOT EXISTS ${PRESENCE_PENDING_TABLE} (
         client_id TEXT PRIMARY KEY,
@@ -389,6 +395,20 @@ export class ChatRoom extends GiftChatRoom {
         role TEXT NOT NULL DEFAULT 'user',
         is_vip INTEGER NOT NULL DEFAULT 0,
         due_at INTEGER NOT NULL
+      )
+    `);
+
+    // حالة حضور ثابتة تمنع سباق إعادة الاتصال: قد يصل الاتصال الجديد قبل تنفيذ إغلاق القديم.
+    // لذلك لا نعتمد على وجود socket قديم أو سجل خروج مؤقت وحدهما.
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS ${PRESENCE_STATE_TABLE} (
+        client_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'active',
+        nickname TEXT NOT NULL,
+        avatar TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'user',
+        is_vip INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL
       )
     `);
 
@@ -583,15 +603,26 @@ export class ChatRoom extends GiftChatRoom {
 
     if (joinedSocket && joinedSession && this.shouldShowPresenceEvent(joinedSession)) {
       const pending = this.getPendingPresenceLeave(joinedSession.clientId);
+      const presenceState = this.getPresenceState(joinedSession.clientId);
       const alreadyConnected = [...before.values()].some((session) =>
         session?.kind === "chat" &&
         session.clientId === joinedSession.clientId &&
         this.shouldShowPresenceEvent(session)
       );
 
-      // العودة خلال مهلة الخروج أو فتح تبويب ثانٍ لا تُنشئ رسالة دخول جديدة.
+      // إصلاح سباق إعادة الاتصال:
+      // أحياناً يصل socket الجديد قبل أن ينفذ Cloudflare close للقديم، فلا يكون سجل الخروج
+      // المؤقت قد أُنشئ بعد. حالة الحضور الثابتة تمنع اعتبار ذلك دخولاً جديداً.
+      const resumedPresence = Boolean(
+        pending ||
+        alreadyConnected ||
+        presenceState?.status === "active"
+      );
+
       this.deletePendingPresenceLeave(joinedSession.clientId);
-      if (!pending && !alreadyConnected) {
+      this.writePresenceState(joinedSession, "active");
+
+      if (!resumedPresence) {
         this.persistPresenceMessage(joinedSession, "join");
         if (this.isLinaEnabled()) {
           this.activateLinaConversation(joinedSession.clientId);
@@ -631,6 +662,41 @@ export class ChatRoom extends GiftChatRoom {
       ) return true;
     }
     return false;
+  }
+
+  getPresenceState(clientId) {
+    if (!clientId) return null;
+    return this.sql.exec(
+      `SELECT client_id, status, nickname, avatar, role, is_vip, updated_at
+       FROM ${PRESENCE_STATE_TABLE}
+       WHERE client_id = ?
+       LIMIT 1`,
+      clientId
+    ).toArray()[0] || null;
+  }
+
+  writePresenceState(session, status = "active") {
+    if (!session?.clientId) return;
+    const now = Date.now();
+    this.sql.exec(
+      `INSERT INTO ${PRESENCE_STATE_TABLE}
+       (client_id, status, nickname, avatar, role, is_vip, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(client_id) DO UPDATE SET
+         status = excluded.status,
+         nickname = excluded.nickname,
+         avatar = excluded.avatar,
+         role = excluded.role,
+         is_vip = excluded.is_vip,
+         updated_at = excluded.updated_at`,
+      cleanText(session.clientId, 80),
+      status === "left" ? "left" : "active",
+      cleanText(session.nickname || "مستخدم", 24) || "مستخدم",
+      cleanText(session.avatar || "lina", 40) || "lina",
+      cleanText(session.role || "user", 20) || "user",
+      session.isVip ? 1 : 0,
+      now
+    );
   }
 
   getPendingPresenceLeave(clientId) {
@@ -708,16 +774,27 @@ export class ChatRoom extends GiftChatRoom {
     for (const row of dueRows) {
       this.deletePendingPresenceLeave(row.client_id);
 
-      // إذا عاد المستخدم قبل تنفيذ المنبه، نلغي رسالة الخروج.
-      if (this.hasAnotherVisibleConnection(row.client_id)) continue;
+      // إذا عاد المستخدم قبل تنفيذ المنبه، نلغي رسالة الخروج ونثبت أنه ما زال حاضراً.
+      if (this.hasAnotherVisibleConnection(row.client_id)) {
+        this.writePresenceState({
+          clientId: row.client_id,
+          nickname: row.nickname,
+          avatar: row.avatar,
+          role: row.role || "user",
+          isVip: Boolean(row.is_vip)
+        }, "active");
+        continue;
+      }
 
-      this.persistPresenceMessage({
+      const leavingSession = {
         clientId: row.client_id,
         nickname: row.nickname,
         avatar: row.avatar,
         role: row.role || "user",
         isVip: Boolean(row.is_vip)
-      }, "leave");
+      };
+      this.persistPresenceMessage(leavingSession, "leave");
+      this.writePresenceState(leavingSession, "left");
     }
 
     await this.scheduleNextPresenceAlarm();
@@ -872,6 +949,21 @@ export class ChatRoom extends GiftChatRoom {
         possiblePublicChat = true;
         publicBody = cleanText(data.body, 800);
         previousPublicAt = Number(session.lastPublicAt || 0);
+      }
+
+      // لا نسجل خروجاً بسبب انقطاع الشبكة. الخروج الفوري يثبت فقط عند ضغط زر الخروج.
+      if (
+        data?.type === "leave" &&
+        session?.kind === "chat" &&
+        cleanText(data.reason, 40) === "logout"
+      ) {
+        session.suppressPresenceQueue = true;
+        ws.serializeAttachment?.(session);
+        this.deletePendingPresenceLeave(session.clientId);
+        if (!this.hasAnotherVisibleConnection(session.clientId, ws)) {
+          this.persistPresenceMessage(session, "leave");
+          this.writePresenceState(session, "left");
+        }
       }
     }
 
@@ -1585,6 +1677,7 @@ export class ChatRoom extends GiftChatRoom {
 
     if (
       session?.kind === "chat" &&
+      !session.suppressPresenceQueue &&
       this.shouldShowPresenceEvent(session) &&
       !this.hasAnotherVisibleConnection(session.clientId, ws)
     ) {
@@ -1598,6 +1691,7 @@ export class ChatRoom extends GiftChatRoom {
 
     if (
       session?.kind === "chat" &&
+      !session.suppressPresenceQueue &&
       this.shouldShowPresenceEvent(session) &&
       !this.hasAnotherVisibleConnection(session.clientId, ws)
     ) {
