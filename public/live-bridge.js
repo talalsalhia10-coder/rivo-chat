@@ -1733,6 +1733,14 @@
   });
 
   function bindLiveUI() {
+    // واجهة دخول ثابتة للموبايل: تمنع اعتماد الهاتف على ترتيب تحميل المتغيرات العامة.
+    window.RivoEntryActions = {
+      ready: true,
+      guest: () => enterGuest(),
+      google: () => prepareGoogleButton(),
+      profile: () => profileFromEntry()
+    };
+    try { window.dispatchEvent(new CustomEvent("rivo-entry-actions-ready")); } catch {}
     enterFromEntry = (type) => type === "guest" ? enterGuest() : prepareGoogleButton();
     googleLogin = prepareGoogleButton;
     ownerLogin = enterOwner;
