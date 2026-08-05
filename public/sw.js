@@ -1,14 +1,14 @@
-const RELEASE = "195-mobile-logout-admin-settings-popup";
+const RELEASE = "196-mobile-no-dim-guaranteed-logout";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=195",
-  "./app.js?v=195",
-  "./live-bridge.js?v=195",
-  "./mobile-experience.js?v=195",
+  "./styles.css?v=196",
+  "./app.js?v=196",
+  "./live-bridge.js?v=196",
+  "./mobile-experience.js?v=196",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
   "./relay-audio.js?v=178",

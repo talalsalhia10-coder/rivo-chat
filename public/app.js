@@ -1965,6 +1965,10 @@ function logoutChat(){
  toast('تم تسجيل الخروج ومسح رسائل الجلسة');
 }
 
+
+// Rivo v196: expose the real chat logout to mobile UI.
+window.RivoLogoutChat = logoutChat;
+
 function switchRoom(id){
  const r=state.rooms.find(x=>x.id===id);
  if(!r)return;

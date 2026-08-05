@@ -1,4 +1,4 @@
-/* Rivo v195 — reliable mobile logout + drawer recovery */
+/* Rivo v196 — no mobile dimming + guaranteed return to entry page */
 (() => {
   'use strict';
 
@@ -216,18 +216,14 @@
   }
 
   function positionMobileBackdrop() {
-    if (!isMobile()) return;
-    const side = $('.communitySide');
+    // v196: no dimming layer on phones. Keep the drawer fully clear and interactive.
     const backdrop = $('#mobileSideBackdrop');
-    if (!side || !backdrop || !document.body.classList.contains('mobileSideOpen')) return;
-    requestAnimationFrame(() => {
-      const rect = side.getBoundingClientRect();
-      const outsideWidth = Math.max(0, Math.min(window.innerWidth, Math.round(rect.left)));
-      backdrop.style.setProperty('left', '0px', 'important');
-      backdrop.style.setProperty('right', 'auto', 'important');
-      backdrop.style.setProperty('width', `${outsideWidth}px`, 'important');
-      backdrop.style.setProperty('height', 'var(--rivo-app-height)', 'important');
-    });
+    if (backdrop) {
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.tabIndex = -1;
+      backdrop.style.display = 'none';
+      backdrop.style.pointerEvents = 'none';
+    }
   }
 
   function closeMobileDrawer() {
@@ -238,9 +234,7 @@
     if (backdrop) {
       backdrop.setAttribute('aria-hidden', 'true');
       backdrop.tabIndex = -1;
-      backdrop.style.removeProperty('width');
-      backdrop.style.removeProperty('left');
-      backdrop.style.removeProperty('right');
+      backdrop.style.cssText = 'display:none!important;pointer-events:none!important;opacity:0!important;';
     }
   }
 
@@ -270,13 +264,8 @@
     activateSideTab(tabName);
     document.body.classList.add('mobileSideOpen');
     side.setAttribute('aria-hidden', 'false');
-    const backdrop = $('#mobileSideBackdrop');
-    if (backdrop) {
-      backdrop.setAttribute('aria-hidden', 'false');
-      backdrop.tabIndex = 0;
-    }
+    // No dark overlay in v196; the X button closes the drawer.
     positionMobileBackdrop();
-    window.setTimeout(positionMobileBackdrop, 80);
   }
 
   function ensureMobileChrome() {
@@ -307,17 +296,9 @@
       close.addEventListener('click', closeMobileDrawer);
     }
 
-    if (!$('#mobileSideBackdrop')) {
-      const backdrop = document.createElement('button');
-      backdrop.id = 'mobileSideBackdrop';
-      backdrop.className = 'mobileSideBackdrop';
-      backdrop.type = 'button';
-      backdrop.setAttribute('aria-label', 'إغلاق القائمة');
-      backdrop.setAttribute('aria-hidden', 'true');
-      backdrop.tabIndex = -1;
-      document.body.appendChild(backdrop);
-      backdrop.addEventListener('click', closeMobileDrawer);
-    }
+    // v196 removes the dimming backdrop completely because it blocked taps on some phones.
+    $('#mobileSideBackdrop')?.remove();
+
 
     side.setAttribute('aria-hidden', isMobile() ? 'true' : 'false');
   }
@@ -382,7 +363,7 @@
     }
 
     const now = Date.now();
-    if (mobileLogoutBusy || now - lastMobileLogoutAt < 700) return;
+    if (mobileLogoutBusy || now - lastMobileLogoutAt < 650) return;
     lastMobileLogoutAt = now;
     mobileLogoutBusy = true;
 
@@ -391,27 +372,40 @@
     closeMobileDrawer();
 
     try {
-      let handler = null;
-      if (typeof window.logoutChat === 'function') handler = window.logoutChat;
-      else if (typeof logoutChat === 'function') handler = logoutChat;
-
-      if (handler) {
-        await Promise.resolve(handler(false));
+      const handler = window.RivoLogoutChat || window.logoutChat ||
+        (typeof logoutChat === 'function' ? logoutChat : null);
+      if (typeof handler === 'function') {
+        await Promise.resolve(handler());
       } else if (typeof button?.onclick === 'function') {
         await Promise.resolve(button.onclick.call(button, event || new Event('click')));
       }
     } catch (error) {
       console.error('Rivo mobile logout failed', error);
     } finally {
-      resetMobileUiForEntry();
+      // Always restore the main entry/settings page, even if a browser swallowed the original click.
+      closeMobileDrawer();
+      document.querySelectorAll('.modal:not(#entryAvatarPickerModal)').forEach((node) => node.classList.add('hidden'));
+      document.body.classList.remove(
+        'mobileSideOpen','mobileAvatarEntryPending','rivoKeyboardOpen','mobileStageActive',
+        'radioVideoDragging','privateWindowDragging'
+      );
+      document.documentElement.classList.remove('rivoMobileChatLocked','rivoKeyboardViewport');
+      const screen = $('#entryScreen');
+      if (screen) {
+        screen.classList.remove('hidden');
+        screen.removeAttribute('aria-hidden');
+        screen.style.removeProperty('display');
+        screen.style.removeProperty('visibility');
+        screen.style.removeProperty('opacity');
+        screen.style.removeProperty('pointer-events');
+      }
+      document.body.classList.add('entryLocked');
+      window.scrollTo(0, 0);
       window.setTimeout(() => {
-        const screen = $('#entryScreen');
-        screen?.classList.remove('hidden');
-        document.body.classList.add('entryLocked');
-        document.body.classList.remove('mobileSideOpen');
+        resetMobileUiForEntry();
         if (button) button.disabled = false;
         mobileLogoutBusy = false;
-      }, 120);
+      }, 100);
     }
   }
 
@@ -517,11 +511,9 @@
     if (entryVisible || document.body.classList.contains('entryLocked')) {
       closeMobileDrawer();
     }
-    // لا تسمح ببقاء طبقة التعتيم وحدها إذا اختفى الدرج لأي سبب.
     const side = $('.communitySide');
-    if (document.body.classList.contains('mobileSideOpen') && (!side || side.getAttribute('aria-hidden') === 'true')) {
-      closeMobileDrawer();
-    }
+    if (document.body.classList.contains('mobileSideOpen') && (!side || side.getAttribute('aria-hidden') === 'true')) closeMobileDrawer();
+    $('#mobileSideBackdrop')?.remove();
   }
 
   function applyMode() {
