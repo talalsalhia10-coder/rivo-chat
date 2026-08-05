@@ -320,10 +320,19 @@
     const expiresAt = Number(identity.expiresAt || 0);
     return expiresAt <= 0 || expiresAt > Date.now() + 30_000;
   }
+  function explicitStaffEntryRequested() {
+    try {
+      const params = new URLSearchParams(location.search);
+      return params.has("ownerEntry") || params.has("adminPreview");
+    } catch {
+      return false;
+    }
+  }
   function navigationAllowsIdentityResume() {
     // إعادة تحميل الصفحة داخل التبويب نفسه تستأنف الجلسة بصمت.
-    // فتح الموقع كزيارة جديدة، من رابط أو تبويب جديد أو بعد إعادة فتح المتصفح،
-    // يعرض صفحة الاسم والصورة حتى يستطيع المستخدم تعديلهما قبل الدخول.
+    // دخول الإدارة الصريح من لوحة المالك يُسمح له باستعادة هوية الإدارة نفسها،
+    // بينما أي زيارة عادية جديدة تبقى على صفحة الاسم والصورة.
+    if (explicitStaffEntryRequested()) return true;
     try {
       const navigation = performance.getEntriesByType?.("navigation")?.[0];
       return navigation?.type === "reload";
@@ -332,6 +341,8 @@
     }
   }
   function discardLegacyPersistentIdentity() {
+    // لوحة المالك تضع هوية الإدارة مؤقتاً هنا فقط عند الضغط على دخول ظاهر/مخفي.
+    if (explicitStaffEntryRequested()) return;
     try { localStorage.removeItem(PERSIST_IDENTITY_KEY); } catch {}
   }
   function saveIdentity(identity) {
@@ -343,7 +354,8 @@
     discardLegacyPersistentIdentity();
   }
   function loadIdentity() {
-    discardLegacyPersistentIdentity();
+    const explicitStaffEntry = explicitStaffEntryRequested();
+    if (!explicitStaffEntry) discardLegacyPersistentIdentity();
     if (!navigationAllowsIdentityResume()) {
       try {
         sessionStorage.removeItem(LIVE_IDENTITY_KEY);
@@ -355,8 +367,20 @@
     const candidates = [];
     try { candidates.push(safeParse(sessionStorage.getItem(LIVE_IDENTITY_KEY) || "null", null)); } catch {}
     try { candidates.push(safeParse(sessionStorage.getItem(LEGACY_IDENTITY_KEY) || "null", null)); } catch {}
-    const identity = candidates.find(identityIsUsable) || null;
-    if (identity) saveIdentity(identity);
+    if (explicitStaffEntry) {
+      try {
+        const staffIdentity = safeParse(localStorage.getItem(PERSIST_IDENTITY_KEY) || "null", null);
+        if (staffIdentity?.type === "owner" || staffIdentity?.type === "moderator") candidates.unshift(staffIdentity);
+      } catch {}
+    }
+    const identity = explicitStaffEntry
+      ? (candidates.find((candidate) => (candidate?.type === "owner" || candidate?.type === "moderator") && identityIsUsable(candidate)) || null)
+      : (candidates.find(identityIsUsable) || null);
+    if (identity) {
+      saveIdentity(identity);
+      // تبقى الهوية المؤقتة متاحة لمعاينة الإدارة والنافذة المستقلة معاً.
+      // أي زيارة عادية من دون ownerEntry/adminPreview تمسحها فوراً، فلا يحدث دخول تلقائي للمستخدمين.
+    }
     return identity;
   }
   function clearIdentity() {

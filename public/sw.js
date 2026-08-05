@@ -1,4 +1,4 @@
-const RELEASE = "209-entry-every-visit";
+const RELEASE = "210-admin-hidden-gallery";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
@@ -7,7 +7,7 @@ const CORE_ASSETS = [
   "./index.html",
   "./styles.css?v=208",
   "./app.js?v=202",
-  "./live-bridge.js?v=209",
+  "./live-bridge.js?v=210",
   "./mobile-experience.js?v=208",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",

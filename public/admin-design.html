@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=195">
+<link rel="stylesheet" href="admin-design.css?v=210">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -170,12 +170,22 @@
             </label>
             <input id="ownerAdminAvatarInput" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
             <div id="ownerAdminAvatarUploadState" class="ownerAdminAvatarUploadState">لم يتم اختيار صورة جديدة.</div>
+
+            <div class="ownerAdminAvatarLibrary">
+              <div class="ownerAdminAvatarLibraryHead">
+                <div><b>مكتبة صور الإدارة الخاصة</b><small>تظهر لك في لوحة الإدارة فقط، ولا تظهر ضمن صور الشخصيات للضيوف أو المسجلين.</small></div>
+                <span>👑 خاص</span>
+              </div>
+              <div id="ownerAdminAvatarGallery" class="ownerAdminAvatarGallery"></div>
+              <div id="ownerAdminAvatarGalleryEmpty" class="ownerAdminAvatarGalleryEmpty">ارفع أول صورة للإدارة وستبقى محفوظة هنا للاستخدام لاحقاً.</div>
+            </div>
           </section>
         </div>
 
         <div class="ownerAdminPrimaryActions">
-          <button id="ownerEnterChatNowBtn" type="button" class="ownerEnterChatNowBtn">فتح الدردشة كإدارة والكتابة الآن 👑</button>
-          <a id="ownerOpenChatBtn" href="index.html" target="_blank" rel="noopener">فتحها في نافذة مستقلة ↗</a>
+          <button id="ownerEnterChatNowBtn" type="button" class="ownerEnterChatNowBtn">دخول ظاهر بنفس حساب الإدارة 👑</button>
+          <button id="ownerEnterHiddenChatNowBtn" type="button" class="ownerEnterHiddenChatNowBtn">دخول مخفي بنفس حساب الإدارة 🫥</button>
+          <a id="ownerOpenChatBtn" href="index.html" target="_blank" rel="noopener">فتح الوضع الحالي في نافذة مستقلة ↗</a>
         </div>
 
         <div class="ownerAdminSettingsFooter ownerAdminFooterPro">
@@ -564,6 +574,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=195"></script>
+<script src="admin-design.js?v=210"></script>
 </body>
 </html>

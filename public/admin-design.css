@@ -1094,3 +1094,25 @@ body.ownerAdminSettingsPopupOpen{overflow:hidden}
  #section-adminsettings.ownerAdminSettingsModalOpen .ownerSettingsHeading{top:-10px;margin:-10px -10px 10px;padding:12px 52px 10px 10px}
  .ownerAdminSettingsModalClose{top:7px;right:8px}
 }
+
+/* Rivo v210 — دخول الإدارة المباشر ومكتبة الصور الخاصة */
+.ownerAdminAvatarLibrary{margin-top:12px;border:1px solid #e0e5f0;border-radius:15px;padding:12px;background:linear-gradient(145deg,#fbfcff,#f4f1ff)}
+.ownerAdminAvatarLibraryHead{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ownerAdminAvatarLibraryHead>div{display:grid;gap:3px}.ownerAdminAvatarLibraryHead b{font-size:13px;color:#2e3851}.ownerAdminAvatarLibraryHead small{font-size:10px;line-height:1.55;color:#778095}
+.ownerAdminAvatarLibraryHead>span{flex:0 0 auto;border-radius:999px;padding:5px 8px;background:#fff3bf;color:#6b4a00;font-size:10px;font-weight:950}
+.ownerAdminAvatarGallery{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.ownerAdminSavedAvatar{position:relative;border:2px solid transparent;border-radius:14px;padding:3px;background:#fff;box-shadow:0 5px 14px rgba(42,53,88,.08)}
+.ownerAdminSavedAvatar.active{border-color:#6a52df;box-shadow:0 0 0 3px rgba(106,82,223,.12)}
+.ownerAdminSavedAvatarUse{width:100%;border:0;background:transparent;padding:0;cursor:pointer;display:grid;gap:5px;color:#46516b;font:inherit}
+.ownerAdminSavedAvatarUse img{width:100%;aspect-ratio:1/1;object-fit:cover;border-radius:10px;display:block;background:#eef2f7}
+.ownerAdminSavedAvatarUse span{padding:0 2px 3px;font-size:9px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ownerAdminSavedAvatar.active .ownerAdminSavedAvatarUse span{color:#5c43ca}
+.ownerAdminSavedAvatarDelete{position:absolute;top:-5px;left:-5px;width:23px;height:23px;border:0;border-radius:50%;background:#d9485b;color:#fff;font-size:16px;font-weight:950;line-height:1;cursor:pointer;box-shadow:0 4px 10px rgba(160,34,52,.25)}
+.ownerAdminAvatarGalleryEmpty{border:1px dashed #cbd3e2;border-radius:11px;padding:10px;text-align:center;color:#7b8498;font-size:10px;font-weight:800;background:#fff}
+.ownerAdminAvatarGalleryEmpty.hidden{display:none!important}
+.ownerAdminPrimaryActions{grid-template-columns:1fr 1fr auto}
+.ownerEnterHiddenChatNowBtn{width:100%;border:0;border-radius:16px;padding:15px 18px;background:linear-gradient(135deg,#7155dd,#4c3ab7);color:#fff;font-size:15px;font-weight:950;cursor:pointer;box-shadow:0 10px 24px rgba(83,60,183,.18)}
+.ownerEnterHiddenChatNowBtn:hover{filter:brightness(1.05);transform:translateY(-1px)}
+.ownerEnterHiddenChatNowBtn:active{transform:none}
+@media(max-width:800px){.ownerAdminPrimaryActions{grid-template-columns:1fr}.ownerAdminAvatarGallery{grid-template-columns:repeat(5,minmax(0,1fr))}}
+@media(max-width:560px){.ownerAdminAvatarGallery{grid-template-columns:repeat(4,minmax(0,1fr))}.ownerAdminAvatarLibraryHead{align-items:stretch;flex-direction:column}.ownerAdminAvatarLibraryHead>span{align-self:flex-start}}

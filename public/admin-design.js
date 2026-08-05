@@ -133,16 +133,63 @@ const defaultEntryAvatars=[
  {id:'entry_avatar_5',src:'assets/entry-avatars/rivo-avatar-woman-denim.jpg',alt:'صورة شخصية لفتاة ترتدي سترة جينز',title:'صورة شخصية لفتاة ترتدي سترة جينز'},
  {id:'entry_avatar_6',src:'assets/entry-avatars/rivo-avatar-woman-purple-hoodie.jpg',alt:'صورة شخصية لفتاة ترتدي سترة بنفسجية',title:'صورة شخصية لفتاة ترتدي سترة بنفسجية'}
 ];
+function isOwnerOnlyAvatar(item){
+ const id=String(item?.id||'');
+ const normalizeLabel=value=>String(value||'').trim().replace(/\s+/g,' ').replace(/[إأآ]/g,'ا').toLowerCase();
+ const alt=normalizeLabel(item?.alt);
+ const title=normalizeLabel(item?.title);
+ const legacyOwnerLabel=value=>value==='صورة الادارة'||value==='صورة المالك'||value==='admin image'||value==='owner image';
+ return Boolean(item?.ownerAvatar)||
+  /^entry_avatar_admin_/i.test(id)||
+  /^staff_avatar_owner_/i.test(id)||
+  legacyOwnerLabel(alt)||legacyOwnerLabel(title);
+}
 function normalizeEntryAvatars(list){
  const fallback=structuredClone(defaultEntryAvatars);
  if(!Array.isArray(list)||!list.length)return fallback;
- const normalized=list.filter(Boolean).map((item,index)=>({
-   id:item.id||`entry_avatar_${index+1}`,
-   src:item.src||item.path||'',
-   alt:item.alt||item.title||`صورة شخصية ${index+1}`,
-   title:item.title||item.alt||`صورة شخصية ${index+1}`
- })).filter(item=>typeof item.src==='string'&&item.src);
+ const normalized=list.filter(Boolean).map((item,index)=>{
+   const id=item.id||`entry_avatar_${index+1}`;
+   return{
+    id,
+    src:item.src||item.path||'',
+    alt:item.alt||item.title||`صورة شخصية ${index+1}`,
+    title:item.title||item.alt||`صورة شخصية ${index+1}`,
+    ...(item.custom?{custom:true}:{}),
+    ...(isOwnerOnlyAvatar({...item,id})?{ownerAvatar:true}:{}),
+    ...(Number(item.createdAt||0)?{createdAt:Number(item.createdAt)}:{})
+   };
+ }).filter(item=>typeof item.src==='string'&&item.src);
  return normalized.length?normalized:fallback;
+}
+function userEntryAvatarItems(){
+ return normalizeEntryAvatars(config?.entryAvatars).filter(item=>!isOwnerOnlyAvatar(item));
+}
+function insertUserEntryAvatarAfterFirst(item){
+ const firstPublicIndex=config.entryAvatars.findIndex(entry=>!isOwnerOnlyAvatar(entry));
+ const insertAt=firstPublicIndex<0?config.entryAvatars.length:firstPublicIndex+1;
+ config.entryAvatars.splice(insertAt,0,item);
+}
+function ownerAdminAvatarItems(){
+ return normalizeEntryAvatars(config?.entryAvatars)
+  .filter(isOwnerOnlyAvatar)
+  .sort((a,b)=>Number(b.createdAt||0)-Number(a.createdAt||0));
+}
+function savedOwnerAdminAvatar(){
+ const requested=String(config?.ownerAppearance?.avatar||'').trim();
+ const choices=ownerAdminAvatarItems();
+ if(requested&&choices.some(item=>item.id===requested))return requested;
+ const current=String(ownerAdminSettingsState.avatar||'').trim();
+ if(current&&choices.some(item=>item.id===current))return current;
+ return choices[0]?.id||'owner';
+}
+function syncOwnerAdminAvatarFromConfig(){
+ const selected=savedOwnerAdminAvatar();
+ config.ownerAppearance={...(config.ownerAppearance||{}),avatar:selected};
+ const current=String(ownerAdminSettingsState.avatar||'').trim();
+ const choices=ownerAdminAvatarItems();
+ if(!current||current==='owner'||(!choices.some(item=>item.id===current)&&selected!=='owner')){
+  ownerAdminSettingsState.avatar=selected;
+ }
 }
 
 const defaultRooms=[
@@ -172,6 +219,7 @@ function defaultConfig(){
   rooms:structuredClone(defaultRooms),
   users:structuredClone(defaultUsers),
   entryAvatars:structuredClone(defaultEntryAvatars),
+  ownerAppearance:{avatar:'owner'},
   private:{enabled:true,mic:false,camera:false,paidOnly:true},
   radio:{status:'stopped',scope:'all',roomId:'general',title:'موسيقى ريفو التجريبية',source:'assets/audio/rivo-radio-demo.wav'},
   economy:{giftsEnabled:true,vipEnabled:true,verifyEnabled:true,gifts:structuredClone(defaultGifts)},
@@ -191,6 +239,7 @@ function mergeConfig(saved){
   rooms:Array.isArray(saved.rooms)&&saved.rooms.length?saved.rooms:base.rooms,
   users:migrateUsers?[]:(Array.isArray(saved.users)?saved.users.filter(user=>!DEMO_USER_IDS.has(String(user?.id||''))):[]),
   entryAvatars:normalizeEntryAvatars(saved.entryAvatars||base.entryAvatars),
+  ownerAppearance:{...base.ownerAppearance,...(saved.ownerAppearance||{})},
   private:{...base.private,...(saved.private||{})},
   radio:{...base.radio,...(saved.radio||{})},
   economy:{...base.economy,...(saved.economy||{}),gifts:Array.isArray(saved.economy?.gifts)?saved.economy.gifts:base.economy.gifts},
@@ -522,7 +571,116 @@ function switchOwnerAdminRoom(roomId,{openWindow=false}={}){
  toast(`تم الانتقال إلى غرفة ${room.name}`);
  return true;
 }
+function renderOwnerAdminAvatarGallery(){
+ const grid=$('#ownerAdminAvatarGallery');
+ const empty=$('#ownerAdminAvatarGalleryEmpty');
+ if(!grid)return;
+ syncOwnerAdminAvatarFromConfig();
+ const choices=ownerAdminAvatarItems();
+ const active=String(ownerAdminSettingsState.avatar||config?.ownerAppearance?.avatar||'owner');
+ grid.innerHTML=choices.map((item,index)=>`<div class="ownerAdminSavedAvatar ${item.id===active?'active':''}" data-owner-admin-avatar-card="${esc(item.id)}">
+   <button type="button" class="ownerAdminSavedAvatarUse" data-owner-admin-avatar-use="${esc(item.id)}" title="استخدام هذه الصورة للإدارة">
+    <img src="${avatarSrc(item.src)}" alt="${esc(item.alt||'صورة الإدارة')}" loading="lazy">
+    <span>${item.id===active?'مستخدمة الآن':`صورة ${index+1}`}</span>
+   </button>
+   <button type="button" class="ownerAdminSavedAvatarDelete" data-owner-admin-avatar-delete="${esc(item.id)}" title="حذف الصورة من مكتبة الإدارة">×</button>
+  </div>`).join('');
+ if(empty)empty.classList.toggle('hidden',choices.length>0);
+ $$('[data-owner-admin-avatar-use]',grid).forEach(button=>button.onclick=()=>selectOwnerAdminAvatar(button.dataset.ownerAdminAvatarUse));
+ $$('[data-owner-admin-avatar-delete]',grid).forEach(button=>button.onclick=()=>{
+  const id=button.dataset.ownerAdminAvatarDelete;
+  if(confirm('حذف هذه الصورة من صور الإدارة الخاصة؟'))removeOwnerAdminAvatar(id);
+ });
+}
+async function persistOwnerAdminAvatarCollection(message='تم حفظ صور الإدارة الخاصة'){
+ if(!persistAdminConfig()){
+  setOwnerAvatarUploadState('تعذر الحفظ لأن مساحة المتصفح ممتلئة. احذف صورة إدارة قديمة ثم أعد المحاولة.','error');
+  return false;
+ }
+ const serial=++remoteSaveSerial;
+ try{
+  const saved=await saveRemoteAdminConfig(structuredClone(config),serial);
+  if(!saved)return false;
+  sendConfigLive();
+  addLog(message);
+  return true;
+ }catch(error){
+  console.error('Owner avatar cloud save failed',error);
+  setOwnerAvatarUploadState(error?.message||'تعذر حفظ صور الإدارة على الخادم.','error');
+  return false;
+ }
+}
+async function selectOwnerAdminAvatar(id){
+ const item=ownerAdminAvatarItems().find(entry=>entry.id===id);
+ if(!item)return false;
+ const previous=String(config?.ownerAppearance?.avatar||ownerAdminSettingsState.avatar||'owner');
+ config.ownerAppearance={...(config.ownerAppearance||{}),avatar:item.id};
+ setOwnerAvatarUploadState('جارٍ تفعيل الصورة المختارة…','loading');
+ const saved=await persistOwnerAdminAvatarCollection('تغيير صورة الإدارة من المكتبة الخاصة');
+ if(!saved){
+  config.ownerAppearance={...(config.ownerAppearance||{}),avatar:previous};
+  persistAdminConfig();
+  renderOwnerAdminAvatarGallery();
+  return false;
+ }
+ ownerAdminSettingsState.avatar=item.id;
+ updateLocalOwnerAdminState(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,item.id);
+ const identity=buildOwnerChatIdentity(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+ if(identity)saveOwnerChatIdentity(identity);
+ const sent=sendAdminCommand('update-staff-avatar',{avatar:item.id});
+ if(!sent)setTimeout(()=>sendAdminCommand('update-staff-avatar',{avatar:item.id}),900);
+ renderOwnerAdminSettings();
+ setOwnerAvatarUploadState('تم اختيار الصورة وحفظها للإدارة، ولا تظهر ضمن صور المستخدمين.','success');
+ setOwnerAdminStatus('تم تغيير صورة الإدارة بنجاح.','success');
+ setTimeout(()=>reloadChatPreviewAsOwner(),160);
+ return true;
+}
+async function removeOwnerAdminAvatar(id){
+ const choices=ownerAdminAvatarItems();
+ const item=choices.find(entry=>entry.id===id);
+ if(!item)return false;
+ const previousEntries=structuredClone(config.entryAvatars);
+ const previousSelection=String(config?.ownerAppearance?.avatar||ownerAdminSettingsState.avatar||'owner');
+ config.entryAvatars=normalizeEntryAvatars(config.entryAvatars).filter(entry=>entry.id!==id);
+ const remaining=ownerAdminAvatarItems();
+ const nextAvatar=previousSelection===id?(remaining[0]?.id||'owner'):previousSelection;
+ config.ownerAppearance={...(config.ownerAppearance||{}),avatar:nextAvatar};
+ setOwnerAvatarUploadState('جارٍ حذف الصورة وحفظ التغيير…','loading');
+ const saved=await persistOwnerAdminAvatarCollection('حذف صورة من مكتبة الإدارة الخاصة');
+ if(!saved){
+  config.entryAvatars=previousEntries;
+  config.ownerAppearance={...(config.ownerAppearance||{}),avatar:previousSelection};
+  persistAdminConfig();
+  renderOwnerAdminSettings();
+  return false;
+ }
+ if(ownerAdminSettingsState.avatar===id){
+  ownerAdminSettingsState.avatar=nextAvatar;
+  updateLocalOwnerAdminState(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,nextAvatar);
+  const identity=buildOwnerChatIdentity(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+  if(identity)saveOwnerChatIdentity(identity);
+  const sent=sendAdminCommand('update-staff-avatar',{avatar:nextAvatar});
+  if(!sent)setTimeout(()=>sendAdminCommand('update-staff-avatar',{avatar:nextAvatar}),900);
+  setTimeout(()=>reloadChatPreviewAsOwner(),160);
+ }
+ renderOwnerAdminSettings();
+ setOwnerAvatarUploadState(remaining.length?'تم حذف الصورة من مكتبة الإدارة الخاصة.':'تم حذف الصورة، وعادت صورة الإدارة الافتراضية.','success');
+ return true;
+}
+function enterOwnerChatInMode(visible){
+ const nextVisible=Boolean(visible);
+ const sent=sendAdminCommand('set-staff-visible',{visible:nextVisible});
+ updateLocalOwnerAdminState(ownerAdminSettingsState.name,nextVisible,ownerAdminSettingsState.avatar);
+ const identity=buildOwnerChatIdentity(ownerAdminSettingsState.name,nextVisible);
+ if(!identity){showRemoteAdminLogin('أعد إدخال رمز الإدارة أولاً.');setOwnerAdminStatus('يلزم تسجيل دخول الإدارة قبل فتح الدردشة.','error');return false}
+ saveOwnerChatIdentity(identity);
+ if(!sent)setTimeout(()=>sendAdminCommand('set-staff-visible',{visible:nextVisible}),900);
+ const opened=enterOwnerChatNow(ownerAdminSettingsState.name,nextVisible);
+ if(opened)setOwnerAdminStatus(nextVisible?'دخلت الآن بنفس حساب الإدارة وأنت ظاهر للمستخدمين.':'دخلت الآن بنفس حساب الإدارة مخفياً؛ لا تحتاج حساباً أو اسماً ثانياً.','success');
+ return opened;
+}
 function renderOwnerAdminSettings(){
+ syncOwnerAdminAvatarFromConfig();
  const name=ownerAdminPublicName();
  const visible=ownerAdminSettingsState.visible!==false;
  const previewName=$('#ownerAdminPreviewName');
@@ -554,7 +712,10 @@ function renderOwnerAdminSettings(){
   connection.classList.toggle('connected',ownerAdminSettingsState.connected);
  }
  const enterBtn=$('#ownerEnterChatNowBtn');
- if(enterBtn)enterBtn.textContent=visible?'فتح الدردشة كإدارة والكتابة الآن 👑':'فتح الدردشة مخفياً والكتابة في العام 🫥';
+ const hiddenEnterBtn=$('#ownerEnterHiddenChatNowBtn');
+ if(enterBtn)enterBtn.textContent='دخول ظاهر بنفس حساب الإدارة 👑';
+ if(hiddenEnterBtn)hiddenEnterBtn.textContent='دخول مخفي بنفس حساب الإدارة 🫥';
+ renderOwnerAdminAvatarGallery();
  renderOwnerAdminRoomPicker();
 }
 function setOwnerAdminVisibility(visible){
@@ -610,23 +771,28 @@ async function handleOwnerAdminAvatarUpload(event){
   const cropped=await prepareEntryAvatarData(file,true);
   config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
   item={id:`entry_avatar_admin_${Date.now()}`,src:cropped,alt:'صورة الإدارة',title:'صورة الإدارة',custom:true,ownerAvatar:true,createdAt:Date.now()};
-  config.entryAvatars=config.entryAvatars.filter(entry=>!entry?.ownerAvatar);
-  config.entryAvatars.splice(Math.min(1,config.entryAvatars.length),0,item);
-  if(!persistAdminConfig())throw new Error('storage_failed');
-  const cloudSaved=await saveEntryAvatarConfigToCloud('تحديث صورة الإدارة');
+  // صور الإدارة لها مكتبة خاصة داخل لوحة المالك، ولا تُضاف إلى صور الاختيار العامة.
+  config.entryAvatars.unshift(item);
+  config.ownerAppearance={...(config.ownerAppearance||{}),avatar:item.id};
+  const cloudSaved=await persistOwnerAdminAvatarCollection('رفع صورة جديدة لمكتبة الإدارة الخاصة');
   if(!cloudSaved)throw new Error('cloud_save_failed');
-  if(!sendAdminCommand('update-staff-avatar',{avatar:item.id}))throw new Error('admin_socket_failed');
   ownerAdminSettingsState.avatar=item.id;
   updateLocalOwnerAdminState(ownerAdminSettingsState.name,ownerAdminSettingsState.visible,item.id);
   const current=buildOwnerChatIdentity(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
   if(current)saveOwnerChatIdentity(current);
+  const commandSent=sendAdminCommand('update-staff-avatar',{avatar:item.id});
+  if(!commandSent)setTimeout(()=>sendAdminCommand('update-staff-avatar',{avatar:item.id}),900);
   renderOwnerAdminSettings();
   sendConfigLive();
-  setOwnerAvatarUploadState('تم حفظ صورة الإدارة ونشرها لجميع المستخدمين.','success');
-  setOwnerAdminStatus('تم تغيير صورة الإدارة بنجاح.','success');
+  setOwnerAvatarUploadState('تم حفظ الصورة في مكتبة الإدارة الخاصة، ولن تظهر ضمن صور المستخدمين.','success');
+  setOwnerAdminStatus('تم تغيير صورة الإدارة وحفظها في المكتبة الخاصة.','success');
   setTimeout(()=>reloadChatPreviewAsOwner(),160);
  }catch(error){
-  if(item){config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);persistAdminConfig()}
+  if(item){
+   config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);
+   if(config?.ownerAppearance?.avatar===item.id)config.ownerAppearance={...(config.ownerAppearance||{}),avatar:savedOwnerAdminAvatar()};
+   persistAdminConfig();
+  }
   const message=error?.message==='cloud_save_failed'?'تعذر حفظ الصورة على الخادم. أعد المحاولة بعد التأكد من اتصال لوحة الإدارة.':'تعذر تجهيز صورة الإدارة. جرّب صورة JPG أو PNG أو WEBP أخرى.';
   setOwnerAvatarUploadState(message,'error');
  }finally{
@@ -1627,8 +1793,9 @@ function openEntryAvatarManager(){
  normalizeAdminData();
  const modal=$('#entryAvatarManagerModal');
  if(!modal)return;
- if(!selectedEntryAvatarId||!config.entryAvatars.some(item=>item.id===selectedEntryAvatarId)){
-  selectedEntryAvatarId=config.entryAvatars[0]?.id||null;
+ const choices=userEntryAvatarItems();
+ if(!selectedEntryAvatarId||!choices.some(item=>item.id===selectedEntryAvatarId)){
+  selectedEntryAvatarId=choices[0]?.id||null;
  }
  setEntryAvatarUploadStatus('','');
  renderEntryAvatarsAdmin();
@@ -1645,15 +1812,16 @@ function closeEntryAvatarManager(){
  $('.adminNav button[data-section="avatars"]')?.classList.remove('modalActive');
 }
 function selectEntryAvatar(id){
- if(!config.entryAvatars.some(item=>item.id===id))return;
+ if(!userEntryAvatarItems().some(item=>item.id===id))return;
  selectedEntryAvatarId=id;
  renderEntryAvatarsAdmin();
 }
 function updateSelectedEntryAvatarPreview(){
  config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
- let index=config.entryAvatars.findIndex(item=>item.id===selectedEntryAvatarId);
- if(index<0){index=0;selectedEntryAvatarId=config.entryAvatars[0]?.id||null;}
- const item=config.entryAvatars[index];
+ const choices=userEntryAvatarItems();
+ let index=choices.findIndex(item=>item.id===selectedEntryAvatarId);
+ if(index<0){index=0;selectedEntryAvatarId=choices[0]?.id||null;}
+ const item=choices[index];
  const preview=$('#entryAvatarSelectedPreview');
  const title=$('#entryAvatarSelectedTitle');
  const badge=$('#entryAvatarSelectedBadge');
@@ -1663,7 +1831,7 @@ function updateSelectedEntryAvatarPreview(){
  if(title)title.textContent=item?`الصورة ${index+1}`:'اختر صورة';
  if(badge)badge.textContent=index===0?'⭐ الصورة الأولى':'الصورة المختارة';
  if(promote){promote.disabled=!item||index===0;promote.textContent=index===0?'هي الصورة الأولى':'اجعلها الأولى';}
- if(remove)remove.disabled=config.entryAvatars.length<=1||!item;
+ if(remove)remove.disabled=choices.length<=1||!item;
 }
 async function handleEntryAvatarUpload(event){
  const input=event.currentTarget||event.target;
@@ -1678,10 +1846,10 @@ async function handleEntryAvatarUpload(event){
  try{
   let cropped=await prepareEntryAvatarData(file,false);
   config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
-  const number=config.entryAvatars.length+1;
+  const number=userEntryAvatarItems().length+1;
   item={id:`entry_avatar_${Date.now()}`,src:cropped,alt:`صورة شخصية ${number}`,title:`صورة شخصية ${number}`,custom:true,createdAt:Date.now()};
   // تبقى الصورة الافتراضية الأولى في مكانها، وتظهر الصورة الجديدة بعدها مباشرة بدلاً من أسفل القائمة.
-  config.entryAvatars.splice(Math.min(1,config.entryAvatars.length),0,item);
+  insertUserEntryAvatarAfterFirst(item);
   if(!persistAdminConfig()){
    config.entryAvatars=config.entryAvatars.filter(entry=>entry.id!==item.id);
    cropped=await prepareEntryAvatarData(file,true);
@@ -1728,20 +1896,27 @@ async function handleEntryAvatarUpload(event){
 }
 function promoteEntryAvatar(id){
  config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
- const index=config.entryAvatars.findIndex(item=>item.id===id);
- if(index<=0)return;
- const [item]=config.entryAvatars.splice(index,1);
- config.entryAvatars.unshift(item);
+ const choices=userEntryAvatarItems();
+ const publicIndex=choices.findIndex(item=>item.id===id);
+ if(publicIndex<=0)return;
+ const configIndex=config.entryAvatars.findIndex(item=>item.id===id);
+ if(configIndex<0)return;
+ const [item]=config.entryAvatars.splice(configIndex,1);
+ const firstPublicIndex=config.entryAvatars.findIndex(entry=>!isOwnerOnlyAvatar(entry));
+ config.entryAvatars.splice(firstPublicIndex<0?config.entryAvatars.length:firstPublicIndex,0,item);
  selectedEntryAvatarId=item.id;
  saveConfig('تم جعل الصورة المختارة في بداية القائمة');
  renderEntryAvatarsAdmin();
 }
 function removeEntryAvatar(id){
  config.entryAvatars=normalizeEntryAvatars(config.entryAvatars);
- if(config.entryAvatars.length<=1){toast('يجب أن تبقى صورة واحدة على الأقل');return;}
- const index=config.entryAvatars.findIndex(item=>item.id===id);
+ const choices=userEntryAvatarItems();
+ if(choices.length<=1){toast('يجب أن تبقى صورة واحدة على الأقل');return;}
+ const index=choices.findIndex(item=>item.id===id);
+ if(index<0)return;
  config.entryAvatars=config.entryAvatars.filter(item=>item.id!==id);
- selectedEntryAvatarId=config.entryAvatars[Math.min(Math.max(index-1,0),config.entryAvatars.length-1)]?.id||config.entryAvatars[0]?.id||null;
+ const remaining=userEntryAvatarItems();
+ selectedEntryAvatarId=remaining[Math.min(Math.max(index-1,0),remaining.length-1)]?.id||remaining[0]?.id||null;
  saveConfig('تم حذف الصورة من واجهة الدخول');
  renderEntryAvatarsAdmin();
 }
@@ -1749,8 +1924,9 @@ function renderEntryAvatarsAdmin(){
  normalizeAdminData();
  const grid=$('#entryAvatarAdminGrid');
  if(!grid)return;
- if(!selectedEntryAvatarId||!config.entryAvatars.some(item=>item.id===selectedEntryAvatarId))selectedEntryAvatarId=config.entryAvatars[0]?.id||null;
- grid.innerHTML=config.entryAvatars.map((item,index)=>`<button type="button" class="entryAvatarManagerItem ${index===0?'default':''} ${item.id===selectedEntryAvatarId?'selected':''} ${item.id===latestUploadedEntryAvatarId?'justUploaded':''}" data-entry-avatar-select="${esc(item.id)}" data-entry-avatar-id="${esc(item.id)}" title="اختيار صورة ${index+1}">
+ const choices=userEntryAvatarItems();
+ if(!selectedEntryAvatarId||!choices.some(item=>item.id===selectedEntryAvatarId))selectedEntryAvatarId=choices[0]?.id||null;
+ grid.innerHTML=choices.map((item,index)=>`<button type="button" class="entryAvatarManagerItem ${index===0?'default':''} ${item.id===selectedEntryAvatarId?'selected':''} ${item.id===latestUploadedEntryAvatarId?'justUploaded':''}" data-entry-avatar-select="${esc(item.id)}" data-entry-avatar-id="${esc(item.id)}" title="اختيار صورة ${index+1}">
    ${index===0?'<span class="entryAvatarDefaultBadge">⭐ الأولى</span>':''}
    ${item.id===latestUploadedEntryAvatarId?'<span class="entryAvatarNewBadge">جديدة</span>':''}
    <img src="${avatarSrc(item.src)}" alt="${esc(item.alt||'صورة شخصية')}" loading="lazy">
@@ -2001,7 +2177,8 @@ function bind(){
  if($('#ownerHideAdminBtn'))$('#ownerHideAdminBtn').onclick=()=>setOwnerAdminVisibility(false);
  if($('#ownerEnterCrownOnlyBtn'))$('#ownerEnterCrownOnlyBtn').onclick=()=>applyOwnerAdminIdentity(true);
  if($('#ownerEnterNamedBtn'))$('#ownerEnterNamedBtn').onclick=()=>applyOwnerAdminIdentity(false);
- if($('#ownerEnterChatNowBtn'))$('#ownerEnterChatNowBtn').onclick=()=>enterOwnerChatNow(ownerAdminSettingsState.name,ownerAdminSettingsState.visible);
+ if($('#ownerEnterChatNowBtn'))$('#ownerEnterChatNowBtn').onclick=()=>enterOwnerChatInMode(true);
+ if($('#ownerEnterHiddenChatNowBtn'))$('#ownerEnterHiddenChatNowBtn').onclick=()=>enterOwnerChatInMode(false);
  if($('#ownerAdminRoomSelect'))$('#ownerAdminRoomSelect').onchange=event=>{
   const room=roomById(event.target.value);
   const currentName=$('#ownerAdminCurrentRoomName');
