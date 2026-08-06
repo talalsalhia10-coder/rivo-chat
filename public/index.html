@@ -14,7 +14,30 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
-<link rel="stylesheet" href="styles.css?v=208">
+<link rel="preload" as="image" href="./assets/app/rivo-app-splash.webp" type="image/webp">
+<link rel="stylesheet" href="styles.css?v=210">
+
+<script>
+(function(){
+  try {
+    var params = new URLSearchParams(window.location.search || '');
+    var ua = navigator.userAgent || '';
+    var inStandalone = false;
+    try { inStandalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches; } catch(e) {}
+    var isAndroidWebView = /Android/i.test(ua) && (/\bwv\b/i.test(ua) || /Version\/\d+.*Chrome\/\d+/i.test(ua) || /; wv\)/i.test(ua));
+    var forceApp = params.get('app') === '1' || params.get('native') === '1' || localStorage.getItem('rivo-app-shell') === '1';
+    var appShell = forceApp || inStandalone || isAndroidWebView;
+    if (forceApp) { try { localStorage.setItem('rivo-app-shell','1'); } catch(e) {} }
+    if (appShell) {
+      window.__RIVO_APP_SHELL__ = true;
+      document.documentElement.classList.add('rivoAppShell');
+      function applyBodyClass(){ document.body && document.body.classList.add('rivoAppShell'); }
+      if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', applyBodyClass, { once:true });
+      else applyBodyClass();
+    }
+  } catch(e) {}
+})();
+</script>
 
 <script type="application/ld+json">{
   "@context":"https://schema.org",
@@ -32,6 +55,10 @@
   <!-- v155 compatibility markers: gifts-upgrade.js connection-fix.js room-radio.js -->
 </head>
 <body class="entryLocked">
+<div id="rivoAppSplash" class="rivoAppSplash" aria-hidden="true">
+  <img src="./assets/app/rivo-app-splash.webp" alt="دردشة ريفو العراقية" width="720" height="1280" decoding="sync">
+</div>
+
 <div id="toast"></div>
 
 <section id="entryScreen" class="entryScreen" aria-label="الدخول إلى ريفو">
@@ -71,7 +98,7 @@
 
 <audio id="globalRadioAudio" preload="auto" autoplay loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v198</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v201</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -331,6 +358,28 @@
 <script src="app.js?v=202"></script>
 <script src="./live-bridge.js?v=211"></script>
 <script src="./mobile-experience.js?v=208"></script>
+
+<script>
+(function(){
+  var splash = document.getElementById('rivoAppSplash');
+  if (!splash || !window.__RIVO_APP_SHELL__) return;
+  var started = Date.now();
+  var hidden = false;
+  function closeSplash(){
+    if (hidden) return;
+    var wait = Math.max(0, 1700 - (Date.now() - started));
+    window.setTimeout(function(){
+      if (hidden) return;
+      hidden = true;
+      splash.classList.add('rivoSplashDone');
+      window.setTimeout(function(){ splash.remove(); }, 520);
+    }, wait);
+  }
+  if (document.readyState === 'complete') closeSplash();
+  else window.addEventListener('load', closeSplash, { once:true });
+  window.setTimeout(closeSplash, 6500);
+})();
+</script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {

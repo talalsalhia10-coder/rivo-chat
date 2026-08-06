@@ -2828,3 +2828,133 @@ body.owner .composerToolbar {
     scroll-padding-bottom:calc(var(--rivo-composer-height,92px) + 18px)!important;
   }
 }
+
+
+/* =====================================================================
+   Rivo v199 — app shell mode for Android WebView / native app wrapper
+   Makes the chat feel more like an app and less like a generic webpage.
+   Activate automatically inside Android WebView or manually with ?app=1
+   ===================================================================== */
+html.rivoAppShell,
+body.rivoAppShell{
+  background:#eef3fa !important;
+}
+body.rivoAppShell{
+  position:relative;
+  min-height:100dvh;
+}
+body.rivoAppShell::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  pointer-events:none;
+  background:linear-gradient(180deg,#f8fbff 0%,#eef3fa 42%,#edf2f8 100%);
+}
+body.rivoAppShell .entrySeoText{display:none !important}
+body.rivoAppShell .topbar .brand small{display:none !important}
+body.rivoAppShell .topbar,
+body.rivoAppShell .roomTop,
+body.rivoAppShell .messages,
+body.rivoAppShell .chat,
+body.rivoAppShell .fullChat,
+body.rivoAppShell .center,
+body.rivoAppShell .layout,
+body.rivoAppShell .layoutV2{
+  background:transparent !important;
+}
+body.rivoAppShell .topbar{
+  background:rgba(255,255,255,.94) !important;
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  box-shadow:0 8px 24px rgba(40,58,95,.10);
+}
+body.rivoAppShell .roomTop{
+  background:rgba(255,255,255,.75) !important;
+  border:1px solid rgba(113,87,255,.10);
+  box-shadow:0 10px 24px rgba(36,52,82,.07);
+}
+body.rivoAppShell .announcement{
+  background:linear-gradient(135deg,#fff8ea,#fff2d8) !important;
+  border:1px solid rgba(255,199,89,.35);
+}
+body.rivoAppShell .composerDock{
+  background:rgba(255,255,255,.94) !important;
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
+  border-top:1px solid rgba(166,177,196,.20);
+}
+body.rivoAppShell .entryCard{
+  box-shadow:0 20px 52px rgba(47,61,105,.16);
+}
+body.rivoAppShell .entryBrand>span,
+body.rivoAppShell .brand>span{
+  box-shadow:0 10px 26px rgba(91,75,255,.25);
+}
+@media (max-width:820px){
+  html.rivoAppShell,
+  body.rivoAppShell{
+    width:100%;
+    height:var(--rivo-app-height);
+    overflow:hidden;
+  }
+  body.rivoAppShell .entryScreen{
+    background:linear-gradient(180deg,#f8fbff 0%,#eef3fa 100%) !important;
+  }
+  body.rivoAppShell .entryBrand{display:none !important}
+  body.rivoAppShell .entryCard{
+    margin-top:2px;
+    border-radius:24px;
+  }
+  body.rivoAppShell .topbar{
+    position:sticky;
+    top:0;
+  }
+  body.rivoAppShell .center{
+    background:transparent !important;
+  }
+  body.rivoAppShell .messages{
+    background:transparent !important;
+  }
+  body.rivoAppShell .composerDock{
+    box-shadow:0 -8px 24px rgba(29,46,78,.08);
+  }
+}
+
+
+/* =====================================================================
+   Rivo v201 — professional startup splash for Android app shell
+   ===================================================================== */
+.rivoAppSplash{display:none}
+html.rivoAppShell .rivoAppSplash{
+  position:fixed;
+  inset:0;
+  z-index:99999;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  background:#17105a;
+  opacity:1;
+  visibility:visible;
+  transition:opacity .45s ease,visibility .45s ease;
+}
+html.rivoAppShell .rivoAppSplash img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center;
+  user-select:none;
+  -webkit-user-drag:none;
+}
+html.rivoAppShell .rivoAppSplash.rivoSplashDone{
+  opacity:0;
+  visibility:hidden;
+  pointer-events:none;
+}
+@media (min-aspect-ratio:9/16){
+  html.rivoAppShell .rivoAppSplash img{object-fit:cover}
+}
+@media (max-aspect-ratio:9/16){
+  html.rivoAppShell .rivoAppSplash img{object-fit:cover}
+}

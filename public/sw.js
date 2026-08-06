@@ -1,11 +1,11 @@
-const RELEASE = "211-admin-preview-entry-fix";
+const RELEASE = "212-app-shell-splash-v201";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=208",
+  "./styles.css?v=210",
   "./app.js?v=202",
   "./live-bridge.js?v=211",
   "./mobile-experience.js?v=208",
@@ -14,7 +14,8 @@ const CORE_ASSETS = [
   "./relay-audio.js?v=178",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
-  "./icons/icon-512.png"
+  "./icons/icon-512.png",
+  "./assets/app/rivo-app-splash.webp"
 ];
 
 self.addEventListener("install", (event) => {

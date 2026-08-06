@@ -1,1 +1,1 @@
-Rivo Chat v200 — Room microphone lock enforced by admin and server controls
+Rivo Chat v201 — Android app shell with professional startup splash
