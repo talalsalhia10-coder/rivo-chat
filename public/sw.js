@@ -1,11 +1,11 @@
-const RELEASE = "203-mobile-room-icons-fix";
+const RELEASE = "204-app-top-polish";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=203",
+  "./styles.css?v=204",
   "./app.js?v=203",
   "./live-bridge.js?v=203",
   "./mobile-experience.js?v=208",
