@@ -1641,7 +1641,7 @@
       getTransport: () => adapter,
       onRemoteCount: (count) => {
         const button = byId("soundBtn");
-        if (button && count) button.textContent = "🔊 صوت مباشر";
+        if (button && count) setRoomActionButton(button, "🔊", "صوت مباشر");
       },
       onError: (message) => toast(message || "تعذر تشغيل الصوت")
     });
@@ -1698,6 +1698,18 @@
     updateMicButtons();
   }
 
+  function setRoomActionButton(button, iconText, labelText) {
+    if (!button) return;
+    const icon = button.querySelector(".roomBtnIcon");
+    const label = button.querySelector(".roomBtnText");
+    if (icon && label) {
+      icon.textContent = iconText || "";
+      label.textContent = labelText || "";
+    } else {
+      button.textContent = `${iconText || ""}${labelText ? " " + labelText : ""}`.trim();
+    }
+  }
+
   function updateMicButtons() {
     const mine = Boolean(state.user && live.micHolder === state.user.id);
     const busy = Boolean(live.micHolder && !mine);
@@ -1711,7 +1723,13 @@
       button.classList.toggle("liveMicClosed", closed);
       button.disabled = closed;
     });
-    if (topButton) topButton.textContent = closed ? "🔒 المايك مغلق" : mine ? "🔴 إيقاف المايك" : busy ? "🎙️ المايك مشغول" : "🎙️ المايك";
+    if (topButton) {
+      const iconText = closed ? "🔒" : mine ? "🔴" : "🎙️";
+      const labelText = closed ? "المايك مغلق" : mine ? "إيقاف المايك" : busy ? "المايك مشغول" : "المايك";
+      setRoomActionButton(topButton, iconText, labelText);
+      topButton.title = labelText;
+      topButton.setAttribute("aria-label", labelText);
+    }
     if (composerButton) {
       const label = composerButton.querySelector("[data-mic-label]");
       if (label) label.textContent = closed ? "مغلق" : mine ? "إيقاف" : busy ? "مشغول" : "المايك";
@@ -2217,7 +2235,7 @@
       const relay = ensureRelay();
       await relay?.unlock().catch(() => {});
       const muted = relay?.setMuted(!relay.isMuted());
-      byId("soundBtn").textContent = muted ? "🔇 الصوت مكتوم" : "🔊 صوت الغرفة";
+      setRoomActionButton(byId("soundBtn"), muted ? "🔇" : "🔊", muted ? "الصوت مكتوم" : "صوت الغرفة");
     };
     if (byId("radioBtn")) byId("radioBtn").onclick = () => {
       try { toggleRadioListener(); } catch { toast("تعذر تشغيل البث الآن"); }

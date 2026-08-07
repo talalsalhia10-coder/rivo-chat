@@ -1,13 +1,13 @@
-const RELEASE = "212-app-shell-splash-v201";
+const RELEASE = "203-mobile-room-icons-fix";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=210",
-  "./app.js?v=202",
-  "./live-bridge.js?v=211",
+  "./styles.css?v=203",
+  "./app.js?v=203",
+  "./live-bridge.js?v=203",
   "./mobile-experience.js?v=208",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
