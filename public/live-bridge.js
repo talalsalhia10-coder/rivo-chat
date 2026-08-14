@@ -1684,9 +1684,12 @@
     tap?.classList.add("hidden");
 
     const mediaUrl = String(stateData.mediaUrl || "");
-    const absolute = new URL(mediaUrl, location.href).href;
+    // Video must bypass stale service-worker/media caches. Range requests are served by the origin.
+    const mediaObjectUrl = new URL(mediaUrl, location.href);
+    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "214");
+    const absolute = mediaObjectUrl.href;
     if (video.src !== absolute) {
-      video.src = mediaUrl;
+      video.src = absolute;
       video.load();
     }
 

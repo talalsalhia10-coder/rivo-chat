@@ -1,13 +1,13 @@
-const RELEASE = "213-lina-stable-rollback";
+const RELEASE = "214-lina-media-safe";
 const CORE_CACHE = `rivo-chat-core-${RELEASE}`;
 const MODEL_CACHE = `rivo-chat-model-${RELEASE}`;
 
 const CORE_ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=213",
+  "./styles.css?v=214",
   "./app.js?v=203",
-  "./live-bridge.js?v=211",
+  "./live-bridge.js?v=214",
   "./mobile-experience.js?v=208",
   "./google-config.js?v=178",
   "./google-auth.js?v=178",
@@ -75,6 +75,12 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
+
+  // IMPORTANT: Never intercept video/audio or HTTP Range requests.
+  // Browsers use Range requests for MP4 playback; caching them as ordinary responses can break Lina playback.
+  if (request.headers.has("range") || /\.(?:mp4|webm|m4v|mov|mp3|m4a|aac|ogg|opus|wav)$/i.test(url.pathname)) {
+    return;
+  }
 
   if (url.pathname.endsWith(".vrm")) {
     event.respondWith(cacheModel(request));
