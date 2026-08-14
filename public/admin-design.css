@@ -1116,3 +1116,14 @@ body.ownerAdminSettingsPopupOpen{overflow:hidden}
 .ownerEnterHiddenChatNowBtn:active{transform:none}
 @media(max-width:800px){.ownerAdminPrimaryActions{grid-template-columns:1fr}.ownerAdminAvatarGallery{grid-template-columns:repeat(5,minmax(0,1fr))}}
 @media(max-width:560px){.ownerAdminAvatarGallery{grid-template-columns:repeat(4,minmax(0,1fr))}.ownerAdminAvatarLibraryHead{align-items:stretch;flex-direction:column}.ownerAdminAvatarLibraryHead>span{align-self:flex-start}}
+
+/* v58 — Lina performance controls inside the current owner admin design */
+.linaPerformanceDesignCard{margin-top:16px;border:1px solid rgba(125,88,255,.22);background:linear-gradient(135deg,rgba(125,88,255,.08),rgba(255,255,255,.96) 46%,rgba(255,86,163,.06))}
+.linaPerformanceDesignCard .cardTitle>div{display:flex;flex-direction:column;gap:5px}
+.linaPerformanceDesignCard .cardTitle small{color:var(--muted);font-weight:600;line-height:1.65}
+.linaPerformanceDesignInfo{display:flex;flex-direction:column;justify-content:center;gap:5px;padding:10px 12px;border:1px dashed rgba(125,88,255,.26);border-radius:12px;background:rgba(255,255,255,.72)}
+.linaPerformanceDesignInfo small{color:var(--muted);line-height:1.55}
+.linaPerformanceDesignButtons{margin-top:12px}
+#linaPerformanceAdminState.playing{background:rgba(28,190,130,.11);color:#087c54;border-color:rgba(28,190,130,.28)}
+#linaPerformanceAdminState.connecting{background:rgba(255,170,31,.12);color:#8a5700;border-color:rgba(255,170,31,.28)}
+@media(max-width:760px){.linaPerformanceDesignInfo{grid-column:1/-1}.linaPerformanceDesignButtons button{flex:1 1 100%}}

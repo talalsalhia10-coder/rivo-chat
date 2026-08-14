@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=210">
+<link rel="stylesheet" href="admin-design.css?v=213">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -13,7 +13,7 @@
 <header class="adminTopbar">
   <div class="adminBrand">
     <span>R</span>
-    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v57</small></div>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v59</small></div>
   </div>
   <div class="adminTopActions">
     <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
@@ -268,6 +268,28 @@
           <button id="radioStopBtn" class="dangerAdminBtn">■ إيقاف كامل</button>
         </div>
         <div id="radioAdminState" class="bigStatus">لا يوجد بث الآن.</div>
+      </article>
+
+      <article class="adminCard linaPerformanceDesignCard">
+        <div class="cardTitle">
+          <div>
+            <h2>💃🎤 لينا تغني وترقص</h2>
+            <small>تشغيل مقطع لينا داخل مساحة الدردشة للغرفة التي تختارها. التحكم متاح للإدارة فقط.</small>
+          </div>
+        </div>
+        <div class="formGrid">
+          <label>الغرفة<select id="linaPerformanceRoom"></select></label>
+          <div class="linaPerformanceDesignInfo">
+            <b>المقطع:</b> أغنية لينا 2
+            <small>الفيديو لا يُحفظ داخل الرسائل؛ يُرسل أمر تشغيل صغير فقط إلى الغرفة.</small>
+          </div>
+        </div>
+        <div class="radioAdminButtons linaPerformanceDesignButtons">
+          <button id="linaPerformancePlayBtn" class="primaryAdminBtn" type="button">▶ تشغيل لينا</button>
+          <button id="linaPerformanceRestartBtn" class="secondaryAdminBtn" type="button">↻ من البداية</button>
+          <button id="linaPerformanceStopBtn" class="dangerAdminBtn" type="button">■ إيقاف لينا</button>
+        </div>
+        <div id="linaPerformanceAdminState" class="bigStatus">لينا متوقفة في هذه الغرفة.</div>
       </article>
     </section>
 
@@ -574,6 +596,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=211"></script>
+<script src="admin-design.js?v=213"></script>
 </body>
 </html>

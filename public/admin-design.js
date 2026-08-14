@@ -49,6 +49,7 @@ const ACTIVE_ROOM_KEY='rivo_live_active_room_v1';
 const CROWN_ONLY_NAME='__rivo_crown_only__';
 let ownerSession=null;
 let ownerAdminSettingsState={name:'الإدارة',avatar:'owner',visible:true,connected:false};
+const linaPerformanceStatesByRoom=new Map();
 let remoteSaveTimer=null;
 let remoteSaveSerial=0;
 let adminSocket=null;
@@ -357,7 +358,7 @@ function sendRoomAdminCommand(roomId,action,payload={}){
  if(!socket||socket.readyState!==WebSocket.OPEN){
   connectPresenceSocket(roomKey,true);
   if(adminSocketRoom===roomKey)connectAdminSocket(true);
-  toast('جاري ربط إعدادات المايك بالغرفة، اضغط حفظ مرة أخرى بعد لحظة');
+  toast('جاري الاتصال بالغرفة، سيكتمل الأمر بعد لحظة');
   return false;
  }
  socket.send(JSON.stringify({type:'admin-command',action,...payload}));
@@ -409,8 +410,9 @@ function connectPresenceSocket(roomKey,force=false){
   if(room){
    try{socket.send(JSON.stringify({type:'admin-command',action:'set-public-mic',enabled:configuredRoomMicEnabled(backendRoom)}))}catch(_){ }
   }
+  try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}))}catch(_){ }
  };
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleAdminMessageSocketReply(data,backendRoom)};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleLinaPerformanceSocketMessage(data,backendRoom);handleAdminMessageSocketReply(data,backendRoom)};
  socket.onclose=()=>{if(presenceSockets.get(backendRoom)!==socket)return;presenceSockets.delete(backendRoom);clearTimeout(presenceReconnectTimers.get(backendRoom));presenceReconnectTimers.set(backendRoom,setTimeout(()=>connectPresenceSocket(backendRoom,true),2200))};
  socket.onerror=()=>{};
 }
@@ -455,8 +457,8 @@ function connectAdminSocket(force=false){
  const protocol=location.protocol==='https:'?'wss:':'ws:';
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:ownerAdminSettingsState.visible===false?'0':'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
- socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected')};
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
+ socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected');try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}))}catch(_){ }};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);handleLinaPerformanceSocketMessage(data,roomId);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;ownerAdminSettingsState.connected=false;renderOwnerAdminSettings();if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
@@ -2001,13 +2003,70 @@ function closeAllCameras(){
 function populateRoomSelect(selectId,value){
  const s=$(selectId);if(!s)return;s.innerHTML=config.rooms.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join('');s.value=value||config.rooms[0]?.id;
 }
+function linaPerformanceSelectedRoom(){
+ return $('#linaPerformanceRoom')?.value||selectedRoomId||'general';
+}
+function renderLinaPerformanceAdminState(){
+ const box=$('#linaPerformanceAdminState');if(!box)return;
+ const roomId=linaPerformanceSelectedRoom();
+ const state=linaPerformanceStatesByRoom.get(normalizeLiveRoomId(roomId));
+ const room=roomById(roomId);
+ const roomName=room?.name||roomId;
+ box.className='bigStatus '+(state?.active?'playing':'');
+ box.textContent=state?.active?`لينا تعمل الآن في ${roomName} · ${state.title||'أغنية لينا'}`:`لينا متوقفة في ${roomName}.`;
+}
+function handleLinaPerformanceSocketMessage(data,roomId=''){
+ if(data?.type!=='lina-performance-state')return false;
+ const key=normalizeLiveRoomId(roomId||selectedRoomId);
+ if(data.state?.active)linaPerformanceStatesByRoom.set(key,data.state);else linaPerformanceStatesByRoom.set(key,null);
+ renderLinaPerformanceAdminState();
+ return true;
+}
+function requestLinaPerformanceState(roomId=linaPerformanceSelectedRoom()){
+ const key=normalizeLiveRoomId(roomId);
+ const socket=presenceSockets.get(key)||(adminSocketRoom===key?adminSocket:null);
+ if(socket?.readyState===WebSocket.OPEN){
+  socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}));
+  return true;
+ }
+ connectPresenceSocket(key,true);
+ return false;
+}
+function setLinaPerformanceUiConnecting(text='جاري الاتصال بالغرفة…'){
+ const box=$('#linaPerformanceAdminState');if(!box)return;box.className='bigStatus connecting';box.textContent=text;
+}
+function sendLinaPerformanceAction(action,payload={}){
+ const roomId=linaPerformanceSelectedRoom();
+ const label=roomById(roomId)?.name||roomId;
+ const attempt=()=>sendRoomAdminCommand(roomId,action,payload);
+ if(attempt()){
+  setLinaPerformanceUiConnecting(action==='lina-performance-stop'?`جاري إيقاف لينا في ${label}…`:`جاري تشغيل لينا في ${label}…`);
+  setTimeout(()=>requestLinaPerformanceState(roomId),350);
+  return;
+ }
+ setLinaPerformanceUiConnecting(`جاري ربط غرفة ${label}…`);
+ setTimeout(()=>{
+  if(attempt()){
+   setLinaPerformanceUiConnecting(action==='lina-performance-stop'?`جاري إيقاف لينا في ${label}…`:`جاري تشغيل لينا في ${label}…`);
+   setTimeout(()=>requestLinaPerformanceState(roomId),350);
+  }else setLinaPerformanceUiConnecting(`تعذر الاتصال بغرفة ${label}. حاول مرة ثانية.`);
+ },900);
+}
 function renderRadioAdmin(){
  $('#radioAdminTitle').value=config.radio.title;
  $('#radioAdminSource').value=config.radio.source;
  $('#radioAdminScope').value=config.radio.scope;
  populateRoomSelect('#radioAdminRoom',config.radio.roomId);
  $('#radioAdminRoomField').classList.toggle('hidden',config.radio.scope!=='room');
+ const linaSelect=$('#linaPerformanceRoom');
+ if(linaSelect){
+  const keep=linaSelect.value||selectedRoomId||config.radio.roomId||'general';
+  populateRoomSelect('#linaPerformanceRoom',keep);
+  if(!linaSelect.value)linaSelect.value=config.rooms[0]?.id||'general';
+ }
  renderRadioState();
+ renderLinaPerformanceAdminState();
+ if(linaSelect)requestLinaPerformanceState(linaSelect.value);
 }
 function updateRadioFromForm(){
  config.radio.title=$('#radioAdminTitle').value.trim()||'راديو ريفو';
@@ -2247,6 +2306,10 @@ function bind(){
  $('#radioAdminScope').onchange=()=>{$('#radioAdminRoomField').classList.toggle('hidden',$('#radioAdminScope').value!=='room')};
  $('#radioDemoBtn').onclick=()=>{$('#radioAdminTitle').value='موسيقى ريفو التجريبية';$('#radioAdminSource').value='assets/audio/rivo-radio-demo.wav';toast('تم اختيار المقطع التجريبي')};
  $('#radioStartBtn').onclick=()=>setRadioStatus('playing');$('#radioPauseBtn').onclick=()=>setRadioStatus('paused');$('#radioStopBtn').onclick=()=>setRadioStatus('stopped');
+ if($('#linaPerformanceRoom'))$('#linaPerformanceRoom').onchange=()=>{renderLinaPerformanceAdminState();requestLinaPerformanceState()};
+ if($('#linaPerformancePlayBtn'))$('#linaPerformancePlayBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-play',{trackId:'lina-song-2'});
+ if($('#linaPerformanceRestartBtn'))$('#linaPerformanceRestartBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-play',{trackId:'lina-song-2',restart:true});
+ if($('#linaPerformanceStopBtn'))$('#linaPerformanceStopBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-stop');
  $('#savePrivateBtn').onclick=savePrivate;if($('#savePermissionsBtn'))$('#savePermissionsBtn').onclick=savePermissions;$('#saveEconomyBtn').onclick=saveEconomy;
  $('#announcementAdminScope').onchange=()=>$('#announcementRoomField').classList.toggle('hidden',$('#announcementAdminScope').value!=='room');
  $('#publishAnnouncementBtn').onclick=publishAnnouncement;$('#saveSecurityBtn').onclick=saveSecurity;
