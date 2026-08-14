@@ -20,6 +20,9 @@
   const CROWN_ONLY_NAME = "__rivo_crown_only__";
   const ADMIN_MESSAGE_STORE_PREFIX = "rivo_admin_direct_messages_v2";
   const ADMIN_MESSAGE_TTL = 7 * 24 * 60 * 60 * 1000;
+  const LINA_PERFORMANCE_TRACK_ID = "lina-song-2";
+  let linaPerformanceState = null;
+  let linaPerformanceSyncTimer = null;
 
   // اتصال احترافي: فحص نبض، استئناف صامت، وفتح اتصال بديل قبل إغلاق القديم.
   const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -740,6 +743,7 @@
     live.pageLeaving = false;
 
     if (roomChanged) {
+      stopLinaPerformanceLocal(true);
       closeSocket("room-switch");
       state.stage = [];
     }
@@ -800,6 +804,7 @@
       startHeartbeat(socket);
       sendPing(socket, "connected");
       try { socket.send(JSON.stringify({ type: "room-radio-state-request" })); } catch {}
+      try { socket.send(JSON.stringify({ type: "lina-performance-state-request" })); } catch {}
       if (live.pendingProfilePatch) {
         try { socket.send(JSON.stringify({ type: "profile", ...live.pendingProfilePatch })); } catch {}
       }
@@ -1622,6 +1627,9 @@
           renderAll();
         }
         break;
+      case "lina-performance-state":
+        handleLinaPerformanceState(data);
+        break;
       case "room-radio-state":
         handleRadioState(data);
         break;
@@ -1631,6 +1639,113 @@
       default:
         break;
     }
+  }
+
+  function stopLinaPerformanceLocal(hide = true) {
+    if (linaPerformanceSyncTimer) {
+      clearTimeout(linaPerformanceSyncTimer);
+      linaPerformanceSyncTimer = null;
+    }
+    const stage = byId("linaPerformanceStage");
+    const video = byId("linaPerformanceVideo");
+    const tap = byId("linaPerformanceTap");
+    if (video) {
+      try { video.pause(); } catch {}
+      video.removeAttribute("src");
+      try { video.load(); } catch {}
+    }
+    tap?.classList.add("hidden");
+    stage?.classList.remove("isPlaying");
+    if (hide) stage?.classList.add("hidden");
+  }
+
+  async function startLinaPerformanceLocal(stateData, serverNow = Date.now()) {
+    const stage = byId("linaPerformanceStage");
+    const video = byId("linaPerformanceVideo");
+    const tap = byId("linaPerformanceTap");
+    if (!stage || !video || !stateData?.active || !stateData.mediaUrl) {
+      stopLinaPerformanceLocal(true);
+      return;
+    }
+
+    const duration = Math.max(1, Number(stateData.durationSeconds || 0));
+    const elapsed = stateData.paused
+      ? Math.max(0, Number(stateData.offsetSeconds || 0))
+      : Math.max(0, Number(stateData.offsetSeconds || 0) + (Number(serverNow || Date.now()) - Number(stateData.startedAt || serverNow || Date.now())) / 1000);
+
+    if (duration && elapsed >= duration + .75) {
+      stopLinaPerformanceLocal(true);
+      return;
+    }
+
+    linaPerformanceState = stateData;
+    stage.classList.remove("hidden");
+    stage.classList.add("isPlaying");
+    tap?.classList.add("hidden");
+
+    const mediaUrl = String(stateData.mediaUrl || "");
+    const absolute = new URL(mediaUrl, location.href).href;
+    if (video.src !== absolute) {
+      video.src = mediaUrl;
+      video.load();
+    }
+
+    video.volume = .86;
+    video.muted = false;
+    const seekAndPlay = async () => {
+      try {
+        const target = Math.max(0, Math.min(duration || elapsed, elapsed));
+        if (Number.isFinite(target) && Math.abs((video.currentTime || 0) - target) > 1.25) video.currentTime = target;
+      } catch {}
+      if (stateData.paused) {
+        try { video.pause(); } catch {}
+        return;
+      }
+      try {
+        await video.play();
+        tap?.classList.add("hidden");
+      } catch (error) {
+        // A few mobile browsers may require one extra tap for remote audio playback.
+        tap?.classList.remove("hidden");
+      }
+    };
+
+    if (video.readyState >= 1) await seekAndPlay();
+    else video.addEventListener("loadedmetadata", () => { void seekAndPlay(); }, { once: true });
+
+    if (linaPerformanceSyncTimer) clearTimeout(linaPerformanceSyncTimer);
+    const remainingMs = Math.max(1000, ((duration || 51) - elapsed + 1) * 1000);
+    linaPerformanceSyncTimer = setTimeout(() => stopLinaPerformanceLocal(true), remainingMs);
+  }
+
+  function handleLinaPerformanceState(payload = {}) {
+    const next = payload.state || null;
+    linaPerformanceState = next;
+    if (!next?.active) {
+      stopLinaPerformanceLocal(true);
+      return;
+    }
+    void startLinaPerformanceLocal(next, Number(payload.serverNow || Date.now()));
+  }
+
+  function bindLinaPerformanceUi() {
+    const video = byId("linaPerformanceVideo");
+    const tap = byId("linaPerformanceTap");
+    tap?.addEventListener("click", async () => {
+      if (!video) return;
+      try {
+        video.muted = false;
+        await video.play();
+        tap.classList.add("hidden");
+      } catch {
+        toast("تعذر تشغيل الصوت تلقائياً على هذا الجهاز.");
+      }
+    });
+    video?.addEventListener("ended", () => stopLinaPerformanceLocal(true));
+    video?.addEventListener("error", () => {
+      stopLinaPerformanceLocal(true);
+      toast("تعذر تحميل فيديو لينا.");
+    });
   }
 
   function ensureRelay() {
@@ -2061,6 +2176,7 @@
   }
 
   async function logoutLive(clearGoogle = false) {
+    stopLinaPerformanceLocal(true);
     try { window.RivoMobileBeforeLogout?.(); } catch {}
     live.pageLeaving = true;
     const logoutSocket = live.socket;
@@ -2286,6 +2402,7 @@
       try { renderHeader(); } catch {}
     }
     try { syncLiveChrome(); } catch (error) { console.warn("Rivo chrome sync skipped", error); }
+    bindLinaPerformanceUi();
     clearInterval(live.roomsTimer);
     live.roomsTimer = setInterval(() => fetchRooms(false), 15000);
     clearInterval(live.adminSettingsTimer);

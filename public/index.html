@@ -15,7 +15,7 @@
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="icon" href="./icons/icon-192.png">
 <link rel="preload" as="image" href="./assets/app/rivo-app-splash.webp" type="image/webp">
-<link rel="stylesheet" href="styles.css?v=204">
+<link rel="stylesheet" href="styles.css?v=211">
 
 <script>
 (function(){
@@ -98,7 +98,7 @@
 
 <audio id="globalRadioAudio" preload="auto" autoplay loop></audio>
 <header class="topbar">
-  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v203</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
+  <div class="brand"><span>R</span><div><b>دردشة ريفو العراقية</b><small>النسخة المتصلة v211</small></div></div><div id="liveConnection" class="liveConnection connecting"><i></i><span>جاري الاتصال</span></div>
 </header>
 <main class="layout layoutV2">
   <section class="center">
@@ -110,6 +110,14 @@
     </section>
     <section class="chat fullChat">
       <div id="messages" class="messages"></div>
+      <section id="linaPerformanceStage" class="linaPerformanceStage hidden" aria-label="لينا تغني في الغرفة" aria-live="polite">
+        <div class="linaPerformanceVisual">
+          <video id="linaPerformanceVideo" playsinline preload="none" disablepictureinpicture controlslist="nodownload noplaybackrate nofullscreen"></video>
+          <div class="linaPerformanceGlow" aria-hidden="true"></div>
+          <div class="linaPerformanceBadge"><span>🎤</span><b>لينا تغني الآن</b></div>
+          <button id="linaPerformanceTap" class="linaPerformanceTap hidden" type="button">اضغط لتشغيل صوت لينا</button>
+        </div>
+      </section>
       <div class="composerDock">
         <div class="composerToolbar" aria-label="أدوات الرسالة">
           <button id="emojiBtn" class="composerToolButton" title="الرموز" aria-label="الرموز"><span class="composerEmojiIcon">😊</span><span class="composerToolLabel">رموز</span></button>
@@ -356,7 +364,7 @@
 <script src="./google-auth.js?v=178"></script>
 <script src="./relay-audio.js?v=178"></script>
 <script src="app.js?v=203"></script>
-<script src="./live-bridge.js?v=203"></script>
+<script src="./live-bridge.js?v=211"></script>
 <script src="./mobile-experience.js?v=208"></script>
 
 <script>
@@ -383,7 +391,7 @@
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=204").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=211").catch(() => {});
   });
 }
 </script>

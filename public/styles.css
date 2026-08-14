@@ -3118,3 +3118,98 @@ html.rivoAppShell .rivoAppSplash.rivoSplashDone{
     font-size:10px!important;
   }
 }
+
+
+/* v209 — Lina performance overlay: remote-controlled, no chat-history storage. */
+.chat.fullChat{position:relative}
+.linaPerformanceStage{
+  position:absolute;
+  z-index:18;
+  right:14px;
+  bottom:92px;
+  width:clamp(230px,30vw,390px);
+  height:min(67vh,610px);
+  pointer-events:none;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  overflow:visible;
+}
+.linaPerformanceVisual{
+  position:relative;
+  width:100%;
+  height:100%;
+  display:flex;
+  align-items:flex-end;
+  justify-content:center;
+  filter:drop-shadow(0 16px 24px rgba(28,42,67,.18));
+  isolation:isolate;
+}
+.linaPerformanceVisual video{
+  position:relative;
+  z-index:2;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+  object-position:center bottom;
+  background:transparent;
+  border:0;
+  outline:0;
+  pointer-events:none;
+  /* The supplied source has a pastel background. The soft mask removes the hard video rectangle
+     without running expensive per-frame canvas processing on visitors' devices. */
+  -webkit-mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
+  mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
+}
+.linaPerformanceGlow{
+  position:absolute;
+  z-index:1;
+  left:18%;right:18%;bottom:5%;height:18%;
+  border-radius:50%;
+  background:radial-gradient(ellipse,rgba(114,87,255,.18),transparent 72%);
+  filter:blur(10px);
+}
+.linaPerformanceBadge{
+  position:absolute;
+  z-index:4;
+  right:10px;
+  bottom:8px;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(21,31,50,.78);
+  color:#fff;
+  font-size:12px;
+  box-shadow:0 6px 18px rgba(0,0,0,.18);
+  backdrop-filter:blur(7px);
+}
+.linaPerformanceBadge b{font-size:12px;white-space:nowrap}
+.linaPerformanceTap{
+  position:absolute;
+  z-index:6;
+  left:50%;
+  bottom:52px;
+  transform:translateX(-50%);
+  border:0;
+  border-radius:999px;
+  padding:9px 13px;
+  background:#147df5;
+  color:#fff;
+  font-weight:800;
+  box-shadow:0 8px 22px rgba(20,125,245,.25);
+  pointer-events:auto;
+  white-space:nowrap;
+}
+.linaPerformanceStage.isPlaying .linaPerformanceVisual{animation:linaStageIn .35s ease-out both}
+@keyframes linaStageIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+@media(max-width:900px){
+  .linaPerformanceStage{right:4px;bottom:86px;width:min(48vw,270px);height:min(52vh,430px);opacity:.98}
+  .linaPerformanceBadge{right:4px;bottom:4px;padding:5px 8px;font-size:10px}
+  .linaPerformanceBadge b{font-size:10px}
+  .linaPerformanceTap{bottom:42px;font-size:11px;padding:8px 10px}
+}
+@media(max-width:520px){
+  .linaPerformanceStage{width:min(52vw,230px);height:min(45vh,360px);right:0}
+}
