@@ -20,3 +20,9 @@ Rivo Chat v209 — Lina room performance
 - public/media/lina-song-2-v1.mp4
 - src/index-radio.js
 - LINA_PERFORMANCE_README_AR.txt
+
+Rivo Chat v210 — Lina controls in admin-design v58
+- public/admin-design.html
+- public/admin-design.js
+- public/admin-design.css
+- زر تشغيل/إعادة/إيقاف لينا داخل قسم الراديو والأغاني في لوحة admin-design الحالية.
