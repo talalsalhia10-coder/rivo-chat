@@ -3120,15 +3120,17 @@ html.rivoAppShell .rivoAppSplash.rivoSplashDone{
 }
 
 
-/* v209 — Lina performance overlay: remote-controlled, no chat-history storage. */
-.chat.fullChat{position:relative}
+/* v212 — Lina performance: seamless in-room presentation.
+   The source video has a baked pastel background, so this uses a lightweight
+   multi-zone soft matte + blend instead of expensive per-frame canvas work. */
+.chat.fullChat{position:relative;isolation:isolate}
 .linaPerformanceStage{
   position:absolute;
   z-index:18;
-  right:14px;
-  bottom:92px;
-  width:clamp(230px,30vw,390px);
-  height:min(67vh,610px);
+  right:16px;
+  bottom:70px;
+  width:clamp(280px,34vw,440px);
+  height:min(72vh,650px);
   pointer-events:none;
   display:flex;
   align-items:flex-end;
@@ -3142,74 +3144,74 @@ html.rivoAppShell .rivoAppSplash.rivoSplashDone{
   display:flex;
   align-items:flex-end;
   justify-content:center;
-  filter:drop-shadow(0 16px 24px rgba(28,42,67,.18));
   isolation:isolate;
+  background:transparent!important;
 }
 .linaPerformanceVisual video{
   position:relative;
   z-index:2;
-  width:100%;
-  height:100%;
+  width:112%;
+  height:112%;
+  max-width:none;
+  max-height:none;
   object-fit:contain;
   object-position:center bottom;
-  background:transparent;
-  border:0;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
   outline:0;
+  box-shadow:none!important;
   pointer-events:none;
-  /* The supplied source has a pastel background. The soft mask removes the hard video rectangle
-     without running expensive per-frame canvas processing on visitors' devices. */
-  -webkit-mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
-  mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
+  opacity:.99;
+  mix-blend-mode:multiply;
+  filter:saturate(1.04) contrast(1.025) drop-shadow(0 13px 15px rgba(35,48,70,.16));
+  /* Soft person-shaped matte: head + torso + arms + skirt + legs.
+     It removes the visible rectangular video card while keeping CPU/GPU load tiny. */
+  -webkit-mask-image:
+    radial-gradient(ellipse 22% 15% at 50% 16%,#000 0 68%,rgba(0,0,0,.9) 78%,transparent 100%),
+    radial-gradient(ellipse 30% 23% at 50% 36%,#000 0 68%,rgba(0,0,0,.9) 80%,transparent 100%),
+    radial-gradient(ellipse 31% 12% at 25% 38%,#000 0 58%,rgba(0,0,0,.86) 74%,transparent 100%),
+    radial-gradient(ellipse 31% 12% at 75% 38%,#000 0 58%,rgba(0,0,0,.86) 74%,transparent 100%),
+    radial-gradient(ellipse 42% 32% at 50% 63%,#000 0 66%,rgba(0,0,0,.9) 80%,transparent 100%),
+    radial-gradient(ellipse 20% 25% at 50% 88%,#000 0 62%,rgba(0,0,0,.86) 78%,transparent 100%);
+  mask-image:
+    radial-gradient(ellipse 22% 15% at 50% 16%,#000 0 68%,rgba(0,0,0,.9) 78%,transparent 100%),
+    radial-gradient(ellipse 30% 23% at 50% 36%,#000 0 68%,rgba(0,0,0,.9) 80%,transparent 100%),
+    radial-gradient(ellipse 31% 12% at 25% 38%,#000 0 58%,rgba(0,0,0,.86) 74%,transparent 100%),
+    radial-gradient(ellipse 31% 12% at 75% 38%,#000 0 58%,rgba(0,0,0,.86) 74%,transparent 100%),
+    radial-gradient(ellipse 42% 32% at 50% 63%,#000 0 66%,rgba(0,0,0,.9) 80%,transparent 100%),
+    radial-gradient(ellipse 20% 25% at 50% 88%,#000 0 62%,rgba(0,0,0,.86) 78%,transparent 100%);
+  -webkit-mask-repeat:no-repeat;
+  mask-repeat:no-repeat;
 }
-.linaPerformanceGlow{
-  position:absolute;
-  z-index:1;
-  left:18%;right:18%;bottom:5%;height:18%;
-  border-radius:50%;
-  background:radial-gradient(ellipse,rgba(114,87,255,.18),transparent 72%);
-  filter:blur(10px);
-}
-.linaPerformanceBadge{
-  position:absolute;
-  z-index:4;
-  right:10px;
-  bottom:8px;
-  display:flex;
-  align-items:center;
-  gap:6px;
-  padding:6px 10px;
-  border-radius:999px;
-  background:rgba(21,31,50,.78);
-  color:#fff;
-  font-size:12px;
-  box-shadow:0 6px 18px rgba(0,0,0,.18);
-  backdrop-filter:blur(7px);
-}
-.linaPerformanceBadge b{font-size:12px;white-space:nowrap}
+.linaPerformanceGlow{display:none!important}
+/* Hide the old dark pill so Lina looks like part of the room, not a video card. */
+.linaPerformanceBadge{display:none!important}
 .linaPerformanceTap{
   position:absolute;
   z-index:6;
   left:50%;
-  bottom:52px;
+  bottom:22px;
   transform:translateX(-50%);
   border:0;
   border-radius:999px;
-  padding:9px 13px;
-  background:#147df5;
+  padding:8px 12px;
+  background:rgba(20,125,245,.92);
   color:#fff;
   font-weight:800;
-  box-shadow:0 8px 22px rgba(20,125,245,.25);
+  box-shadow:0 7px 20px rgba(20,125,245,.22);
   pointer-events:auto;
   white-space:nowrap;
+  backdrop-filter:blur(5px);
 }
-.linaPerformanceStage.isPlaying .linaPerformanceVisual{animation:linaStageIn .35s ease-out both}
-@keyframes linaStageIn{from{opacity:0;transform:translateY(10px) scale(.97)}to{opacity:1;transform:none}}
+.linaPerformanceStage.isPlaying .linaPerformanceVisual{animation:linaStageIn .32s ease-out both}
+@keyframes linaStageIn{from{opacity:0;transform:translateY(8px) scale(.975)}to{opacity:1;transform:none}}
 @media(max-width:900px){
-  .linaPerformanceStage{right:4px;bottom:86px;width:min(48vw,270px);height:min(52vh,430px);opacity:.98}
-  .linaPerformanceBadge{right:4px;bottom:4px;padding:5px 8px;font-size:10px}
-  .linaPerformanceBadge b{font-size:10px}
-  .linaPerformanceTap{bottom:42px;font-size:11px;padding:8px 10px}
+  .linaPerformanceStage{right:2px;bottom:76px;width:min(52vw,300px);height:min(56vh,455px)}
+  .linaPerformanceVisual video{width:110%;height:110%}
+  .linaPerformanceTap{bottom:18px;font-size:11px;padding:7px 10px}
 }
 @media(max-width:520px){
-  .linaPerformanceStage{width:min(52vw,230px);height:min(45vh,360px);right:0}
+  .linaPerformanceStage{right:-4px;bottom:72px;width:min(58vw,245px);height:min(47vh,370px)}
+  .linaPerformanceVisual video{width:108%;height:108%}
 }
