@@ -17,6 +17,18 @@ const ADMIN_SETTINGS_FULL_KEY = "full_config";
 const ADMIN_SETTINGS_PUBLIC_KEY = "public_config";
 const MAX_ADMIN_SETTINGS_BYTES = 4 * 1024 * 1024;
 
+// أداء لينا داخل الغرفة: حالة صغيرة فقط في Durable Object؛ ملف الفيديو يبقى Static Asset/CDN.
+const LINA_PERFORMANCE_STORAGE_KEY = "rivo-lina-performance-v1";
+const LINA_PERFORMANCE_MODERATORS_ENABLED = false; // يمكن تفعيله لاحقاً مع صلاحية مستقلة للمراقبين.
+const LINA_PERFORMANCE_TRACKS = Object.freeze({
+  "lina-song-2": Object.freeze({
+    id: "lina-song-2",
+    title: "أغنية لينا",
+    mediaUrl: "/media/lina-song-2-v1.mp4",
+    durationSeconds: 50.085
+  })
+});
+
 
 // لينا: مضيفة ذكية مستقلة عن أساس الدردشة.
 const LINA_CLIENT_ID = "rivo-ai-lina";
@@ -915,6 +927,18 @@ export class ChatRoom extends GiftChatRoom {
           return this.handleLinaInstructionUpdate(ws, session, data);
         }
 
+        if (data.action === "lina-performance-state-request") {
+          return this.sendLinaPerformanceState(ws);
+        }
+
+        if (data.action === "lina-performance-play") {
+          return this.handleLinaPerformancePlay(ws, session, data);
+        }
+
+        if (data.action === "lina-performance-stop") {
+          return this.handleLinaPerformanceStop(ws, session);
+        }
+
         if (data.action === "room-radio-state-request") {
           return this.sendRoomRadioState(ws);
         }
@@ -929,6 +953,11 @@ export class ChatRoom extends GiftChatRoom {
             action: data.radioAction
           });
         }
+      }
+
+      if (data?.type === "lina-performance-state-request") {
+        if (session?.kind !== "chat") return;
+        return this.sendLinaPerformanceState(ws);
       }
 
       if (data?.type === "room-radio-state-request") {
@@ -1474,6 +1503,104 @@ export class ChatRoom extends GiftChatRoom {
     } catch (error) {
       console.error("Failed to persist Lina message", error);
     }
+  }
+
+  canControlLinaPerformance(session) {
+    if (session?.role === "owner") return true;
+    return LINA_PERFORMANCE_MODERATORS_ENABLED && session?.role === "moderator";
+  }
+
+  linaPerformanceError(ws, message) {
+    this.safeSend(ws, { type: "admin-error", message: cleanText(message, 180) });
+  }
+
+  async readLinaPerformanceState() {
+    const stored = await this.ctx.storage.get(LINA_PERFORMANCE_STORAGE_KEY);
+    if (!stored || typeof stored !== "object" || !stored.active) return null;
+    const track = LINA_PERFORMANCE_TRACKS[cleanText(stored.trackId, 40)];
+    if (!track) {
+      await this.ctx.storage.delete(LINA_PERFORMANCE_STORAGE_KEY);
+      return null;
+    }
+    const elapsed = Math.max(0, (Date.now() - Number(stored.startedAt || Date.now())) / 1000 + Number(stored.offsetSeconds || 0));
+    if (elapsed > Number(track.durationSeconds || 0) + 1.5) {
+      await this.ctx.storage.delete(LINA_PERFORMANCE_STORAGE_KEY);
+      return null;
+    }
+    return {
+      ...stored,
+      trackId: track.id,
+      title: track.title,
+      mediaUrl: track.mediaUrl,
+      durationSeconds: track.durationSeconds
+    };
+  }
+
+  linaPerformancePayload(state) {
+    return { type: "lina-performance-state", state: state || null, serverNow: Date.now() };
+  }
+
+  async sendLinaPerformanceState(ws) {
+    const state = await this.readLinaPerformanceState();
+    this.safeSend(ws, this.linaPerformancePayload(state));
+  }
+
+  async handleLinaPerformancePlay(ws, session, data) {
+    if (!this.canControlLinaPerformance(session)) {
+      this.linaPerformanceError(ws, "تشغيل لينا متاح للإدارة فقط حالياً.");
+      return;
+    }
+    if (!Array.isArray(session.linaPerformanceTimes)) session.linaPerformanceTimes = [];
+    if (!this.rateAllowed(session.linaPerformanceTimes, 60_000, 8)) {
+      this.linaPerformanceError(ws, "تمهّل قليلاً قبل إعادة تشغيل لينا.");
+      return;
+    }
+    ws.serializeAttachment?.(session);
+
+    const trackId = cleanText(data?.trackId, 40) || "lina-song-2";
+    const track = LINA_PERFORMANCE_TRACKS[trackId];
+    if (!track) {
+      this.linaPerformanceError(ws, "مقطع لينا المطلوب غير موجود.");
+      return;
+    }
+
+    const now = Date.now();
+    const state = {
+      active: true,
+      id: crypto.randomUUID(),
+      trackId: track.id,
+      title: track.title,
+      mediaUrl: track.mediaUrl,
+      durationSeconds: track.durationSeconds,
+      offsetSeconds: 0,
+      startedAt: now,
+      paused: false,
+      controllerClientId: sessionControllerId(session),
+      controllerName: sessionControllerName(session),
+      controllerRole: session.role === "owner" ? "owner" : "moderator"
+    };
+
+    await this.ctx.storage.put(LINA_PERFORMANCE_STORAGE_KEY, state);
+    const payload = this.linaPerformancePayload(state);
+    this.broadcast(payload);
+    this.safeSend(ws, payload);
+    try {
+      this.addAdminLog(session.role, session.staffClientId || session.clientId, "lina-performance-play", track.id, track.title, "room");
+    } catch {}
+  }
+
+  async handleLinaPerformanceStop(ws, session) {
+    if (!this.canControlLinaPerformance(session)) {
+      this.linaPerformanceError(ws, "إيقاف لينا متاح للإدارة فقط حالياً.");
+      return;
+    }
+    await this.ctx.storage.delete(LINA_PERFORMANCE_STORAGE_KEY);
+    const payload = this.linaPerformancePayload(null);
+    this.broadcast(payload);
+    this.safeSend(ws, payload);
+    try {
+      this.addAdminLog(session.role, session.staffClientId || session.clientId, "lina-performance-stop", "", "لينا", "room");
+    } catch {}
   }
 
   async readRoomRadioState() {
