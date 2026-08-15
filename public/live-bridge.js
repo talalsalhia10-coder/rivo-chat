@@ -23,6 +23,8 @@
   const LINA_PERFORMANCE_TRACK_ID = "lina-song-2";
   let linaPerformanceState = null;
   let linaPerformanceSyncTimer = null;
+  let linaPerformancePlaybackId = "";
+  let linaPerformanceLoadGeneration = 0;
 
   // اتصال احترافي: فحص نبض، استئناف صامت، وفتح اتصال بديل قبل إغلاق القديم.
   const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -1646,13 +1648,16 @@
       clearTimeout(linaPerformanceSyncTimer);
       linaPerformanceSyncTimer = null;
     }
+    linaPerformanceLoadGeneration += 1;
+    linaPerformancePlaybackId = "";
     const stage = byId("linaPerformanceStage");
     const video = byId("linaPerformanceVideo");
     const tap = byId("linaPerformanceTap");
     if (video) {
+      // Keep the already downloaded media attached so a second play can start immediately
+      // from browser/CDN cache instead of forcing a full media reload.
       try { video.pause(); } catch {}
-      video.removeAttribute("src");
-      try { video.load(); } catch {}
+      try { if (Number.isFinite(video.duration) && video.duration > 0) video.currentTime = 0; } catch {}
     }
     tap?.classList.add("hidden");
     stage?.classList.remove("isPlaying");
@@ -1678,27 +1683,44 @@
       return;
     }
 
+    const performanceId = String(stateData.id || `${stateData.trackId || "lina"}-${stateData.startedAt || Date.now()}`);
+    const isFreshPlay = performanceId !== linaPerformancePlaybackId;
+    const generation = ++linaPerformanceLoadGeneration;
+    linaPerformancePlaybackId = performanceId;
     linaPerformanceState = stateData;
+
     stage.classList.remove("hidden");
     stage.classList.add("isPlaying");
     tap?.classList.add("hidden");
 
     const mediaUrl = String(stateData.mediaUrl || "");
-    // Video must bypass stale service-worker/media caches. Range requests are served by the origin.
     const mediaObjectUrl = new URL(mediaUrl, location.href);
-    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "215");
+    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "216");
     const absolute = mediaObjectUrl.href;
-    if (video.src !== absolute) {
+
+    // A new admin play command always restarts immediately from the new server state.
+    // Keep the same URL when possible so Chrome can reuse its media cache.
+    const loadedUrl = video.dataset.rivoMediaUrl || "";
+    if (loadedUrl !== absolute) {
+      try { video.pause(); } catch {}
       video.src = absolute;
-      video.load();
+      video.dataset.rivoMediaUrl = absolute;
+      try { video.load(); } catch {}
+    } else if (isFreshPlay) {
+      try { video.pause(); } catch {}
+      try { video.currentTime = 0; } catch {}
     }
 
     video.volume = .86;
     video.muted = false;
+
     const seekAndPlay = async () => {
+      if (generation !== linaPerformanceLoadGeneration || performanceId !== linaPerformancePlaybackId) return;
       try {
-        const target = Math.max(0, Math.min(duration || elapsed, elapsed));
-        if (Number.isFinite(target) && Math.abs((video.currentTime || 0) - target) > 1.25) video.currentTime = target;
+        const target = Math.max(0, Math.min(Math.max(0, duration - .05), elapsed));
+        if (Number.isFinite(target) && (isFreshPlay || Math.abs((video.currentTime || 0) - target) > 1.0)) {
+          video.currentTime = target;
+        }
       } catch {}
       if (stateData.paused) {
         try { video.pause(); } catch {}
@@ -1706,19 +1728,26 @@
       }
       try {
         await video.play();
+        if (generation !== linaPerformanceLoadGeneration) return;
         tap?.classList.add("hidden");
       } catch (error) {
-        // A few mobile browsers may require one extra tap for remote audio playback.
+        if (generation !== linaPerformanceLoadGeneration) return;
+        // Mobile autoplay policies may still require one user tap for audio.
         tap?.classList.remove("hidden");
       }
     };
 
-    if (video.readyState >= 1) await seekAndPlay();
-    else video.addEventListener("loadedmetadata", () => { void seekAndPlay(); }, { once: true });
+    if (video.readyState >= 1) {
+      await seekAndPlay();
+    } else {
+      video.addEventListener("loadedmetadata", () => { void seekAndPlay(); }, { once: true });
+    }
 
     if (linaPerformanceSyncTimer) clearTimeout(linaPerformanceSyncTimer);
-    const remainingMs = Math.max(1000, ((duration || 51) - elapsed + 1) * 1000);
-    linaPerformanceSyncTimer = setTimeout(() => stopLinaPerformanceLocal(true), remainingMs);
+    const remainingMs = Math.max(1000, ((duration || 66) - elapsed + 1) * 1000);
+    linaPerformanceSyncTimer = setTimeout(() => {
+      if (performanceId === linaPerformancePlaybackId) stopLinaPerformanceLocal(true);
+    }, remainingMs);
   }
 
   function handleLinaPerformanceState(payload = {}) {
@@ -1747,7 +1776,7 @@
     video?.addEventListener("ended", () => stopLinaPerformanceLocal(true));
     video?.addEventListener("error", () => {
       stopLinaPerformanceLocal(true);
-      toast("تعذر تحميل فيديو لينا.");
+      toast("تعذر تحميل فيديو لينا. حاول تشغيلها مرة ثانية.");
     });
   }
 
