@@ -1686,7 +1686,7 @@
     const mediaUrl = String(stateData.mediaUrl || "");
     // Video must bypass stale service-worker/media caches. Range requests are served by the origin.
     const mediaObjectUrl = new URL(mediaUrl, location.href);
-    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "214");
+    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "215");
     const absolute = mediaObjectUrl.href;
     if (video.src !== absolute) {
       video.src = absolute;

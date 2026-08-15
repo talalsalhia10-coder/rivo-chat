@@ -3156,12 +3156,10 @@ html.rivoAppShell .rivoAppSplash.rivoSplashDone{
   border:0;
   outline:0;
   pointer-events:none;
-  /* The supplied source has a pastel background. The soft mask removes the hard video rectangle
-     without running expensive per-frame canvas processing on visitors' devices. */
-  -webkit-mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
-  mask-image:radial-gradient(ellipse 78% 82% at 50% 52%,#000 0 72%,rgba(0,0,0,.86) 82%,transparent 100%);
+  /* v215: source video contains a real alpha channel; show the transparent cutout directly. */
 }
 .linaPerformanceGlow{
+  display:none;
   position:absolute;
   z-index:1;
   left:18%;right:18%;bottom:5%;height:18%;
@@ -3170,6 +3168,7 @@ html.rivoAppShell .rivoAppSplash.rivoSplashDone{
   filter:blur(10px);
 }
 .linaPerformanceBadge{
+  display:none;
   position:absolute;
   z-index:4;
   right:10px;
