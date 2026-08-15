@@ -24,8 +24,8 @@ const LINA_PERFORMANCE_TRACKS = Object.freeze({
   "lina-song-2": Object.freeze({
     id: "lina-song-2",
     title: "أغنية لينا",
-    mediaUrl: "/media/lina-song-2-v2.webm",
-    durationSeconds: 50.100
+    mediaUrl: "/media/lina-song-4-v1.webm",
+    durationSeconds: 65.667
   })
 });
 
