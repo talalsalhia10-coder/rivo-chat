@@ -39,6 +39,8 @@ const LINA_RIVO_CORE_PROMPT = "أنتِ لينا، الشخصية الرئيسي
 const LINA_API_TIMEOUT_MS = 15000;
 const LINA_CONVERSATION_TABLE = "lina_conversations_v1";
 const LINA_MEMORY_TABLE = "lina_memory_v1";
+const LINA_SONG_REQUEST_TABLE = "lina_song_requests_v1";
+const LINA_SONG_REQUEST_COOLDOWN_MS = 5 * 60 * 1000;
 const LINA_CONVERSATION_TTL_MS = 15 * 60 * 1000;
 const LINA_REPLY_COOLDOWN_MS = 2500;
 const LINA_CONTEXT_WINDOW_MS = 30 * 60 * 1000;
@@ -444,6 +446,12 @@ export class ChatRoom extends GiftChatRoom {
     this.sql.exec(`
       CREATE INDEX IF NOT EXISTS idx_lina_memory_client_time
       ON ${LINA_MEMORY_TABLE}(client_id, created_at)
+    `);
+    this.sql.exec(`
+      CREATE TABLE IF NOT EXISTS ${LINA_SONG_REQUEST_TABLE} (
+        client_id TEXT PRIMARY KEY,
+        last_request_at INTEGER NOT NULL DEFAULT 0
+      )
     `);
 
     // تسلسل منفصل لردود لينا حتى لا تتداخل الردود عند وصول رسائل متزامنة.
@@ -931,6 +939,14 @@ export class ChatRoom extends GiftChatRoom {
           return this.sendLinaPerformanceState(ws);
         }
 
+        if (data.action === "lina-song-requests-state-request") {
+          return this.sendLinaSongRequestsState(ws);
+        }
+
+        if (data.action === "lina-song-requests-toggle") {
+          return this.handleLinaSongRequestsToggle(ws, session, data);
+        }
+
         if (data.action === "lina-performance-play") {
           return this.handleLinaPerformancePlay(ws, session, data);
         }
@@ -1007,10 +1023,15 @@ export class ChatRoom extends GiftChatRoom {
         updatedSession.lastPublicBody === publicBody
       );
 
-      if (accepted && this.shouldLinaReply(updatedSession, publicBody)) {
+      if (accepted) {
         this.linaQueue = this.linaQueue
           .catch(() => {})
-          .then(() => this.replyAsLina(updatedSession, publicBody));
+          .then(async () => {
+            const handledSongRequest = await this.maybeHandleLinaSongRequest(updatedSession, publicBody);
+            if (!handledSongRequest && this.shouldLinaReply(updatedSession, publicBody)) {
+              await this.replyAsLina(updatedSession, publicBody);
+            }
+          });
         await this.linaQueue;
       }
     }
@@ -1503,6 +1524,150 @@ export class ChatRoom extends GiftChatRoom {
     } catch (error) {
       console.error("Failed to persist Lina message", error);
     }
+  }
+
+  isLinaSongRequestsEnabled() {
+    try {
+      return this.getSetting("lina_song_requests_enabled", "1") !== "0";
+    } catch {
+      return true;
+    }
+  }
+
+  linaSongRequestsPayload() {
+    return {
+      type: "lina-song-requests-state",
+      enabled: this.isLinaSongRequestsEnabled(),
+      cooldownSeconds: Math.round(LINA_SONG_REQUEST_COOLDOWN_MS / 1000)
+    };
+  }
+
+  sendLinaSongRequestsState(ws) {
+    this.safeSend(ws, this.linaSongRequestsPayload());
+  }
+
+  handleLinaSongRequestsToggle(ws, session, data) {
+    if (session?.role !== "owner") {
+      this.safeSend(ws, { type: "admin-error", message: "طلبات أغاني لينا يتحكم بها المالك فقط." });
+      return;
+    }
+    const enabled = Boolean(data?.enabled);
+    this.setSetting("lina_song_requests_enabled", enabled ? "1" : "0");
+    const payload = this.linaSongRequestsPayload();
+    this.safeSend(ws, payload);
+    this.broadcast(payload);
+    try {
+      this.addAdminLog(
+        "owner",
+        session.staffClientId || session.clientId || "owner",
+        enabled ? "lina-song-requests-enable" : "lina-song-requests-disable",
+        LINA_CLIENT_ID,
+        LINA_NICKNAME,
+        "room"
+      );
+      this.broadcastAdminState();
+    } catch {}
+  }
+
+  isLinaSongRequest(body, clientId = "") {
+    const text = String(body || "").trim();
+    if (!text) return false;
+    const directMention = this.mentionsLina(text);
+    const conversation = clientId ? this.getLinaConversation(clientId) : null;
+    if (!directMention && !conversation) return false;
+
+    return /(?:^|[\s،,.!?؟])(غن[ّيى]?|غنيلي|غنّيلي|غنيلنا|غنّيلنا|غنينا|غنّينا|غني\s*(?:لنا|إلنا|النا)|شغلي\s+(?:اغنيتج|أغنيتج|اغنية|أغنية)|شغّل[ي]?\s+(?:اغنية|أغنية)|اريد\s+اسمعج\s+تغن|أريد\s+أسمعج\s+تغن)(?=$|[\s،,.!?؟])/i.test(text);
+  }
+
+  getLinaSongRequestLastAt(clientId) {
+    const safeClientId = cleanText(clientId, 80);
+    if (!safeClientId) return 0;
+    const row = this.sql.exec(
+      `SELECT last_request_at FROM ${LINA_SONG_REQUEST_TABLE} WHERE client_id = ? LIMIT 1`,
+      safeClientId
+    ).toArray()[0];
+    return Number(row?.last_request_at || 0);
+  }
+
+  markLinaSongRequest(clientId, at = Date.now()) {
+    const safeClientId = cleanText(clientId, 80);
+    if (!safeClientId) return;
+    this.sql.exec(
+      `INSERT INTO ${LINA_SONG_REQUEST_TABLE} (client_id, last_request_at) VALUES (?, ?)
+       ON CONFLICT(client_id) DO UPDATE SET last_request_at = excluded.last_request_at`,
+      safeClientId,
+      Number(at || Date.now())
+    );
+    this.sql.exec(
+      `DELETE FROM ${LINA_SONG_REQUEST_TABLE} WHERE last_request_at < ?`,
+      Date.now() - 24 * 60 * 60 * 1000
+    );
+  }
+
+  async startLinaPerformanceFromAi(session, trackId = "lina-song-2") {
+    const track = LINA_PERFORMANCE_TRACKS[cleanText(trackId, 40)];
+    if (!track) return false;
+    const now = Date.now();
+    const state = {
+      active: true,
+      id: crypto.randomUUID(),
+      trackId: track.id,
+      title: track.title,
+      mediaUrl: track.mediaUrl,
+      durationSeconds: track.durationSeconds,
+      offsetSeconds: 0,
+      startedAt: now,
+      paused: false,
+      controllerClientId: LINA_CLIENT_ID,
+      controllerName: LINA_NICKNAME,
+      controllerRole: "ai",
+      requestedByClientId: cleanText(session?.clientId, 80),
+      requestedByName: cleanText(session?.nickname, 40)
+    };
+    await this.ctx.storage.put(LINA_PERFORMANCE_STORAGE_KEY, state);
+    this.broadcast(this.linaPerformancePayload(state));
+    return true;
+  }
+
+  async maybeHandleLinaSongRequest(session, body) {
+    if (!session?.clientId) return false;
+    if (!this.isLinaSongRequest(body, session.clientId)) return false;
+
+    this.activateLinaConversation(session.clientId);
+    if (!this.isLinaSongRequestsEnabled()) {
+      this.markLinaReply(session.clientId);
+      this.persistLinaMessage("طلبات الأغاني متوقفة من الإدارة حالياً 🎤", session.clientId);
+      return true;
+    }
+    const visitorName = cleanText(session.nickname || "صديقي", 24) || "صديقي";
+    const current = await this.readLinaPerformanceState();
+    if (current?.active) {
+      this.markLinaReply(session.clientId);
+      this.persistLinaMessage(`هسه دا أغني 😄 خليني أكملها وبعدين آمرني ${visitorName}.`, session.clientId);
+      return true;
+    }
+
+    const now = Date.now();
+    const lastAt = this.getLinaSongRequestLastAt(session.clientId);
+    const remainingMs = Math.max(0, LINA_SONG_REQUEST_COOLDOWN_MS - (now - lastAt));
+    if (lastAt && remainingMs > 0) {
+      const minutes = Math.max(1, Math.ceil(remainingMs / 60000));
+      this.markLinaReply(session.clientId);
+      this.persistLinaMessage(`من عيوني ${visitorName} 😄 بس خلّيها بعد ${minutes} دقايق حتى ما نزعج الغرفة.`, session.clientId);
+      return true;
+    }
+
+    this.markLinaSongRequest(session.clientId, now);
+    this.markLinaReply(session.clientId);
+    this.recordLinaMemory(session.clientId, "user", cleanText(body, 800));
+    const started = await this.startLinaPerformanceFromAi(session);
+    if (!started) {
+      this.persistLinaMessage("صار عندي خلل بسيط بالأغنية، خليها عليّ بعد شوي 😄", session.clientId);
+      return true;
+    }
+
+    this.persistLinaMessage(`من عيوني ${visitorName} 🎤 هاي أغنيتي إلكم.`, session.clientId);
+    return true;
   }
 
   canControlLinaPerformance(session) {
