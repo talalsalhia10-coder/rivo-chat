@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>لوحة إدارة دردشة ريفو العراقية</title>
-<link rel="stylesheet" href="admin-design.css?v=214">
+<link rel="stylesheet" href="admin-design.css?v=217">
 </head>
 <body>
 <div id="adminToast" class="adminToastHost"></div>
@@ -13,7 +13,7 @@
 <header class="adminTopbar">
   <div class="adminBrand">
     <span>R</span>
-    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v60</small></div>
+    <div><b>دردشة ريفو العراقية</b><small>لوحة تحكم المالك 👑 · v61</small></div>
   </div>
   <div class="adminTopActions">
     <span id="serverSyncState" class="serverSyncState">جاري ربط الخادم…</span>
@@ -289,6 +289,14 @@
           <button id="linaPerformanceRestartBtn" class="secondaryAdminBtn" type="button">↻ من البداية</button>
           <button id="linaPerformanceStopBtn" class="dangerAdminBtn" type="button">■ إيقاف لينا</button>
         </div>
+        <label class="settingRow linaSongRequestToggle">
+          <span>
+            <b>🤖 طلب أغنية من الزوار</b>
+            <small>إذا كتب الزائر «لينا غني» تشغل لينا الأغنية تلقائياً في هذه الغرفة. لكل زائر طلب واحد كل 5 دقائق.</small>
+          </span>
+          <input id="linaSongRequestsEnabled" type="checkbox" checked>
+        </label>
+        <div id="linaSongRequestsAdminState" class="miniAdminStatus">طلبات الأغاني بالذكاء الصناعي مفعلة.</div>
         <div id="linaPerformanceAdminState" class="bigStatus">لينا متوقفة في هذه الغرفة.</div>
       </article>
     </section>
@@ -596,6 +604,6 @@
   </form>
 </div>
 
-<script src="admin-design.js?v=214"></script>
+<script src="admin-design.js?v=217"></script>
 </body>
 </html>

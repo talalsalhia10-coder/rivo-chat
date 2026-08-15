@@ -1127,3 +1127,10 @@ body.ownerAdminSettingsPopupOpen{overflow:hidden}
 #linaPerformanceAdminState.playing{background:rgba(28,190,130,.11);color:#087c54;border-color:rgba(28,190,130,.28)}
 #linaPerformanceAdminState.connecting{background:rgba(255,170,31,.12);color:#8a5700;border-color:rgba(255,170,31,.28)}
 @media(max-width:760px){.linaPerformanceDesignInfo{grid-column:1/-1}.linaPerformanceDesignButtons button{flex:1 1 100%}}
+
+/* v61: Lina AI song requests */
+.linaSongRequestToggle{margin-top:14px;border:1px solid rgba(124,58,237,.18);border-radius:14px;padding:12px 14px;background:rgba(124,58,237,.05)}
+.linaSongRequestToggle span{display:flex;flex-direction:column;gap:4px}
+.linaSongRequestToggle small{line-height:1.6}
+.miniAdminStatus{margin-top:8px;font-size:12px;color:#64748b}
+.miniAdminStatus.enabled{color:#15803d}.miniAdminStatus.disabled{color:#b91c1c}.miniAdminStatus.connecting{color:#7c3aed}

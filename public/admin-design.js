@@ -50,6 +50,7 @@ const CROWN_ONLY_NAME='__rivo_crown_only__';
 let ownerSession=null;
 let ownerAdminSettingsState={name:'الإدارة',avatar:'owner',visible:true,connected:false};
 const linaPerformanceStatesByRoom=new Map();
+const linaSongRequestsByRoom=new Map();
 let remoteSaveTimer=null;
 let remoteSaveSerial=0;
 let adminSocket=null;
@@ -410,9 +411,9 @@ function connectPresenceSocket(roomKey,force=false){
   if(room){
    try{socket.send(JSON.stringify({type:'admin-command',action:'set-public-mic',enabled:configuredRoomMicEnabled(backendRoom)}))}catch(_){ }
   }
-  try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}))}catch(_){ }
+  try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}));socket.send(JSON.stringify({type:'admin-command',action:'lina-song-requests-state-request'}))}catch(_){ }
  };
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleLinaPerformanceSocketMessage(data,backendRoom);handleAdminMessageSocketReply(data,backendRoom)};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(backendRoom),true);handleLinaPerformanceSocketMessage(data,backendRoom);handleLinaSongRequestsSocketMessage(data,backendRoom);handleAdminMessageSocketReply(data,backendRoom)};
  socket.onclose=()=>{if(presenceSockets.get(backendRoom)!==socket)return;presenceSockets.delete(backendRoom);clearTimeout(presenceReconnectTimers.get(backendRoom));presenceReconnectTimers.set(backendRoom,setTimeout(()=>connectPresenceSocket(backendRoom,true),2200))};
  socket.onerror=()=>{};
 }
@@ -457,8 +458,8 @@ function connectAdminSocket(force=false){
  const protocol=location.protocol==='https:'?'wss:':'ws:';
  const params=new URLSearchParams({staffSessionToken:session.staffSessionToken,role:'owner',staffClientId:session.staffClientId||session.staffId||'owner-main',visible:ownerAdminSettingsState.visible===false?'0':'1'});
  const socket=new WebSocket(`${protocol}//${location.host}/api/rooms/${encodeURIComponent(roomId)}/admin-ws?${params}`);adminSocket=socket;
- socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected');try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}))}catch(_){ }};
- socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);handleLinaPerformanceSocketMessage(data,roomId);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
+ socket.onopen=()=>{setServerSyncState('متصل بالخادم والدردشة','connected');try{socket.send(JSON.stringify({type:'admin-command',action:'lina-performance-state-request'}));socket.send(JSON.stringify({type:'admin-command',action:'lina-song-requests-state-request'}))}catch(_){ }};
+ socket.onmessage=event=>{let data=null;try{data=JSON.parse(event.data)}catch(_){return}if(['admin-init','admin-state'].includes(data.type))applyAdminSocketState(data,uiRoomId(roomId),false);handleLinaPerformanceSocketMessage(data,roomId);handleLinaSongRequestsSocketMessage(data,roomId);if(!handleAdminMessageSocketReply(data,roomId)&&data.type==='admin-error')toast(data.message||'تعذر تنفيذ أمر الإدارة')};
  socket.onclose=()=>{if(adminSocket!==socket)return;adminSocket=null;ownerAdminSettingsState.connected=false;renderOwnerAdminSettings();if(!adminSocketClosing){setServerSyncState('إعادة الاتصال…');clearTimeout(adminSocketReconnectTimer);adminSocketReconnectTimer=setTimeout(()=>connectAdminSocket(true),1800)}};
  socket.onerror=()=>setServerSyncState('تعذر اتصال الدردشة','error');
 }
@@ -2022,6 +2023,47 @@ function handleLinaPerformanceSocketMessage(data,roomId=''){
  renderLinaPerformanceAdminState();
  return true;
 }
+function renderLinaSongRequestsAdminState(){
+ const roomId=linaPerformanceSelectedRoom();
+ const key=normalizeLiveRoomId(roomId);
+ const state=linaSongRequestsByRoom.get(key);
+ const input=$('#linaSongRequestsEnabled');
+ const box=$('#linaSongRequestsAdminState');
+ if(input&&state)input.checked=state.enabled!==false;
+ if(box){
+  const enabled=state?state.enabled!==false:(input?.checked!==false);
+  box.className='miniAdminStatus '+(enabled?'enabled':'disabled');
+  box.textContent=enabled?'طلبات الأغاني بالذكاء الصناعي مفعلة في هذه الغرفة.':'طلبات الأغاني بالذكاء الصناعي متوقفة في هذه الغرفة.';
+ }
+}
+function handleLinaSongRequestsSocketMessage(data,roomId=''){
+ if(data?.type!=='lina-song-requests-state')return false;
+ const key=normalizeLiveRoomId(roomId||selectedRoomId);
+ linaSongRequestsByRoom.set(key,{enabled:data.enabled!==false,cooldownSeconds:Number(data.cooldownSeconds||300)});
+ renderLinaSongRequestsAdminState();
+ return true;
+}
+function requestLinaSongRequestsState(roomId=linaPerformanceSelectedRoom()){
+ const key=normalizeLiveRoomId(roomId);
+ const socket=presenceSockets.get(key)||(adminSocketRoom===key?adminSocket:null);
+ if(socket?.readyState===WebSocket.OPEN){
+  socket.send(JSON.stringify({type:'admin-command',action:'lina-song-requests-state-request'}));
+  return true;
+ }
+ connectPresenceSocket(key,true);
+ return false;
+}
+function sendLinaSongRequestsToggle(){
+ const roomId=linaPerformanceSelectedRoom();
+ const input=$('#linaSongRequestsEnabled');
+ const enabled=Boolean(input?.checked);
+ const label=roomById(roomId)?.name||roomId;
+ const attempt=()=>sendRoomAdminCommand(roomId,'lina-song-requests-toggle',{enabled});
+ const box=$('#linaSongRequestsAdminState');
+ if(box){box.className='miniAdminStatus connecting';box.textContent=`جاري ${enabled?'تشغيل':'إيقاف'} طلبات الأغاني في ${label}…`;}
+ if(attempt()){setTimeout(()=>requestLinaSongRequestsState(roomId),300);return;}
+ setTimeout(()=>{if(attempt())setTimeout(()=>requestLinaSongRequestsState(roomId),300);else if(box)box.textContent=`تعذر الاتصال بغرفة ${label}.`;},900);
+}
 function requestLinaPerformanceState(roomId=linaPerformanceSelectedRoom()){
  const key=normalizeLiveRoomId(roomId);
  const socket=presenceSockets.get(key)||(adminSocketRoom===key?adminSocket:null);
@@ -2066,7 +2108,8 @@ function renderRadioAdmin(){
  }
  renderRadioState();
  renderLinaPerformanceAdminState();
- if(linaSelect)requestLinaPerformanceState(linaSelect.value);
+ renderLinaSongRequestsAdminState();
+ if(linaSelect){requestLinaPerformanceState(linaSelect.value);requestLinaSongRequestsState(linaSelect.value);}
 }
 function updateRadioFromForm(){
  config.radio.title=$('#radioAdminTitle').value.trim()||'راديو ريفو';
@@ -2306,7 +2349,8 @@ function bind(){
  $('#radioAdminScope').onchange=()=>{$('#radioAdminRoomField').classList.toggle('hidden',$('#radioAdminScope').value!=='room')};
  $('#radioDemoBtn').onclick=()=>{$('#radioAdminTitle').value='موسيقى ريفو التجريبية';$('#radioAdminSource').value='assets/audio/rivo-radio-demo.wav';toast('تم اختيار المقطع التجريبي')};
  $('#radioStartBtn').onclick=()=>setRadioStatus('playing');$('#radioPauseBtn').onclick=()=>setRadioStatus('paused');$('#radioStopBtn').onclick=()=>setRadioStatus('stopped');
- if($('#linaPerformanceRoom'))$('#linaPerformanceRoom').onchange=()=>{renderLinaPerformanceAdminState();requestLinaPerformanceState()};
+ if($('#linaPerformanceRoom'))$('#linaPerformanceRoom').onchange=()=>{renderLinaPerformanceAdminState();renderLinaSongRequestsAdminState();requestLinaPerformanceState();requestLinaSongRequestsState()};
+ if($('#linaSongRequestsEnabled'))$('#linaSongRequestsEnabled').onchange=sendLinaSongRequestsToggle;
  if($('#linaPerformancePlayBtn'))$('#linaPerformancePlayBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-play',{trackId:'lina-song-2'});
  if($('#linaPerformanceRestartBtn'))$('#linaPerformanceRestartBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-play',{trackId:'lina-song-2',restart:true});
  if($('#linaPerformanceStopBtn'))$('#linaPerformanceStopBtn').onclick=()=>sendLinaPerformanceAction('lina-performance-stop');

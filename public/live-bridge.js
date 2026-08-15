@@ -1695,7 +1695,7 @@
 
     const mediaUrl = String(stateData.mediaUrl || "");
     const mediaObjectUrl = new URL(mediaUrl, location.href);
-    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "216");
+    if (!mediaObjectUrl.searchParams.has("rv")) mediaObjectUrl.searchParams.set("rv", "217");
     const absolute = mediaObjectUrl.href;
 
     // A new admin play command always restarts immediately from the new server state.
